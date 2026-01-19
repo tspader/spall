@@ -1,0 +1,23 @@
+{
+  "name": "spall",
+  "private": true,
+  "workspaces": {
+    "packages": ["packages/*"],
+    "catalog": {
+      "@tsconfig/bun": "1.0.10",
+      "@types/bun": "1.2.21",
+      "typescript": "5.9.3",
+      "prettier": "3.8.0"
+    }
+  },
+  "scripts": {
+    "typecheck": "bun --filter '*' typecheck",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@tsconfig/bun": "catalog:",
+    "prettier": "catalog:",
+    "typescript": "catalog:"
+  }
+}

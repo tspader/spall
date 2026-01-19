@@ -1,0 +1,14 @@
+.DS_Store
+node_modules
+.worktrees
+.env
+.vscode
+tmp
+dist
+ts-dist
+.direnv/
+doc/external
+
+# Local dev files
+logs/
+*.bun-build
