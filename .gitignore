@@ -12,3 +12,7 @@ doc/external
 # Local dev files
 logs/
 *.bun-build
+.spall
+test
+doc
+AGENTS.md

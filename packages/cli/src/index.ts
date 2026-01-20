@@ -87,20 +87,81 @@ yargs(hideBin(process.argv))
     async (argv) => {
       setupEventHandler();
       const content = argv.text ?? readFileSync(argv.file!, "utf-8");
+      const key = argv.path;
 
       const dbPath = getDbPath();
       Store.open(dbPath);
 
-      console.log("Path:", argv.path);
-      console.log("Content:", content);
+      // Store the note
+      Store.addNote(key, content);
+      console.log(`${pc.gray("note".padEnd(TAG_WIDTH))} added ${key}`);
 
-      console.log("\nGenerating embedding...");
-      const embedding = await Model.embed(content);
+      // Chunk and embed
+      const chunks = Store.chunk(content);
       console.log(
-        `Embedding (${embedding.length} dimensions):`,
-        embedding.slice(0, 5),
-        "...",
+        `${pc.gray("chunk".padEnd(TAG_WIDTH))} ${chunks.length} chunk(s)`,
       );
+
+      for (let seq = 0; seq < chunks.length; seq++) {
+        const chunk = chunks[seq]!;
+        const embedding = await Model.embed(chunk.text);
+        Store.embed(key, seq, chunk.pos, embedding);
+      }
+      console.log(`${pc.gray("embed".padEnd(TAG_WIDTH))} ${pc.green("ok")}`);
+
+      await Model.dispose();
+      Store.close();
+    },
+  )
+  .command(
+    "search <query>",
+    "Search for similar notes",
+    (yargs) => {
+      return yargs
+        .positional("query", {
+          describe: "Search query text",
+          type: "string",
+          demandOption: true,
+        })
+        .option("limit", {
+          alias: "n",
+          type: "number",
+          describe: "Maximum number of results",
+          default: 10,
+        });
+    },
+    async (argv) => {
+      setupEventHandler();
+      const dbPath = getDbPath();
+      Store.open(dbPath);
+
+      // Embed the query
+      const queryEmbedding = await Model.embed(argv.query);
+
+      // Search
+      const results = Store.vsearch(queryEmbedding, argv.limit);
+
+      if (results.length === 0) {
+        console.log("No results found.");
+      } else {
+        // Dedupe by key (multiple chunks may match)
+        const seen = new Set<string>();
+        for (const result of results) {
+          if (seen.has(result.key)) continue;
+          seen.add(result.key);
+
+          const similarity = (1 - result.distance).toFixed(3);
+          const note = Store.getNote(result.key);
+          const preview = note
+            ? note.slice(0, 80).replace(/\n/g, " ") +
+              (note.length > 80 ? "..." : "")
+            : "(no content)";
+
+          console.log(
+            `${pc.green(similarity)} ${pc.cyan(result.key)} ${pc.gray(preview)}`,
+          );
+        }
+      }
 
       await Model.dispose();
       Store.close();
