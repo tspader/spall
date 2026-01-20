@@ -1,17 +1,19 @@
 export namespace Sql {
   export const EMBEDDING_DIMS = 768;
 
-  export const CREATE_NOTES_TABLE = `
-    CREATE TABLE IF NOT EXISTS notes (
-      key TEXT PRIMARY KEY,
-      note TEXT NOT NULL
+  export const CREATE_FILES_TABLE = `
+    CREATE TABLE IF NOT EXISTS files (
+      path TEXT PRIMARY KEY,
+      mtime INTEGER NOT NULL,
+      embedded INTEGER NOT NULL DEFAULT 0
     )
   `;
 
   export const CREATE_META_TABLE = `
     CREATE TABLE IF NOT EXISTS meta (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
+      id INTEGER PRIMARY KEY CHECK (id = 1),
+      embedding_model TEXT NOT NULL,
+      embedding_dims INTEGER NOT NULL
     )
   `;
 
@@ -32,23 +34,52 @@ export namespace Sql {
   `;
 
   export const INSERT_META = `
-    INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)
+    INSERT OR REPLACE INTO meta (id, embedding_model, embedding_dims) VALUES (1, ?, ?)
   `;
 
   export const GET_META = `
-    SELECT value FROM meta WHERE key = ?
+    SELECT embedding_model, embedding_dims FROM meta WHERE id = 1
   `;
 
-  export const INSERT_NOTE = `
-    INSERT OR REPLACE INTO notes (key, note) VALUES (?, ?)
+  export const UPSERT_FILE = `
+    INSERT INTO files (path, mtime, embedded) VALUES (?, ?, 0)
+    ON CONFLICT(path) DO UPDATE SET mtime = excluded.mtime
   `;
 
-  export const GET_NOTE = `
-    SELECT note FROM notes WHERE key = ?
+  export const MARK_UNEMBEDDED = `
+    UPDATE files SET embedded = 0 WHERE path = ?
+  `;
+
+  export const GET_FILE = `
+    SELECT mtime, embedded FROM files WHERE path = ?
+  `;
+
+  export const MARK_EMBEDDED = `
+    UPDATE files SET embedded = 1 WHERE path = ?
+  `;
+
+  export const LIST_UNEMBEDDED_FILES = `
+    SELECT path FROM files WHERE embedded = 0
+  `;
+
+  export const DELETE_FILE = `
+    DELETE FROM files WHERE path = ?
+  `;
+
+  export const LIST_ALL_FILES = `
+    SELECT path FROM files
   `;
 
   export const INSERT_EMBEDDING = `
     INSERT OR REPLACE INTO embeddings (key, seq, pos) VALUES (?, ?, ?)
+  `;
+
+  export const DELETE_EMBEDDINGS = `
+    DELETE FROM embeddings WHERE key = ?
+  `;
+
+  export const DELETE_VECTORS_BY_PREFIX = `
+    DELETE FROM vectors WHERE key LIKE ? || ':%'
   `;
 
   export const INSERT_VECTOR = `
@@ -59,9 +90,5 @@ export namespace Sql {
     SELECT key, distance
     FROM vectors
     WHERE data MATCH ? AND k = ?
-  `;
-
-  export const GET_EMBEDDINGS_FOR_KEY = `
-    SELECT seq, pos FROM embeddings WHERE key = ?
   `;
 }

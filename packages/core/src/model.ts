@@ -1,14 +1,15 @@
 import {
   getLlama,
-  resolveModelFile,
+  createModelDownloader,
   LlamaLogLevel,
   type Llama,
   type LlamaModel,
   type LlamaEmbeddingContext,
+  type ModelDownloader,
 } from "node-llama-cpp";
 import { homedir } from "os";
 import { join } from "path";
-import { existsSync, mkdirSync } from "fs";
+import { mkdirSync, existsSync } from "fs";
 import { Event } from "./event";
 
 export namespace Model {
@@ -27,8 +28,6 @@ export namespace Model {
 
   export type Instance = {
     name: string;
-    friendlyName: string;
-    url: string;
     path: string | null;
     status: Status;
     model: LlamaModel | null;
@@ -39,16 +38,13 @@ export namespace Model {
     context: LlamaEmbeddingContext | null;
   };
 
-  type ParsedUri = {
-    file: string;
-    friendlyName: string;
-    url: string;
-    localPath: string;
+  export type Reranker = {
+    instance: Instance;
   };
 
   let config: Config | null = null;
   let embedder: Embedder | null = null;
-  let rerankerInstance: Instance | null = null;
+  let reranker!: Reranker;
   let llama: Llama | null = null;
 
   function ensureCacheDir(): void {
@@ -64,37 +60,12 @@ export namespace Model {
     return llama;
   }
 
-  function parseUri(uri: string): ParsedUri {
-    if (uri.startsWith("hf:")) {
-      const parts = uri.slice(3).split("/");
-      const file = parts[parts.length - 1] ?? "unknown";
-      return {
-        file,
-        friendlyName: file.replace(".gguf", ""),
-        url: `https://huggingface.co/${parts[0]}/${parts[1]}/resolve/main/${file}`,
-        localPath: join(MODEL_CACHE_DIR, file),
-      };
-    }
-    return {
-      file: uri.split("/").pop() ?? uri,
-      friendlyName: uri,
-      url: uri,
-      localPath: uri,
-    };
-  }
-
-  function createInstance(uri: string): Instance {
-    const parsed = parseUri(uri);
-    const localPath = existsSync(parsed.localPath) ? parsed.localPath : null;
-
-    return {
-      name: parsed.file,
-      friendlyName: parsed.friendlyName,
-      url: parsed.url,
-      path: localPath,
-      status: localPath ? "downloaded" : "pending",
-      model: null,
-    };
+  async function createDownloader(modelUri: string): Promise<ModelDownloader> {
+    ensureCacheDir();
+    return createModelDownloader({
+      modelUri,
+      dirPath: MODEL_CACHE_DIR,
+    });
   }
 
   export function init(cfg?: Partial<Config>): void {
@@ -106,81 +77,69 @@ export namespace Model {
     };
 
     embedder = {
-      instance: createInstance(config.embeddingModel),
+      instance: { name: "", path: null, status: "pending", model: null },
       context: null,
     };
-    rerankerInstance = createInstance(config.rerankerModel);
+    reranker = {
+      instance: { name: "", path: null, status: "pending", model: null },
+    };
   }
 
-  export function embedding(): Instance {
-    if (!embedder) {
-      init();
+  export async function download(): Promise<void> {
+    // Download embedding model
+    const embedDownloader = await createDownloader(config!.embeddingModel);
+    const embedName = embedDownloader.entrypointFilename;
+    embedder!.instance.name = embedName;
+
+    if (embedDownloader.downloadedSize < embedDownloader.totalSize) {
+      Event.emit({ tag: "model", action: "download", model: embedName });
     }
-    return embedder!.instance;
-  }
-
-  export function reranker(): Instance {
-    if (!rerankerInstance) {
-      init();
-    }
-    return rerankerInstance!;
-  }
-
-  export async function ensureEmbedding(): Promise<string> {
-    if (!embedder) init();
-    ensureCacheDir();
-    Event.emit({
-      tag: "model",
-      action: "download",
-      model: embedder!.instance.friendlyName,
-    });
-    const path = await resolveModelFile(
-      config!.embeddingModel,
-      MODEL_CACHE_DIR,
-    );
-    embedder!.instance.path = path;
+    embedder!.instance.path = await embedDownloader.download();
     embedder!.instance.status = "downloaded";
-    Event.emit({
-      tag: "model",
-      action: "ready",
-      model: embedder!.instance.friendlyName,
-    });
-    return path;
+    Event.emit({ tag: "model", action: "ready", model: embedName });
+
+    // Download reranker model
+    const rerankDownloader = await createDownloader(config!.rerankerModel);
+    const rerankName = rerankDownloader.entrypointFilename;
+    reranker.instance.name = rerankName;
+
+    if (rerankDownloader.downloadedSize < rerankDownloader.totalSize) {
+      Event.emit({ tag: "model", action: "download", model: rerankName });
+    }
+    reranker.instance.path = await rerankDownloader.download();
+    reranker.instance.status = "downloaded";
+    Event.emit({ tag: "model", action: "ready", model: rerankName });
   }
 
-  export async function ensureReranker(): Promise<string> {
-    if (!config) init();
-    ensureCacheDir();
-    Event.emit({
-      tag: "model",
-      action: "download",
-      model: rerankerInstance!.friendlyName,
-    });
-    const path = await resolveModelFile(config!.rerankerModel, MODEL_CACHE_DIR);
-    rerankerInstance!.path = path;
-    rerankerInstance!.status = "downloaded";
-    Event.emit({
-      tag: "model",
-      action: "ready",
-      model: rerankerInstance!.friendlyName,
-    });
-    return path;
-  }
-
-  export async function embed(text: string): Promise<number[]> {
-    if (!embedder) init();
+  export async function load(): Promise<void> {
+    if (!embedder!.instance.path) {
+      throw new Error("Model not downloaded. Call Model.download() first.");
+    }
     if (!embedder!.instance.model) {
-      const path = await ensureEmbedding();
       const l = await ensureLlama();
-      embedder!.instance.model = await l.loadModel({ modelPath: path });
+      embedder!.instance.model = await l.loadModel({
+        modelPath: embedder!.instance.path,
+      });
     }
     if (!embedder!.context) {
       embedder!.context =
         await embedder!.instance.model.createEmbeddingContext();
     }
+  }
 
-    const result = await embedder!.context.getEmbeddingFor(text);
+  export async function embed(text: string): Promise<number[]> {
+    const result = await embedder!.context!.getEmbeddingFor(text);
     return Array.from(result.vector);
+  }
+
+  export async function embedBatch(texts: string[]): Promise<number[][]> {
+    const embeddings = await Promise.all(
+      texts.map(async (text) => {
+        const result = await embedder!.context!.getEmbeddingFor(text);
+        return Array.from(result.vector);
+      }),
+    );
+    return embeddings;
   }
 
   export async function dispose(): Promise<void> {
@@ -192,9 +151,9 @@ export namespace Model {
       await embedder.instance.model.dispose();
       embedder.instance.model = null;
     }
-    if (rerankerInstance?.model) {
-      await rerankerInstance.model.dispose();
-      rerankerInstance.model = null;
+    if (reranker?.instance?.model) {
+      await reranker.instance.model.dispose();
+      reranker.instance.model = null;
     }
     if (llama) {
       await llama.dispose();
@@ -202,6 +161,6 @@ export namespace Model {
     }
     config = null;
     embedder = null;
-    rerankerInstance = null;
+    reranker = undefined!;
   }
 }

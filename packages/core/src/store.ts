@@ -1,9 +1,12 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname } from "path";
+import { Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
 import { Event } from "./event";
 import { Sql } from "./sql";
+import { Io } from "./io";
+import { Model } from "./model";
 
 export type Chunk = {
   text: string;
@@ -13,6 +16,37 @@ export type Chunk = {
 export type VSearchResult = {
   key: string;
   distance: number;
+};
+
+export type FileRecord = {
+  mtime: number;
+  embedded: boolean;
+};
+
+export type IndexEvent =
+  | { type: "scan_start" }
+  | { type: "file_add"; path: string }
+  | { type: "file_modify"; path: string }
+  | { type: "file_remove"; path: string }
+  | { type: "scan_done"; added: number; modified: number; removed: number }
+  | { type: "embed_start"; total: number; totalBytes: number }
+  | {
+      type: "embed_progress";
+      current: number;
+      total: number;
+      bytesProcessed: number;
+      totalBytes: number;
+    }
+  | { type: "embed_done" };
+
+export type IndexResult = {
+  added: string[];
+  modified: string[];
+  removed: string[];
+};
+
+export type ScanResult = IndexResult & {
+  unembedded: string[];
 };
 
 export namespace Store {
@@ -46,17 +80,13 @@ export namespace Store {
     sqliteVec.load(instance);
 
     // Create all tables
-    instance.run(Sql.CREATE_NOTES_TABLE);
+    instance.run(Sql.CREATE_FILES_TABLE);
     instance.run(Sql.CREATE_META_TABLE);
     instance.run(Sql.CREATE_EMBEDDINGS_TABLE);
     instance.run(Sql.CREATE_VECTORS_TABLE);
 
     // Store metadata
-    instance.run(Sql.INSERT_META, ["embedding_model", "embeddinggemma-300M"]);
-    instance.run(Sql.INSERT_META, [
-      "embedding_dims",
-      String(Sql.EMBEDDING_DIMS),
-    ]);
+    instance.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
 
     return instance;
   }
@@ -77,16 +107,62 @@ export namespace Store {
     }
   }
 
-  export function addNote(key: string, note: string): void {
+  // ============================================
+  // File Operations
+  // ============================================
+
+  export function getFile(path: string): FileRecord | null {
     const db = get();
-    db.run(Sql.INSERT_NOTE, [key, note]);
+    const row = db.prepare(Sql.GET_FILE).get(path) as {
+      mtime: number;
+      embedded: number;
+    } | null;
+    return row ? { mtime: row.mtime, embedded: row.embedded === 1 } : null;
   }
 
-  export function getNote(key: string): string | null {
+  export function markEmbedded(path: string): void {
     const db = get();
-    const row = db.prepare(Sql.GET_NOTE).get(key) as { note: string } | null;
-    return row?.note ?? null;
+    db.run(Sql.MARK_EMBEDDED, [path]);
   }
+
+  export function markUnembedded(path: string): void {
+    const db = get();
+    db.run(Sql.MARK_UNEMBEDDED, [path]);
+  }
+
+  export function listUnembeddedFiles(): string[] {
+    const db = get();
+    const rows = db.prepare(Sql.LIST_UNEMBEDDED_FILES).all() as {
+      path: string;
+    }[];
+    return rows.map((r) => r.path);
+  }
+
+  export function upsertFile(path: string, mtime: number): void {
+    const db = get();
+    db.run(Sql.UPSERT_FILE, [path, mtime]);
+  }
+
+  export function removeFile(path: string): void {
+    const db = get();
+
+    // Remove embeddings and vectors first
+    db.run(Sql.DELETE_EMBEDDINGS, [path]);
+    db.run(Sql.DELETE_VECTORS_BY_PREFIX, [path]);
+
+    // Remove file record
+    db.run(Sql.DELETE_FILE, [path]);
+  }
+
+  export function listAllFiles(): string[] {
+    const db = get();
+    const rows = db.prepare(Sql.LIST_ALL_FILES).all() as { path: string }[];
+    return rows.map((r) => r.path);
+  }
+
+  // ============================================
+  // Chunking & Embedding
+  // ============================================
 
   export function chunk(text: string): Chunk[] {
     if (text.length <= CHUNK_SIZE) {
@@ -105,6 +181,12 @@ export namespace Store {
     }
 
     return chunks;
+  }
+
+  export function clearEmbeddings(key: string): void {
+    const db = get();
+    db.run(Sql.DELETE_EMBEDDINGS, [key]);
+    db.run(Sql.DELETE_VECTORS_BY_PREFIX, [key]);
   }
 
   export function embed(
@@ -132,10 +214,166 @@ export namespace Store {
       distance: number;
     }[];
 
-    // Parse chunk keys back to note keys
+    // Parse chunk keys back to file keys
     return rows.map((row) => ({
       key: row.key.split(":")[0]!,
       distance: row.distance,
     }));
+  }
+
+  // ============================================
+  // Indexing
+  // ============================================
+
+  const BATCH_SIZE = 32;
+
+  export async function scan(
+    dir: string,
+    onEvent?: (event: IndexEvent) => void,
+  ): Promise<ScanResult> {
+    const emit = onEvent ?? (() => {});
+
+    emit({ type: "scan_start" });
+
+    const glob = new Glob("**/*.md");
+    const diskFiles = new Set<string>();
+
+    const added: string[] = [];
+    const modified: string[] = [];
+    const removed: string[] = [];
+
+    // Scan disk and upsert changed files (sets embedded=0)
+    for await (const file of glob.scan({
+      cwd: dir,
+      absolute: false,
+    })) {
+      diskFiles.add(file);
+      const meta = Io.get(dir, file);
+      const existing = getFile(file);
+
+      if (!existing) {
+        upsertFile(file, meta.modTime);
+        added.push(file);
+        emit({ type: "file_add", path: file });
+      }
+      else if (meta.modTime > existing.mtime) {
+        upsertFile(file, meta.modTime);
+        clearEmbeddings(file);
+        markUnembedded(file);
+        modified.push(file);
+        emit({ type: "file_modify", path: file });
+      }
+    }
+
+    // Check for deleted files
+    const files = listAllFiles();
+    for (const file of files) {
+      if (!diskFiles.has(file)) {
+        removeFile(file);
+        removed.push(file);
+        emit({ type: "file_remove", path: file });
+      }
+    }
+
+    emit({
+      type: "scan_done",
+      added: added.length,
+      modified: modified.length,
+      removed: removed.length,
+    });
+
+    const unembedded = listUnembeddedFiles();
+    return { added, modified, removed, unembedded };
+  }
+
+  export async function embedFiles(
+    dir: string,
+    files: string[],
+    onEvent?: (event: IndexEvent) => void,
+  ): Promise<void> {
+    if (files.length === 0) return;
+
+    const emit = onEvent ?? (() => {});
+
+    // Build work list with all chunks
+    type ChunkWork = { key: string; seq: number; pos: number; text: string };
+    type FileWork = { key: string; size: number; chunks: ChunkWork[] };
+
+    const work: FileWork[] = [];
+    for (const file of files) {
+      const meta = Io.get(dir, file);
+      const content = Io.read(dir, file);
+      const chunks = chunk(content);
+      work.push({
+        key: file,
+        size: meta.size,
+        chunks: chunks.map((c, seq) => ({
+          key: file,
+          seq,
+          pos: c.pos,
+          text: c.text,
+        })),
+      });
+    }
+
+    const totalBytes = work.reduce((sum, f) => sum + f.size, 0);
+    emit({ type: "embed_start", total: work.length, totalBytes });
+
+    // Load model only when we have work
+    await Model.load();
+
+    // Process files, batching chunks within and across files
+    let current = 0;
+    let bytesProcessed = 0;
+    let pendingChunks: ChunkWork[] = [];
+    let pendingFiles: FileWork[] = [];
+
+    const flushBatch = async () => {
+      if (pendingChunks.length === 0) return;
+
+      const texts = pendingChunks.map((c) => c.text);
+      const embeddings = await Model.embedBatch(texts);
+
+      for (let j = 0; j < pendingChunks.length; j++) {
+        const c = pendingChunks[j]!;
+        embed(c.key, c.seq, c.pos, embeddings[j]!);
+      }
+
+      // Mark completed files and emit progress
+      for (const file of pendingFiles) {
+        markEmbedded(file.key);
+        current++;
+        bytesProcessed += file.size;
+        emit({
+          type: "embed_progress",
+          current,
+          total: work.length,
+          bytesProcessed,
+          totalBytes,
+        });
+      }
+
+      pendingChunks = [];
+      pendingFiles = [];
+    };
+
+    for (const file of work) {
+      // Clear any partial embeddings from interrupted runs
+      clearEmbeddings(file.key);
+
+      // Add this file's chunks to pending
+      pendingChunks.push(...file.chunks);
+      pendingFiles.push(file);
+
+      // Flush when we have enough chunks
+      if (pendingChunks.length >= BATCH_SIZE) {
+        await flushBatch();
+      }
+    }
+
+    // Flush remaining
+    await flushBatch();
+
+    emit({ type: "embed_done" });
   }
 }
