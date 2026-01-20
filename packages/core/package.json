@@ -11,6 +11,7 @@
     "typescript": "catalog:"
   },
   "dependencies": {
-    "node-llama-cpp": "^3.15.0"
+    "node-llama-cpp": "^3.15.0",
+    "sqlite-vec": "^0.1.7-alpha.2"
   }
 }
