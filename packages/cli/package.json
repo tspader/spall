@@ -3,11 +3,16 @@
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
+  "bin": {
+    "spall": "src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@spall/core": "workspace:*"
+    "@spall/core": "workspace:*",
+    "@types/yargs": "^17.0.35",
+    "yargs": "^18.0.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

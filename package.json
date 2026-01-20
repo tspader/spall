@@ -19,5 +19,8 @@
     "@tsconfig/bun": "catalog:",
     "prettier": "catalog:",
     "typescript": "catalog:"
+  },
+  "dependencies": {
+    "yargs": "^18.0.0"
   }
 }
