@@ -12,6 +12,7 @@
   "dependencies": {
     "@spall/core": "workspace:*",
     "@types/yargs": "^17.0.35",
+    "picocolors": "^1.1.1",
     "yargs": "^18.0.0"
   },
   "devDependencies": {
