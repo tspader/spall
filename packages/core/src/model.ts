@@ -46,7 +46,7 @@ export namespace Model {
   };
 
   let config: Config | null = null;
-  let embedder: Embedder | null = null;
+  let embedder: Embedder;
   let reranker!: Reranker;
   let llama: Llama | null = null;
 
@@ -89,56 +89,72 @@ export namespace Model {
   }
 
   export async function download(): Promise<void> {
-    // Download embedding model
-    const embedDownloader = await createDownloader(config!.embeddingModel);
-    const embedName = embedDownloader.entrypointFilename;
-    embedder!.instance.name = embedName;
+    type DownloadWork = {
+      instance: Instance;
+      downloader: ModelDownloader;
+      uri: string;
+    };
 
-    if (embedDownloader.downloadedSize < embedDownloader.totalSize) {
-      Event.emit({ tag: "model", action: "download", model: embedName });
+    const work: DownloadWork[] = [
+      {
+        instance: embedder.instance,
+        downloader: await createDownloader(config!.embeddingModel),
+        uri: config!.embeddingModel,
+      },
+      {
+        instance: reranker.instance,
+        downloader: await createDownloader(config!.rerankerModel),
+        uri: config!.rerankerModel,
+      },
+    ];
+
+    for (const { instance, downloader, uri } of work) {
+      instance.name = uri.split("/").pop()!;
+
+      const needDownload = downloader.downloadedSize < downloader.totalSize;
+      if (needDownload) {
+        Event.emit({ tag: "model", action: "download", model: instance.name });
+      }
+
+      instance.path = await downloader.download();
+      instance.status = "downloaded";
+
+      Event.emit({ tag: "model", action: "ready", model: instance.name });
     }
-    embedder!.instance.path = await embedDownloader.download();
-    embedder!.instance.status = "downloaded";
-    Event.emit({ tag: "model", action: "ready", model: embedName });
-
-    // Download reranker model
-    const rerankDownloader = await createDownloader(config!.rerankerModel);
-    const rerankName = rerankDownloader.entrypointFilename;
-    reranker.instance.name = rerankName;
-
-    if (rerankDownloader.downloadedSize < rerankDownloader.totalSize) {
-      Event.emit({ tag: "model", action: "download", model: rerankName });
-    }
-    reranker.instance.path = await rerankDownloader.download();
-    reranker.instance.status = "downloaded";
-    Event.emit({ tag: "model", action: "ready", model: rerankName });
   }
 
   export async function load(): Promise<void> {
-    if (!embedder!.instance.path) {
+    if (!embedder.instance.path) {
       throw new Error("Model not downloaded. Call Model.download() first.");
     }
-    if (!embedder!.instance.model) {
-      const l = await ensureLlama();
-      embedder!.instance.model = await l.loadModel({
-        modelPath: embedder!.instance.path,
+
+    if (!embedder.instance.model) {
+      Event.emit({
+        tag: "model",
+        action: "load",
+        model: embedder.instance.name,
+        path: embedder.instance.path,
+      });
+      const llama = await ensureLlama();
+      embedder.instance.model = await llama.loadModel({
+        modelPath: embedder.instance.path,
       });
     }
-    if (!embedder!.context) {
-      embedder!.context =
-        await embedder!.instance.model.createEmbeddingContext();
+
+    if (!embedder.context) {
+      embedder.context = await embedder.instance.model.createEmbeddingContext();
     }
   }
 
   export async function embed(text: string): Promise<number[]> {
-    const result = await embedder!.context!.getEmbeddingFor(text);
+    const result = await embedder.context!.getEmbeddingFor(text);
     return Array.from(result.vector);
   }
 
   export async function embedBatch(texts: string[]): Promise<number[][]> {
     const embeddings = await Promise.all(
       texts.map(async (text) => {
-        const result = await embedder!.context!.getEmbeddingFor(text);
+        const result = await embedder.context!.getEmbeddingFor(text);
         return Array.from(result.vector);
       }),
     );
@@ -177,7 +193,7 @@ export namespace Model {
       llama = null;
     }
     config = null;
-    embedder = null;
+    embedder = undefined!;
     reranker = undefined!;
   }
 }

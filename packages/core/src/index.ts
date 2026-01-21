@@ -6,6 +6,6 @@ export {
   type IndexResult,
 } from "./store";
 export { Model, type Token } from "./model";
-export { Event, type Event as EventType } from "./event";
+export { Event, FileStatus, type Event as EventType } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";

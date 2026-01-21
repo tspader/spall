@@ -1,17 +1,19 @@
+export enum FileStatus {
+  Added = "added",
+  Modified = "modified",
+  Removed = "removed",
+  Ok = "ok",
+}
+
 export type Event =
   | { tag: "init"; action: "create_db"; path: string }
   | { tag: "init"; action: "done" }
   | { tag: "model"; action: "download"; model: string }
+  | { tag: "model"; action: "load"; model: string; path: string }
   | { tag: "model"; action: "ready"; model: string }
-  | { tag: "scan"; action: "start" }
-  | { tag: "scan"; action: "progress"; found: number }
-  | {
-      tag: "scan";
-      action: "done";
-      added: number;
-      modified: number;
-      removed: number;
-    }
+  | { tag: "scan"; action: "start"; total: number }
+  | { tag: "scan"; action: "progress"; path: string; status: FileStatus }
+  | { tag: "scan"; action: "done" }
   | {
       tag: "embed";
       action: "start";
@@ -22,8 +24,8 @@ export type Event =
   | {
       tag: "embed";
       action: "progress";
-      current: number;
-      total: number;
+      filesProcessed: number;
+      totalFiles: number;
       bytesProcessed: number;
       totalBytes: number;
     }

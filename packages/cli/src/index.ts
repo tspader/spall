@@ -5,7 +5,14 @@ import { mkdirSync, writeFileSync, existsSync, statSync } from "fs";
 import { join, dirname } from "path";
 import { Glob } from "bun";
 import pc from "picocolors";
-import { Store, Model, Event, Io, type EventType } from "@spall/core";
+import {
+  Store,
+  Model,
+  Event,
+  FileStatus,
+  Io,
+  type EventType,
+} from "@spall/core";
 
 const SPALL_DIR = ".spall";
 const DB_NAME = "spall.db";
@@ -43,19 +50,26 @@ function setupEventHandler(): void {
     if (event.tag === "init") {
       switch (event.action) {
         case "create_db":
-          console.log(`${tag} creating database at ${event.path}`);
+          console.log(
+            `${tag} Creating database at ${pc.cyanBright(event.path)}`,
+          );
           break;
         case "done":
-          console.log(`${tag} ${pc.green("ok")}`);
           break;
       }
     } else if (event.tag === "model") {
       switch (event.action) {
         case "download":
-          console.log(`${tag} downloading ${event.model}`);
+          console.log(`${tag} Downloading ${pc.cyanBright(event.model)}`);
           break;
+        case "load": {
+          const size = statSync(event.path).size;
+          console.log(
+            `${tag} Loading ${pc.cyanBright(event.model)} ${pc.dim(`(${formatBytes(size)})`)}`,
+          );
+          break;
+        }
         case "ready":
-          console.log(`${tag} ${event.model} ready`);
           break;
       }
     }
@@ -109,34 +123,37 @@ yargs(hideBin(process.argv))
       await Model.download();
 
       const tag = pc.gray("index".padEnd(TAG_WIDTH));
+      const clear = "\x1b[K";
 
       // Set up index event handler
       let startTimeNs = 0;
       let totalBytes = 0;
 
+      // Scan state
+      let scanTotal = 0;
+      let scanProcessed = 0;
+      const scanCounts = { added: 0, modified: 0, removed: 0, ok: 0 };
+
       const indexHandler = (event: EventType) => {
         if (event.tag === "scan") {
           switch (event.action) {
+            case "start":
+              scanTotal = event.total;
+              break;
             case "progress":
+              scanProcessed++;
+              scanCounts[event.status]++;
               process.stdout.write(
-                `\r${tag} scanning... ${pc.dim(`${event.found} files`)}\x1b[K`,
+                `\r${tag} Scanning ${pc.dim(`${scanProcessed}/${scanTotal}`)}${clear}`,
               );
               break;
-            case "done":
-              // Clear the scanning line
-              process.stdout.write(`\r\x1b[K`);
-              if (event.added > 0 || event.modified > 0 || event.removed > 0) {
-                const parts: string[] = [];
-                if (event.added > 0) parts.push(pc.green(`${event.added} new`));
-                if (event.modified > 0)
-                  parts.push(pc.yellow(`${event.modified} modified`));
-                if (event.removed > 0)
-                  parts.push(pc.red(`${event.removed} removed`));
-                console.log(`${tag} ${parts.join(", ")}`);
-              } else {
-                console.log(`${tag} up to date`);
-              }
+            case "done": {
+              const { added, modified, removed } = scanCounts;
+              const ignored = scanTotal - (added + modified + removed)
+              process.stdout.write("\n");
+              console.log(`${tag} ${added} added, ${modified} modified, ${removed} removed, ${ignored} up to date`)
               break;
+            }
           }
         } else if (event.tag === "embed") {
           switch (event.action) {
@@ -144,7 +161,7 @@ yargs(hideBin(process.argv))
               startTimeNs = Bun.nanoseconds();
               totalBytes = event.totalBytes;
               console.log(
-                `${tag} embedding ${pc.bold(String(event.totalDocs))} documents (${pc.dim(`${event.totalChunks} chunks, ${formatBytes(event.totalBytes)}`)})`,
+                `${tag} Embedding ${event.totalDocs} documents (${pc.dim(`${event.totalChunks} chunks, ${formatBytes(event.totalBytes)}`)})`,
               );
               break;
             case "progress": {
@@ -161,7 +178,7 @@ yargs(hideBin(process.argv))
               const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
 
               process.stdout.write(
-                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(`${event.current}/${event.total}`)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}\x1b[K`,
+                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(`${event.filesProcessed}/${event.totalFiles}`)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
               );
               break;
             }
@@ -169,10 +186,10 @@ yargs(hideBin(process.argv))
               const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
               const avgThroughput = formatBytes(totalBytes / totalTimeSec);
               console.log(
-                `\r${renderProgressBar(100)} ${pc.bold("100%")}\x1b[K`,
+                `\r${renderProgressBar(100)} 100%${clear}`,
               );
               console.log(
-                `${pc.green("done")} in ${pc.bold(formatETA(totalTimeSec))} ${pc.dim(`(${avgThroughput}/s)`)}`,
+                `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s ${pc.dim(`(${avgThroughput}/s)`)}`,
               );
               break;
             }

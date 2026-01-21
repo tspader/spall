@@ -1,9 +1,9 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname } from "path";
-import { Glob } from "bun";
+import { file, Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
-import { Event } from "./event";
+import { Event, FileStatus } from "./event";
 import { Sql } from "./sql";
 import { Io } from "./io";
 import { Model } from "./model";
@@ -273,56 +273,64 @@ export namespace Store {
   // Indexing
   // ============================================
 
-  const BATCH_SIZE = 32;
+  const BATCH_SIZE = 16;
 
   export async function scan(dir: string): Promise<ScanResult> {
-    Event.emit({ tag: "scan", action: "start" });
-
     const glob = new Glob("**/*.md");
-    const diskFiles = new Set<string>();
 
+    // First pass: count total files
+    const allFiles: string[] = [];
+    for await (const file of glob.scan({ cwd: dir, absolute: false })) {
+      allFiles.push(file);
+    }
+
+    Event.emit({ tag: "scan", action: "start", total: allFiles.length });
+
+    const diskFiles = new Set<string>();
     const added: string[] = [];
     const modified: string[] = [];
     const removed: string[] = [];
 
-    // Scan disk and upsert changed files (sets embedded=0)
-    for await (const file of glob.scan({
-      cwd: dir,
-      absolute: false,
-    })) {
+    // Second pass: check each file's status
+    for (const file of allFiles) {
       diskFiles.add(file);
-      Event.emit({ tag: "scan", action: "progress", found: diskFiles.size });
-
       const meta = Io.get(dir, file);
       const existing = getFile(file);
 
+      let status: FileStatus;
       if (!existing) {
         upsertFile(file, meta.modTime);
         added.push(file);
+        status = FileStatus.Added;
       } else if (meta.modTime > existing.mtime) {
         upsertFile(file, meta.modTime);
         clearEmbeddings(file);
         markUnembedded(file);
         modified.push(file);
+        status = FileStatus.Modified;
+      } else {
+        status = FileStatus.Ok;
       }
+
+      Event.emit({ tag: "scan", action: "progress", path: file, status });
     }
 
     // Check for deleted files
-    const files = listAllFiles();
-    for (const file of files) {
+    const dbFiles = listAllFiles();
+    for (const file of dbFiles) {
       if (!diskFiles.has(file)) {
         removeFile(file);
         removed.push(file);
+        Event.emit({
+          tag: "scan",
+          action: "progress",
+          path: file,
+          status: FileStatus.Removed,
+        });
       }
     }
 
-    Event.emit({
-      tag: "scan",
-      action: "done",
-      added: added.length,
-      modified: modified.length,
-      removed: removed.length,
-    });
+    Event.emit({ tag: "scan", action: "done" });
 
     const unembedded = listUnembeddedFiles();
     return { added, modified, removed, unembedded };
@@ -334,10 +342,9 @@ export namespace Store {
   ): Promise<void> {
     if (files.length === 0) return;
 
-    // Load model first - needed for tokenization during chunking
     await Model.load();
 
-    // Build work list with all chunks
+    // tokenize and chunk each file
     type ChunkWork = { key: string; seq: number; pos: number; text: string };
     type FileWork = { key: string; size: number; chunks: ChunkWork[] };
 
@@ -346,6 +353,7 @@ export namespace Store {
       const meta = Io.get(dir, file);
       const content = Io.read(dir, file);
       const chunks = await chunk(content);
+
       work.push({
         key: file,
         size: meta.size,
@@ -358,8 +366,8 @@ export namespace Store {
       });
     }
 
-    const totalBytes = work.reduce((sum, f) => sum + f.size, 0);
-    const totalChunks = work.reduce((sum, f) => sum + f.chunks.length, 0);
+    const totalBytes = work.reduce((sum, file) => sum + file.size, 0);
+    const totalChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
     Event.emit({
       tag: "embed",
       action: "start",
@@ -368,8 +376,24 @@ export namespace Store {
       totalBytes,
     });
 
-    // Process files, batching chunks within and across files
-    let current = 0;
+    // prepare statements up front
+    const db = get();
+    const statements = {
+      embedding: {
+        delete: db.prepare(Sql.DELETE_EMBEDDINGS),
+        insert: db.prepare(Sql.INSERT_EMBEDDING),
+      },
+      vector: {
+        delete: db.prepare(Sql.DELETE_VECTORS_BY_PREFIX),
+        insert: db.prepare(Sql.INSERT_VECTOR),
+      },
+      file: {
+        markEmbedded: db.prepare(Sql.MARK_EMBEDDED),
+      },
+    };
+
+    //
+    let filesProcessed = 0;
     let bytesProcessed = 0;
     let pendingChunks: ChunkWork[] = [];
     let pendingFiles: FileWork[] = [];
@@ -377,48 +401,55 @@ export namespace Store {
     const flushBatch = async () => {
       if (pendingChunks.length === 0) return;
 
-      const texts = pendingChunks.map((c) => c.text);
+      const texts = pendingChunks.map((chunk) => chunk.text);
       const embeddings = await Model.embedBatch(texts);
 
-      for (let j = 0; j < pendingChunks.length; j++) {
-        const c = pendingChunks[j]!;
-        embed(c.key, c.seq, c.pos, embeddings[j]!);
-      }
+      db.transaction(() => {
+        for (const file of pendingFiles) {
+          statements.embedding.delete.run(file.key);
+          statements.vector.delete.run(file.key);
+        }
 
-      // Mark completed files and emit progress
-      for (const file of pendingFiles) {
-        markEmbedded(file.key);
-        current++;
-        bytesProcessed += file.size;
-        Event.emit({
-          tag: "embed",
-          action: "progress",
-          current,
-          total: work.length,
-          bytesProcessed,
-          totalBytes,
-        });
-      }
+        for (let j = 0; j < pendingChunks.length; j++) {
+          const c = pendingChunks[j]!;
+          const chunkKey = `${c.key}:${c.seq}`;
+          statements.embedding.insert.run(c.key, c.seq, c.pos);
+          statements.vector.insert.run(
+            chunkKey,
+            new Float32Array(embeddings[j]!),
+          );
+        }
+
+        for (const file of pendingFiles) {
+          statements.file.markEmbedded.run(file.key);
+          bytesProcessed += file.size;
+        }
+
+        filesProcessed += pendingFiles.length;
+      })();
+
+      Event.emit({
+        tag: "embed",
+        action: "progress",
+        filesProcessed: filesProcessed,
+        totalFiles: work.length,
+        bytesProcessed,
+        totalBytes,
+      });
 
       pendingChunks = [];
       pendingFiles = [];
     };
 
     for (const file of work) {
-      // Clear any partial embeddings from interrupted runs
-      clearEmbeddings(file.key);
-
-      // Add this file's chunks to pending
       pendingChunks.push(...file.chunks);
       pendingFiles.push(file);
 
-      // Flush when we have enough chunks
       if (pendingChunks.length >= BATCH_SIZE) {
         await flushBatch();
       }
     }
 
-    // Flush remaining
     await flushBatch();
 
     Event.emit({ tag: "embed", action: "done" });
