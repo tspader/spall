@@ -5,7 +5,7 @@ import { mkdirSync, writeFileSync, existsSync, statSync } from "fs";
 import { join, dirname } from "path";
 import { Glob } from "bun";
 import pc from "picocolors";
-import { Store, Model, Event, Io, type IndexEvent } from "@spall/core";
+import { Store, Model, Event, Io, type EventType } from "@spall/core";
 
 const SPALL_DIR = ".spall";
 const DB_NAME = "spall.db";
@@ -38,19 +38,26 @@ function formatBytes(bytes: number): string {
 function setupEventHandler(): void {
   Event.on((event) => {
     const tag = pc.gray(event.tag.padEnd(TAG_WIDTH));
-    switch (event.action) {
-      case "create_db":
-        console.log(`${tag} creating database at ${event.path}`);
-        break;
-      case "download":
-        console.log(`${tag} downloading ${event.model}`);
-        break;
-      case "ready":
-        console.log(`${tag} ${event.model} ready`);
-        break;
-      case "done":
-        console.log(`${tag} ${pc.green("ok")}`);
-        break;
+    // Only handle init and model events here
+    // scan and embed events are handled by command-specific handlers
+    if (event.tag === "init") {
+      switch (event.action) {
+        case "create_db":
+          console.log(`${tag} creating database at ${event.path}`);
+          break;
+        case "done":
+          console.log(`${tag} ${pc.green("ok")}`);
+          break;
+      }
+    } else if (event.tag === "model") {
+      switch (event.action) {
+        case "download":
+          console.log(`${tag} downloading ${event.model}`);
+          break;
+        case "ready":
+          console.log(`${tag} ${event.model} ready`);
+          break;
+      }
     }
   });
 }
@@ -103,69 +110,83 @@ yargs(hideBin(process.argv))
 
       const tag = pc.gray("index".padEnd(TAG_WIDTH));
 
-      // Scan for changes
-      const scanResult = await Store.scan(notesDir, (event) => {
-        switch (event.type) {
-          case "file_add":
-            console.log(`${tag} ${pc.green("+")} ${event.path}`);
-            break;
-          case "file_modify":
-            console.log(`${tag} ${pc.yellow("~")} ${event.path}`);
-            break;
-          case "file_remove":
-            console.log(`${tag} ${pc.red("-")} ${event.path}`);
-            break;
-          case "scan_done":
-            if (
-              event.added === 0 &&
-              event.modified === 0 &&
-              event.removed === 0
-            ) {
-              console.log(`${tag} up to date`);
-            }
-            break;
-        }
-      });
-
-      // Embed files that need it
+      // Set up index event handler
       let startTimeNs = 0;
       let totalBytes = 0;
 
-      await Store.embedFiles(notesDir, scanResult.unembedded, (event) => {
-        switch (event.type) {
-          case "embed_start":
-            startTimeNs = Bun.nanoseconds();
-            totalBytes = event.totalBytes;
-            break;
-          case "embed_progress": {
-            const percent = (event.bytesProcessed / event.totalBytes) * 100;
-            const bar = renderProgressBar(percent);
-            const percentStr = percent.toFixed(0).padStart(3);
-
-            const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-            const bytesPerSec = event.bytesProcessed / elapsedSec;
-            const remainingBytes = event.totalBytes - event.bytesProcessed;
-            const etaSec = remainingBytes / bytesPerSec;
-
-            const throughput = `${formatBytes(bytesPerSec)}/s`;
-            const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
-
-            process.stdout.write(
-              `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(`${event.current}/${event.total}`)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}\x1b[K`,
-            );
-            break;
+      const indexHandler = (event: EventType) => {
+        if (event.tag === "scan") {
+          switch (event.action) {
+            case "progress":
+              process.stdout.write(
+                `\r${tag} scanning... ${pc.dim(`${event.found} files`)}\x1b[K`,
+              );
+              break;
+            case "done":
+              // Clear the scanning line
+              process.stdout.write(`\r\x1b[K`);
+              if (event.added > 0 || event.modified > 0 || event.removed > 0) {
+                const parts: string[] = [];
+                if (event.added > 0) parts.push(pc.green(`${event.added} new`));
+                if (event.modified > 0)
+                  parts.push(pc.yellow(`${event.modified} modified`));
+                if (event.removed > 0)
+                  parts.push(pc.red(`${event.removed} removed`));
+                console.log(`${tag} ${parts.join(", ")}`);
+              } else {
+                console.log(`${tag} up to date`);
+              }
+              break;
           }
-          case "embed_done": {
-            const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-            const avgThroughput = formatBytes(totalBytes / totalTimeSec);
-            console.log(`\r${renderProgressBar(100)} ${pc.bold("100%")}\x1b[K`);
-            console.log(
-              `${pc.green("done")} in ${pc.bold(formatETA(totalTimeSec))} ${pc.dim(`(${avgThroughput}/s)`)}`,
-            );
-            break;
+        } else if (event.tag === "embed") {
+          switch (event.action) {
+            case "start":
+              startTimeNs = Bun.nanoseconds();
+              totalBytes = event.totalBytes;
+              console.log(
+                `${tag} embedding ${pc.bold(String(event.totalDocs))} documents (${pc.dim(`${event.totalChunks} chunks, ${formatBytes(event.totalBytes)}`)})`,
+              );
+              break;
+            case "progress": {
+              const percent = (event.bytesProcessed / event.totalBytes) * 100;
+              const bar = renderProgressBar(percent);
+              const percentStr = percent.toFixed(0).padStart(3);
+
+              const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
+              const bytesPerSec = event.bytesProcessed / elapsedSec;
+              const remainingBytes = event.totalBytes - event.bytesProcessed;
+              const etaSec = remainingBytes / bytesPerSec;
+
+              const throughput = `${formatBytes(bytesPerSec)}/s`;
+              const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
+
+              process.stdout.write(
+                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(`${event.current}/${event.total}`)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}\x1b[K`,
+              );
+              break;
+            }
+            case "done": {
+              const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
+              const avgThroughput = formatBytes(totalBytes / totalTimeSec);
+              console.log(
+                `\r${renderProgressBar(100)} ${pc.bold("100%")}\x1b[K`,
+              );
+              console.log(
+                `${pc.green("done")} in ${pc.bold(formatETA(totalTimeSec))} ${pc.dim(`(${avgThroughput}/s)`)}`,
+              );
+              break;
+            }
           }
         }
-      });
+      };
+
+      Event.on(indexHandler);
+
+      // Scan for changes
+      const scanResult = await Store.scan(notesDir);
+
+      // Embed files that need it
+      await Store.embedFiles(notesDir, scanResult.unembedded);
 
       await Model.dispose();
       Store.close();

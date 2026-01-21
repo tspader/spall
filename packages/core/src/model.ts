@@ -6,7 +6,10 @@ import {
   type LlamaModel,
   type LlamaEmbeddingContext,
   type ModelDownloader,
+  type Token,
 } from "node-llama-cpp";
+
+export type { Token };
 import { homedir } from "os";
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
@@ -140,6 +143,20 @@ export namespace Model {
       }),
     );
     return embeddings;
+  }
+
+  export async function tokenize(text: string): Promise<Token[]> {
+    if (!embedder?.instance.model) {
+      throw new Error("Model not loaded. Call Model.load() first.");
+    }
+    return [...embedder.instance.model.tokenize(text)];
+  }
+
+  export async function detokenize(tokens: Token[]): Promise<string> {
+    if (!embedder?.instance.model) {
+      throw new Error("Model not loaded. Call Model.load() first.");
+    }
+    return embedder.instance.model.detokenize(tokens);
   }
 
   export async function dispose(): Promise<void> {

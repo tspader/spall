@@ -96,21 +96,8 @@ describe("Store integration", () => {
     });
   });
 
-  describe("chunk", () => {
-    test("small text returns single chunk", () => {
-      const chunks = Store.chunk("hello world");
-      expect(chunks).toEqual([{ text: "hello world", pos: 0 }]);
-    });
-
-    test("large text returns multiple chunks with overlap", () => {
-      const text = "a".repeat(600);
-      const chunks = Store.chunk(text);
-      expect(chunks.length).toBe(2);
-      expect(chunks[0]!.pos).toBe(0);
-      expect(chunks[0]!.text.length).toBe(512);
-      expect(chunks[1]!.pos).toBe(512 - 64); // overlap
-    });
-  });
+  // Note: chunk() is now async and requires the model to be loaded.
+  // Token-based chunking is tested via integration tests (spall index).
 });
 
 describe("Store.scan", () => {

@@ -23,22 +23,6 @@ export type FileRecord = {
   embedded: boolean;
 };
 
-export type IndexEvent =
-  | { type: "scan_start" }
-  | { type: "file_add"; path: string }
-  | { type: "file_modify"; path: string }
-  | { type: "file_remove"; path: string }
-  | { type: "scan_done"; added: number; modified: number; removed: number }
-  | { type: "embed_start"; total: number; totalBytes: number }
-  | {
-      type: "embed_progress";
-      current: number;
-      total: number;
-      bytesProcessed: number;
-      totalBytes: number;
-    }
-  | { type: "embed_done" };
-
 export type IndexResult = {
   added: string[];
   modified: string[];
@@ -52,8 +36,8 @@ export type ScanResult = IndexResult & {
 export namespace Store {
   let instance: Database | null = null;
 
-  const CHUNK_SIZE = 512;
-  const CHUNK_OVERLAP = 64;
+  const CHUNK_TOKENS = 512;
+  const CHUNK_OVERLAP_TOKENS = 64;
 
   export function get(): Database {
     if (!instance) {
@@ -164,20 +148,84 @@ export namespace Store {
   // Chunking & Embedding
   // ============================================
 
-  export function chunk(text: string): Chunk[] {
-    if (text.length <= CHUNK_SIZE) {
+  /**
+   * Find a natural break point in the last 30% of text.
+   * Prefers: paragraph > sentence > line > word boundary.
+   * Returns the offset from the start of searchSlice, or -1 if none found.
+   */
+  function findBreakPoint(text: string): number {
+    const searchStart = Math.floor(text.length * 0.7);
+    const searchSlice = text.slice(searchStart);
+
+    // Try paragraph break (double newline)
+    const paragraphBreak = searchSlice.lastIndexOf("\n\n");
+    if (paragraphBreak >= 0) {
+      return searchStart + paragraphBreak + 2;
+    }
+
+    // Try sentence end
+    const sentenceEnd = Math.max(
+      searchSlice.lastIndexOf(". "),
+      searchSlice.lastIndexOf(".\n"),
+      searchSlice.lastIndexOf("? "),
+      searchSlice.lastIndexOf("?\n"),
+      searchSlice.lastIndexOf("! "),
+      searchSlice.lastIndexOf("!\n"),
+    );
+    if (sentenceEnd >= 0) {
+      return searchStart + sentenceEnd + 2;
+    }
+
+    // Try line break
+    const lineBreak = searchSlice.lastIndexOf("\n");
+    if (lineBreak >= 0) {
+      return searchStart + lineBreak + 1;
+    }
+
+    // No good break point found
+    return -1;
+  }
+
+  /**
+   * Chunk text by token count using the embedding model's tokenizer.
+   * Finds natural break points (paragraph/sentence/line) for cleaner chunks.
+   */
+  export async function chunk(text: string): Promise<Chunk[]> {
+    const allTokens = await Model.tokenize(text);
+    const totalTokens = allTokens.length;
+
+    // Small enough to be a single chunk
+    if (totalTokens <= CHUNK_TOKENS) {
       return [{ text, pos: 0 }];
     }
 
     const chunks: Chunk[] = [];
-    let pos = 0;
+    const step = CHUNK_TOKENS - CHUNK_OVERLAP_TOKENS;
+    const avgCharsPerToken = text.length / totalTokens;
+    let tokenPos = 0;
 
-    while (pos < text.length) {
-      const end = Math.min(pos + CHUNK_SIZE, text.length);
-      chunks.push({ text: text.slice(pos, end), pos });
+    while (tokenPos < totalTokens) {
+      const chunkEnd = Math.min(tokenPos + CHUNK_TOKENS, totalTokens);
+      const chunkTokens = allTokens.slice(tokenPos, chunkEnd);
+      let chunkText = await Model.detokenize(chunkTokens);
 
-      if (end >= text.length) break;
-      pos = end - CHUNK_OVERLAP;
+      // Find a natural break point if not at end of document
+      if (chunkEnd < totalTokens) {
+        const breakOffset = findBreakPoint(chunkText);
+        if (breakOffset > 0) {
+          chunkText = chunkText.slice(0, breakOffset);
+        }
+      }
+
+      // Approximate character position based on token position
+      const charPos = Math.floor(tokenPos * avgCharsPerToken);
+      chunks.push({ text: chunkText, pos: charPos });
+
+      // Done if we've reached the end
+      if (chunkEnd >= totalTokens) break;
+
+      // Advance by step tokens
+      tokenPos += step;
     }
 
     return chunks;
@@ -227,13 +275,8 @@ export namespace Store {
 
   const BATCH_SIZE = 32;
 
-  export async function scan(
-    dir: string,
-    onEvent?: (event: IndexEvent) => void,
-  ): Promise<ScanResult> {
-    const emit = onEvent ?? (() => {});
-
-    emit({ type: "scan_start" });
+  export async function scan(dir: string): Promise<ScanResult> {
+    Event.emit({ tag: "scan", action: "start" });
 
     const glob = new Glob("**/*.md");
     const diskFiles = new Set<string>();
@@ -248,20 +291,19 @@ export namespace Store {
       absolute: false,
     })) {
       diskFiles.add(file);
+      Event.emit({ tag: "scan", action: "progress", found: diskFiles.size });
+
       const meta = Io.get(dir, file);
       const existing = getFile(file);
 
       if (!existing) {
         upsertFile(file, meta.modTime);
         added.push(file);
-        emit({ type: "file_add", path: file });
-      }
-      else if (meta.modTime > existing.mtime) {
+      } else if (meta.modTime > existing.mtime) {
         upsertFile(file, meta.modTime);
         clearEmbeddings(file);
         markUnembedded(file);
         modified.push(file);
-        emit({ type: "file_modify", path: file });
       }
     }
 
@@ -271,12 +313,12 @@ export namespace Store {
       if (!diskFiles.has(file)) {
         removeFile(file);
         removed.push(file);
-        emit({ type: "file_remove", path: file });
       }
     }
 
-    emit({
-      type: "scan_done",
+    Event.emit({
+      tag: "scan",
+      action: "done",
       added: added.length,
       modified: modified.length,
       removed: removed.length,
@@ -289,11 +331,11 @@ export namespace Store {
   export async function embedFiles(
     dir: string,
     files: string[],
-    onEvent?: (event: IndexEvent) => void,
   ): Promise<void> {
     if (files.length === 0) return;
 
-    const emit = onEvent ?? (() => {});
+    // Load model first - needed for tokenization during chunking
+    await Model.load();
 
     // Build work list with all chunks
     type ChunkWork = { key: string; seq: number; pos: number; text: string };
@@ -303,7 +345,7 @@ export namespace Store {
     for (const file of files) {
       const meta = Io.get(dir, file);
       const content = Io.read(dir, file);
-      const chunks = chunk(content);
+      const chunks = await chunk(content);
       work.push({
         key: file,
         size: meta.size,
@@ -317,10 +359,14 @@ export namespace Store {
     }
 
     const totalBytes = work.reduce((sum, f) => sum + f.size, 0);
-    emit({ type: "embed_start", total: work.length, totalBytes });
-
-    // Load model only when we have work
-    await Model.load();
+    const totalChunks = work.reduce((sum, f) => sum + f.chunks.length, 0);
+    Event.emit({
+      tag: "embed",
+      action: "start",
+      totalDocs: work.length,
+      totalChunks,
+      totalBytes,
+    });
 
     // Process files, batching chunks within and across files
     let current = 0;
@@ -344,8 +390,9 @@ export namespace Store {
         markEmbedded(file.key);
         current++;
         bytesProcessed += file.size;
-        emit({
-          type: "embed_progress",
+        Event.emit({
+          tag: "embed",
+          action: "progress",
           current,
           total: work.length,
           bytesProcessed,
@@ -374,6 +421,6 @@ export namespace Store {
     // Flush remaining
     await flushBatch();
 
-    emit({ type: "embed_done" });
+    Event.emit({ tag: "embed", action: "done" });
   }
 }
