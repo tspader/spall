@@ -11,6 +11,7 @@ import {
   Event,
   FileStatus,
   Io,
+  Server,
   type EventType,
 } from "@spall/core";
 
@@ -110,17 +111,76 @@ yargs(hideBin(process.argv))
     },
   )
   .command(
+    "serve",
+    "Start the spall server",
+    (yargs) => {
+      return yargs.option("persist", {
+        alias: "p",
+        type: "boolean",
+        default: false,
+        describe: "Keep server running even with no clients",
+      });
+    },
+    async (argv) => {
+      const tag = pc.gray("server".padEnd(TAG_WIDTH));
+
+      const onEvent = (event: EventType) => {
+        if (event.tag === "server") {
+          switch (event.action) {
+            case "listening":
+              console.log(
+                `${tag} Listening on port ${pc.cyanBright(String(event.port))}`,
+              );
+              break;
+            case "connect":
+              console.log(
+                `${tag} Client connected ${pc.dim(`(${event.clients} total)`)}`,
+              );
+              break;
+            case "disconnect":
+              console.log(
+                `${tag} Client disconnected ${pc.dim(`(${event.clients} total)`)}`,
+              );
+              break;
+          }
+        } else if (event.tag === "scan") {
+          switch (event.action) {
+            case "start":
+              console.log(
+                `${tag} Scan started ${pc.dim(`(${event.total} files)`)}`,
+              );
+              break;
+            case "done":
+              console.log(`${tag} Scan done`);
+              break;
+          }
+        } else if (event.tag === "embed") {
+          switch (event.action) {
+            case "start":
+              console.log(
+                `${tag} Embedding ${event.totalDocs} documents ${pc.dim(`(${event.totalChunks} chunks)`)}`,
+              );
+              break;
+            case "done":
+              console.log(`${tag} Embedding done`);
+              break;
+          }
+        }
+      };
+
+      await Server.start({ persist: argv.persist, onEvent });
+
+      // Keep the process running
+      await new Promise(() => {});
+    },
+  )
+  .command(
     "index",
     "Index all notes in .spall/notes",
     () => {},
     async () => {
-      setupEventHandler();
       const dbPath = getDbPath();
       const notesDir = getNotesDir();
-
-      Store.open(dbPath);
-      Model.init();
-      await Model.download();
 
       const tag = pc.gray("index".padEnd(TAG_WIDTH));
       const clear = "\x1b[K";
@@ -134,7 +194,7 @@ yargs(hideBin(process.argv))
       let scanProcessed = 0;
       const scanCounts = { added: 0, modified: 0, removed: 0, ok: 0 };
 
-      const indexHandler = (event: EventType) => {
+      const handleEvent = (event: EventType) => {
         if (event.tag === "scan") {
           switch (event.action) {
             case "start":
@@ -150,7 +210,9 @@ yargs(hideBin(process.argv))
             case "done": {
               const { added, modified, removed } = scanCounts;
               const ignored = scanTotal - (added + modified + removed);
-              process.stdout.write("\n");
+              if (scanTotal > 0) {
+                process.stdout.write("\n");
+              }
               console.log(
                 `${tag} ${added} added, ${modified} modified, ${removed} removed, ${ignored} up to date`,
               );
@@ -197,16 +259,14 @@ yargs(hideBin(process.argv))
         }
       };
 
-      Event.on(indexHandler);
+      // Connect to server and run index
+      const client = await Server.ensureServer();
 
-      // Scan for changes
-      const scanResult = await Store.scan(notesDir);
+      for await (const event of client.index(dbPath, notesDir)) {
+        handleEvent(event);
+      }
 
-      // Embed files that need it
-      await Store.embedFiles(notesDir, scanResult.unembedded);
-
-      await Model.dispose();
-      Store.close();
+      client.close();
     },
   )
   .command(

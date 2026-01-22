@@ -10,22 +10,15 @@ import {
 } from "node-llama-cpp";
 
 export type { Token };
-import { homedir } from "os";
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
 import { Event } from "./event";
+import { Config } from "./config";
 
 export namespace Model {
-  const DEFAULT_EMBED_MODEL =
-    "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf";
-  const DEFAULT_RERANK_MODEL =
-    "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf";
-  const MODEL_CACHE_DIR = join(homedir(), ".cache", "spall", "models");
-
-  export type Config = {
-    embeddingModel: string;
-    rerankerModel: string;
-  };
+  function modelCacheDir(): string {
+    return join(Config.get().cacheDir, "models");
+  }
 
   export type Status = "pending" | "downloaded";
 
@@ -45,14 +38,15 @@ export namespace Model {
     instance: Instance;
   };
 
-  let config: Config | null = null;
+  let initialized = false;
   let embedder: Embedder;
   let reranker!: Reranker;
   let llama: Llama | null = null;
 
   function ensureCacheDir(): void {
-    if (!existsSync(MODEL_CACHE_DIR)) {
-      mkdirSync(MODEL_CACHE_DIR, { recursive: true });
+    const dir = modelCacheDir();
+    if (!existsSync(dir)) {
+      mkdirSync(dir, { recursive: true });
     }
   }
 
@@ -67,17 +61,13 @@ export namespace Model {
     ensureCacheDir();
     return createModelDownloader({
       modelUri,
-      dirPath: MODEL_CACHE_DIR,
+      dirPath: modelCacheDir(),
     });
   }
 
-  export function init(cfg?: Partial<Config>): void {
-    if (config) return;
-
-    config = {
-      embeddingModel: cfg?.embeddingModel ?? DEFAULT_EMBED_MODEL,
-      rerankerModel: cfg?.rerankerModel ?? DEFAULT_RERANK_MODEL,
-    };
+  export function init(): void {
+    if (initialized) return;
+    initialized = true;
 
     embedder = {
       instance: { name: "", path: null, status: "pending", model: null },
@@ -95,16 +85,17 @@ export namespace Model {
       uri: string;
     };
 
+    const cfg = Config.get();
     const work: DownloadWork[] = [
       {
         instance: embedder.instance,
-        downloader: await createDownloader(config!.embeddingModel),
-        uri: config!.embeddingModel,
+        downloader: await createDownloader(cfg.embeddingModel),
+        uri: cfg.embeddingModel,
       },
       {
         instance: reranker.instance,
-        downloader: await createDownloader(config!.rerankerModel),
-        uri: config!.rerankerModel,
+        downloader: await createDownloader(cfg.rerankerModel),
+        uri: cfg.rerankerModel,
       },
     ];
 
@@ -192,7 +183,7 @@ export namespace Model {
       await llama.dispose();
       llama = null;
     }
-    config = null;
+    initialized = false;
     embedder = undefined!;
     reranker = undefined!;
   }
