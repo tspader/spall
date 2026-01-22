@@ -149,9 +149,11 @@ yargs(hideBin(process.argv))
               break;
             case "done": {
               const { added, modified, removed } = scanCounts;
-              const ignored = scanTotal - (added + modified + removed)
+              const ignored = scanTotal - (added + modified + removed);
               process.stdout.write("\n");
-              console.log(`${tag} ${added} added, ${modified} modified, ${removed} removed, ${ignored} up to date`)
+              console.log(
+                `${tag} ${added} added, ${modified} modified, ${removed} removed, ${ignored} up to date`,
+              );
               break;
             }
           }
@@ -185,9 +187,7 @@ yargs(hideBin(process.argv))
             case "done": {
               const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
               const avgThroughput = formatBytes(totalBytes / totalTimeSec);
-              console.log(
-                `\r${renderProgressBar(100)} 100%${clear}`,
-              );
+              console.log(`\r${renderProgressBar(100)} 100%${clear}`);
               console.log(
                 `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s ${pc.dim(`(${avgThroughput}/s)`)}`,
               );
@@ -328,11 +328,18 @@ yargs(hideBin(process.argv))
     "list [path]",
     "List notes in .spall/notes",
     (yargs) => {
-      return yargs.positional("path", {
-        describe: "Path to list (default: root)",
-        type: "string",
-        default: "",
-      });
+      return yargs
+        .positional("path", {
+          describe: "Path to list (default: root)",
+          type: "string",
+          default: "",
+        })
+        .option("all", {
+          alias: "a",
+          describe: "Show all files without truncation",
+          type: "boolean",
+          default: false,
+        });
     },
     async (argv) => {
       const notesDir = getNotesDir();
@@ -390,13 +397,23 @@ yargs(hideBin(process.argv))
           return a[0].localeCompare(b[0]);
         });
 
-        for (const [name, child] of sorted) {
-          if (child.isDir) {
-            console.log(`${indent}${pc.cyan(name + "/")}`);
-            printTree(child, indent + "  ");
-          } else {
-            console.log(`${indent}${name}`);
-          }
+        const dirs = sorted.filter(([, child]) => child.isDir);
+        const files = sorted.filter(([, child]) => !child.isDir);
+
+        for (const [name, child] of dirs) {
+          console.log(`${indent}${pc.cyan(name + "/")}`);
+          printTree(child, indent + "  ");
+        }
+
+        const maxFiles = argv.all ? files.length : 3;
+        for (let i = 0; i < Math.min(files.length, maxFiles); i++) {
+          console.log(`${indent}${files[i]![0]}`);
+        }
+
+        if (!argv.all && files.length > maxFiles) {
+          console.log(
+            `${indent}${pc.dim(`...${files.length - maxFiles} more`)}`,
+          );
         }
       }
 
