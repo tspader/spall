@@ -2,7 +2,9 @@
   "name": "spall",
   "private": true,
   "workspaces": {
-    "packages": ["packages/*"],
+    "packages": [
+      "packages/*"
+    ],
     "catalog": {
       "@tsconfig/bun": "1.0.10",
       "@types/bun": "1.2.21",
@@ -12,8 +14,10 @@
   },
   "scripts": {
     "typecheck": "bun --filter '*' typecheck",
+    "test": "bun test packages/core && cd packages/tui && bun test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "tui": "bun run packages/tui/src/App.tsx"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
