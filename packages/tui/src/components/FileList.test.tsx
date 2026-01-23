@@ -136,4 +136,40 @@ describe("FileList", () => {
       expect(frame).toContain("index.ts");
     });
   });
+
+  describe("status indicators", () => {
+    it("shows correct status indicators for new and modified files", async () => {
+      harness = await Test.create({
+        render,
+        repo: {
+          added: ["new.ts"],
+          modified: ["changed.ts"],
+        },
+      });
+
+      await harness.run({
+        expect: [Test.contains("A new.ts"), Test.contains("M changed.ts")],
+      });
+    });
+
+    it("updates diff panel when navigating files", async () => {
+      harness = await Test.create({
+        render,
+        repo: {
+          modified: ["first.ts", "second.ts"],
+        },
+      });
+
+      // Initially shows first file
+      await harness.run({
+        expect: [Test.contains("first.ts [")],
+      });
+
+      // Navigate to second file
+      await harness.run({
+        keys: ["j"],
+        expect: [Test.contains("second.ts [")],
+      });
+    });
+  });
 });

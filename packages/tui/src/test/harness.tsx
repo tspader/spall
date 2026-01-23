@@ -182,6 +182,7 @@ export namespace Test {
     down: "ARROW_DOWN",
     left: "ARROW_LEFT",
     right: "ARROW_RIGHT",
+    space: " ",
   };
 
   function normalizeKey(key: string): string {
