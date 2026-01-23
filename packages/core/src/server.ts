@@ -6,28 +6,17 @@ import {
   writeFileSync,
 } from "fs";
 import { join } from "path";
-import type { Server as BunServer, ServerWebSocket } from "bun";
-import type { Event as EventType } from "./event";
+import type { Server as BunServer } from "bun";
+import { Event, type Event as EventType } from "./event";
 import { Config } from "./config";
-
-// Message types
-export type ClientMessage =
-  | { id: string; cmd: "index"; db: string; dir: string }
-  | { id: string; cmd: "search"; db: string; query: string; limit?: number };
-
-export type ServerMessage =
-  | { id: string; ok: true; result: unknown }
-  | { id: string; ok: false; error: string }
-  | { id: string; event: EventType };
 
 type LockData = { pid: number; port: number };
 
 export namespace Server {
   let server: BunServer | null = null;
   let persist = false;
-  let clientCount = 0;
+  let activeRequests = 0;
   let shutdownTimer: ReturnType<typeof setTimeout> | null = null;
-  let eventCallback: ((event: EventType) => void) | null = null;
 
   // ============================================
   // Lock File Management
@@ -77,119 +66,114 @@ export namespace Server {
   // Server
   // ============================================
 
-  function emitEvent(event: EventType): void {
-    eventCallback?.(event);
-  }
+  function sseResponse(
+    handler: (send: (event: EventType) => void) => Promise<void>,
+  ): Response {
+    const encoder = new TextEncoder();
 
-  function checkShutdown(): void {
-    if (persist) return;
-    if (clientCount === 0) {
-      // Small delay to allow quick reconnects
-      shutdownTimer = setTimeout(() => {
-        if (clientCount === 0) {
-          stop();
-          process.exit(0);
-        }
-      }, 100);
-    }
-  }
-
-  function cancelShutdown(): void {
-    if (shutdownTimer) {
-      clearTimeout(shutdownTimer);
-      shutdownTimer = null;
-    }
-  }
-
-  async function handleMessage(
-    ws: ServerWebSocket<unknown>,
-    msg: ClientMessage,
-  ): Promise<void> {
-    const send = (m: ServerMessage) => ws.send(JSON.stringify(m));
-
-    switch (msg.cmd) {
-      case "index": {
-        // TODO: Actually do indexing via Store
-        // For now, emit stub events to prove the pipeline works
-        const startEvent: EventType = {
-          tag: "scan",
-          action: "start",
-          total: 0,
+    const stream = new ReadableStream({
+      async start(controller) {
+        const send = (event: EventType) => {
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(event)}\n\n`),
+          );
         };
-        const doneEvent: EventType = { tag: "scan", action: "done" };
 
-        send({ id: msg.id, event: startEvent });
-        emitEvent(startEvent);
+        try {
+          await handler(send);
+          controller.close();
+        } catch (e) {
+          const error = e instanceof Error ? e.message : "Unknown error";
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify({ error })}\n\n`),
+          );
+          controller.close();
+        }
+      },
+    });
 
-        send({ id: msg.id, event: doneEvent });
-        emitEvent(doneEvent);
+    return new Response(stream, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache",
+        Connection: "keep-alive",
+      },
+    });
+  }
 
-        send({
-          id: msg.id,
-          ok: true,
-          result: { added: [], modified: [], removed: [], unembedded: [] },
-        });
-        break;
-      }
-      case "search": {
-        // TODO: Actually do search via Store + Model
-        send({ id: msg.id, ok: true, result: [] });
-        break;
-      }
-    }
+  async function handleIndex(
+    _db: string,
+    _dir: string,
+    send: (event: EventType) => void,
+  ): Promise<void> {
+    // TODO: Actually do indexing via Store
+    // For now, send stub events to prove the pipeline works
+    send({ tag: "scan", action: "start", total: 0 });
+    send({ tag: "scan", action: "done" });
+  }
+
+  async function handleSearch(
+    _db: string,
+    _query: string,
+    _limit?: number,
+  ): Promise<VSearchResult[]> {
+    // TODO: Actually do search via Store + Model
+    return [];
   }
 
   export type StartOptions = {
     persist?: boolean;
-    onEvent?: (event: EventType) => void;
   };
 
   export async function start(
     options?: StartOptions,
   ): Promise<{ port: number }> {
     persist = options?.persist ?? false;
-    eventCallback = options?.onEvent ?? null;
 
-    // Try to find a free port by letting OS assign one
-    // Bun.serve with port 0 gets a random available port
     server = Bun.serve({
       port: 0,
-      fetch(req, server) {
-        // Upgrade HTTP requests to WebSocket
-        if (server.upgrade(req)) {
-          return;
+      async fetch(req) {
+        const url = new URL(req.url);
+
+        activeRequests++;
+        if (shutdownTimer) {
+          clearTimeout(shutdownTimer);
+          shutdownTimer = null;
         }
-        return new Response("WebSocket only", { status: 400 });
-      },
-      websocket: {
-        open(_ws) {
-          clientCount++;
-          cancelShutdown();
-          emitEvent({ tag: "server", action: "connect", clients: clientCount });
-        },
-        close(_ws) {
-          clientCount--;
-          emitEvent({
-            tag: "server",
-            action: "disconnect",
-            clients: clientCount,
-          });
-          checkShutdown();
-        },
-        async message(ws, message) {
-          try {
-            const msg = JSON.parse(message.toString()) as ClientMessage;
-            await handleMessage(ws, msg);
-          } catch (e) {
-            ws.send(
-              JSON.stringify({
-                id: "error",
-                ok: false,
-                error: e instanceof Error ? e.message : "Unknown error",
-              }),
-            );
+
+        try {
+          if (req.method === "POST" && url.pathname === "/index") {
+            const body = (await req.json()) as { db: string; dir: string };
+            return sseResponse((send) => handleIndex(body.db, body.dir, send));
           }
-        },
+
+          if (req.method === "POST" && url.pathname === "/search") {
+            const body = (await req.json()) as {
+              db: string;
+              query: string;
+              limit?: number;
+            };
+            const results = await handleSearch(body.db, body.query, body.limit);
+            return Response.json(results);
+          }
+
+          if (req.method === "GET" && url.pathname === "/health") {
+            return new Response("ok");
+          }
+
+          return new Response("Not found", { status: 404 });
+        } finally {
+          activeRequests--;
+
+          if (!persist && activeRequests === 0) {
+            shutdownTimer = setTimeout(() => {
+              if (activeRequests === 0) {
+                stop();
+                process.exit(0);
+              }
+            }, 100);
+          }
+        }
       },
     });
 
@@ -199,15 +183,11 @@ export namespace Server {
       throw new Error("Failed to get server port");
     }
 
-    // Try to acquire lock
     if (!writeLock(port)) {
-      // Someone else has the lock - we shouldn't have gotten here
-      // but handle gracefully
       server.stop();
       throw new Error("Failed to acquire lock - another server may be running");
     }
 
-    // Cleanup on exit
     process.on("SIGINT", () => {
       stop();
       process.exit(0);
@@ -216,8 +196,6 @@ export namespace Server {
       stop();
       process.exit(0);
     });
-
-    emitEvent({ tag: "server", action: "listening", port });
 
     return { port };
   }
@@ -235,143 +213,106 @@ export namespace Server {
   // ============================================
 
   export type Client = {
-    index(db: string, dir: string): AsyncIterable<EventType>;
+    index(db: string, dir: string): Promise<void>;
     search(db: string, query: string, limit?: number): Promise<VSearchResult[]>;
     close(): void;
   };
 
   type VSearchResult = { key: string; distance: number };
 
-  type PendingRequest = {
-    resolve: (result: unknown) => void;
-    reject: (error: Error) => void;
-    onEvent?: (event: EventType) => void;
-  };
+  async function sse(url: string, init?: RequestInit): Promise<void> {
+    const response = await fetch(url, init);
 
-  export async function connect(port: number): Promise<Client> {
-    return new Promise((resolve, reject) => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}`);
-      const pending = new Map<string, PendingRequest>();
-      let idCounter = 0;
+    if (!response.ok) {
+      throw new Error(`Server error: ${response.status}`);
+    }
 
-      ws.onopen = () => {
-        const client: Client = {
-          async *index(db: string, dir: string): AsyncIterable<EventType> {
-            const id = String(++idCounter);
-            const events: EventType[] = [];
-            let done = false;
-            let resolveWait: (() => void) | null = null;
-            let rejectWait: ((e: Error) => void) | null = null;
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
 
-            pending.set(id, {
-              resolve: () => {
-                done = true;
-                resolveWait?.();
-              },
-              reject: (e) => {
-                done = true;
-                rejectWait?.(e);
-              },
-              onEvent: (event) => {
-                events.push(event);
-                resolveWait?.();
-              },
-            });
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-            ws.send(JSON.stringify({ id, cmd: "index", db, dir }));
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n\n");
+      buffer = lines.pop() || "";
 
-            while (!done || events.length > 0) {
-              if (events.length > 0) {
-                yield events.shift()!;
-              } else if (!done) {
-                await new Promise<void>((res, rej) => {
-                  resolveWait = res;
-                  rejectWait = rej;
-                });
-              }
-            }
-
-            pending.delete(id);
-          },
-
-          async search(
-            db: string,
-            query: string,
-            limit?: number,
-          ): Promise<VSearchResult[]> {
-            const id = String(++idCounter);
-            return new Promise((res, rej) => {
-              pending.set(id, {
-                resolve: (result) => {
-                  pending.delete(id);
-                  res(result as VSearchResult[]);
-                },
-                reject: (e) => {
-                  pending.delete(id);
-                  rej(e);
-                },
-              });
-              ws.send(JSON.stringify({ id, cmd: "search", db, query, limit }));
-            });
-          },
-
-          close() {
-            ws.close();
-          },
-        };
-
-        resolve(client);
-      };
-
-      ws.onerror = () => {
-        reject(new Error("WebSocket connection failed"));
-      };
-
-      ws.onmessage = (msgEvent) => {
-        try {
-          const msg = JSON.parse(msgEvent.data.toString()) as ServerMessage;
-          const req = pending.get(msg.id);
-          if (!req) return;
-
-          if ("event" in msg) {
-            req.onEvent?.(msg.event);
-          } else if (msg.ok) {
-            req.resolve(msg.result);
-          } else {
-            req.reject(new Error(msg.error));
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = JSON.parse(line.slice(6));
+          if (data.error) {
+            throw new Error(data.error);
           }
-        } catch {
-          // Ignore malformed messages
+          Event.emit(data as EventType);
         }
-      };
-
-      ws.onclose = () => {
-        for (const req of pending.values()) {
-          req.reject(new Error("Connection closed"));
-        }
-        pending.clear();
-      };
-    });
+      }
+    }
   }
 
-  export async function ensureServer(): Promise<Client> {
+  function connectTo(port: number): Client {
+    const baseUrl = `http://127.0.0.1:${port}`;
+
+    return {
+      index(db: string, dir: string): Promise<void> {
+        return sse(`${baseUrl}/index`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ db, dir }),
+        });
+      },
+
+      async search(
+        db: string,
+        query: string,
+        limit?: number,
+      ): Promise<VSearchResult[]> {
+        const response = await fetch(`${baseUrl}/search`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ db, query, limit }),
+        });
+
+        if (!response.ok) {
+          throw new Error(`Server error: ${response.status}`);
+        }
+
+        return response.json() as Promise<VSearchResult[]>;
+      },
+
+      close() {
+        // No persistent connection to close with HTTP
+      },
+    };
+  }
+
+  async function isServerRunning(port: number): Promise<boolean> {
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/health`);
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  export async function connect(): Promise<Client> {
     const lock = readLock();
     if (lock) {
-      try {
-        return await connect(lock.port);
-      } catch {
-        removeLock();
+      if (await isServerRunning(lock.port)) {
+        return connectTo(lock.port);
       }
+      removeLock();
     }
 
     try {
       const { port } = await start();
-      return await connect(port);
+      return connectTo(port);
     } catch {
       // Lost race - connect to winner
       const newLock = readLock();
       if (!newLock) throw new Error("No server available");
-      return await connect(newLock.port);
+      return connectTo(newLock.port);
     }
   }
 }

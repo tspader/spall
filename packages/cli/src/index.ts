@@ -223,7 +223,7 @@ yargs(hideBin(process.argv))
       };
 
       Event.on(handleEvent);
-      const client = await Server.ensureServer();
+      const client = await Server.connect();
       await client.index(dbPath, notesDir);
       Event.off(handleEvent);
       client.close();

@@ -1,6 +1,7 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test";
 import { Server } from "./server";
 import { Config } from "./config";
+import { Event, type Event as EventType } from "./event";
 import {
   existsSync,
   unlinkSync,
@@ -48,15 +49,15 @@ describe("Server.ensureServer", () => {
   });
 
   test("starts server when none running", async () => {
-    const client = await Server.ensureServer();
+    const client = await Server.connect();
     expect(client).toBeDefined();
     expect(existsSync(lockPath())).toBe(true);
     client.close();
   });
 
   test("connects to existing server", async () => {
-    const client1 = await Server.ensureServer();
-    const client2 = await Server.ensureServer();
+    const client1 = await Server.connect();
+    const client2 = await Server.connect();
 
     expect(client1).toBeDefined();
     expect(client2).toBeDefined();
@@ -71,7 +72,7 @@ describe("Server.ensureServer", () => {
     mkdirSync(cacheDir, { recursive: true });
     writeFileSync(lockPath(), JSON.stringify({ pid: 99999, port: 59999 }));
 
-    const client = await Server.ensureServer();
+    const client = await Server.connect();
     expect(client).toBeDefined();
 
     // Lock should now have real port, not the fake one
@@ -87,9 +88,9 @@ describe("Server.ensureServer", () => {
       cleanupLock();
 
       const clients = await Promise.all([
-        Server.ensureServer(),
-        Server.ensureServer(),
-        Server.ensureServer(),
+        Server.connect(),
+        Server.connect(),
+        Server.connect(),
       ]);
 
       // All should succeed
@@ -105,19 +106,33 @@ describe("Server.ensureServer", () => {
   });
 
   test("clients can perform operations", async () => {
-    const client = await Server.ensureServer();
+    const client = await Server.connect();
 
     // Search should return empty array (stub implementation)
     const results = await client.search("/tmp/test.db", "test query");
     expect(results).toEqual([]);
 
-    // Index should yield events then complete
-    const events = [];
-    for await (const event of client.index("/tmp/test.db", "/tmp")) {
-      events.push(event);
-    }
-    expect(events.length).toBeGreaterThan(0);
-    expect(events.some((e) => e.tag === "scan")).toBe(true);
+    // Index should complete without error
+    await client.index("/tmp/test.db", "/tmp");
+
+    client.close();
+  });
+
+  test("server events are pushed to Event bus", async () => {
+    const client = await Server.connect();
+    const busEvents: EventType[] = [];
+
+    const handler = (e: EventType) => busEvents.push(e);
+    Event.on(handler);
+
+    // Trigger an index operation that emits events
+    await client.index("/tmp/test.db", "/tmp");
+
+    Event.off(handler);
+
+    // Events should have been pushed to the bus
+    expect(busEvents.length).toBeGreaterThan(0);
+    expect(busEvents.some((e) => e.tag === "scan")).toBe(true);
 
     client.close();
   });

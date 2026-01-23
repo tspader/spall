@@ -29,10 +29,7 @@ export type Event =
       bytesProcessed: number;
       totalBytes: number;
     }
-  | { tag: "embed"; action: "done" }
-  | { tag: "server"; action: "connect"; clients: number }
-  | { tag: "server"; action: "disconnect"; clients: number }
-  | { tag: "server"; action: "listening"; port: number };
+  | { tag: "embed"; action: "done" };
 
 export namespace Event {
   export type Handler = (event: Event) => void;
