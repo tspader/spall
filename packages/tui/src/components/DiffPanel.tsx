@@ -14,19 +14,74 @@ import { HalfLineShadow } from "./HalfLineShadow";
 function getFiletype(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const extMap: Record<string, string> = {
+    // JavaScript/TypeScript
     ts: "typescript",
-    tsx: "typescript",
+    tsx: "tsx",
     js: "javascript",
     jsx: "javascript",
-    md: "markdown",
+    mjs: "javascript",
+    cjs: "javascript",
+    // Web
+    html: "html",
+    htm: "html",
+    css: "css",
+    scss: "css",
+    vue: "vue",
+    // Data formats
     json: "json",
-    py: "python",
+    yaml: "yaml",
+    yml: "yaml",
+    toml: "toml",
+    // Systems languages
+    c: "c",
+    h: "c",
+    cpp: "cpp",
+    cc: "cpp",
+    cxx: "cpp",
+    hpp: "cpp",
+    hxx: "cpp",
     rs: "rust",
     go: "go",
-    c: "c",
-    cpp: "cpp",
-    h: "c",
-    hpp: "cpp",
+    zig: "zig",
+    // Scripting
+    py: "python",
+    rb: "ruby",
+    lua: "lua",
+    sh: "bash",
+    bash: "bash",
+    zsh: "bash",
+    php: "php",
+    // JVM
+    java: "java",
+    kt: "kotlin",
+    kts: "kotlin",
+    scala: "scala",
+    // .NET
+    cs: "c_sharp",
+    // Mobile
+    swift: "swift",
+    m: "objc",
+    mm: "objc",
+    dart: "dart",
+    // Functional
+    ex: "elixir",
+    exs: "elixir",
+    elm: "elm",
+    ml: "ocaml",
+    mli: "ocaml",
+    el: "elisp",
+    // Other
+    sql: "ql",
+    res: "rescript",
+    resi: "rescript",
+    sol: "solidity",
+    tla: "tlaplus",
+    rdl: "systemrdl",
+    erb: "embedded_template",
+    ejs: "embedded_template",
+    // Markdown (uses opentui built-in)
+    md: "markdown",
+    mdx: "markdown",
   };
   return extMap[ext] ?? "text";
 }
@@ -127,7 +182,8 @@ function DiffIndicator(props: DiffIndicatorProps) {
           const color = () => lineColors().get(lineNum);
           return (
             <text height={1} fg={color()}>
-              {color() ? "▌" : " "}
+              {/* {color() ? "▌" : " "} */}
+              {color() ? "█" : " "}
             </text>
           );
         }}
