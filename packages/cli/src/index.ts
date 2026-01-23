@@ -12,6 +12,7 @@ import {
   FileStatus,
   Io,
   Server,
+  Client,
   type EventType,
 } from "@spall/core";
 
@@ -44,7 +45,7 @@ function formatBytes(bytes: number): string {
 }
 
 function setupEventHandler(): void {
-  Event.on((event: EventType) => {
+  Event.listen((event: EventType) => {
     const tag = pc.gray(event.tag.padEnd(TAG_WIDTH));
     // Only handle init and model events here
     // scan and embed events are handled by command-specific handlers
@@ -124,7 +125,10 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
-      const { port } = await Server.start({ persist: argv.persist });
+      const { port } = await Server.start({
+        persist: argv.persist,
+        onShutdown: () => process.exit(0),
+      });
       console.log(`${tag} Listening on port ${pc.cyanBright(String(port))}`);
 
       await new Promise(() => {});
@@ -155,7 +159,7 @@ yargs(hideBin(process.argv))
         [FileStatus.Ok]: 0,
       };
 
-      const handleEvent = (event: EventType) => {
+      Event.listen((event: EventType) => {
         if (event.tag === "scan") {
           switch (event.action) {
             case "start":
@@ -220,13 +224,9 @@ yargs(hideBin(process.argv))
             }
           }
         }
-      };
+      });
 
-      Event.on(handleEvent);
-      const client = await Server.connect();
-      await client.index(dbPath, notesDir);
-      Event.off(handleEvent);
-      client.close();
+      await Client.index(dbPath, notesDir);
     },
   )
   .command(

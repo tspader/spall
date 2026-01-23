@@ -10,4 +10,5 @@ export { Event, FileStatus, type Event as EventType } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
 export { Server } from "./server";
+export { Client } from "./client";
 export { Config, type ConfigSchema } from "./config";
