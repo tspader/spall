@@ -7,8 +7,13 @@ import {
   writeFileSync,
   readFileSync,
   mkdirSync,
+  mkdtempSync,
+  rmSync,
 } from "fs";
 import { join } from "path";
+import { tmpdir } from "os";
+
+let testDir: string;
 
 function lockPath(): string {
   return join(Config.get().cacheDir, "server.lock");
@@ -29,10 +34,17 @@ function readLock(): { pid: number; port: number } | null {
 }
 
 describe("Server.ensureServer", () => {
-  beforeEach(cleanupLock);
+  beforeEach(() => {
+    testDir = mkdtempSync(join(tmpdir(), "spall-test-"));
+    Config.set({ cacheDir: testDir });
+  });
+
   afterEach(() => {
     Server.stop();
-    cleanupLock();
+    Config.reset();
+    try {
+      rmSync(testDir, { recursive: true });
+    } catch {}
   });
 
   test("starts server when none running", async () => {
