@@ -480,6 +480,26 @@ yargs(hideBin(process.argv))
       printTree(root);
     },
   )
+  .command(
+    "review",
+    "Launch the interactive diff review TUI",
+    () => {},
+    async () => {
+      const { spawn } = await import("child_process");
+      const tuiPath = require.resolve("@spall/tui");
+      const child = spawn("bun", ["run", tuiPath], {
+        stdio: "inherit",
+        cwd: process.cwd(),
+      });
+      await new Promise<void>((resolve, reject) => {
+        child.on("close", (code) => {
+          if (code === 0) resolve();
+          else reject(new Error(`TUI exited with code ${code}`));
+        });
+        child.on("error", reject);
+      });
+    },
+  )
   .demandCommand(1, "You must specify a command")
   .strict()
   .help()
