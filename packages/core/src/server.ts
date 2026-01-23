@@ -62,10 +62,6 @@ export namespace Server {
     }
   }
 
-  // ============================================
-  // SSE Streaming
-  // ============================================
-
   function streamEvents(handler: () => Promise<void>): Response {
     return new Response(
       new ReadableStream({
@@ -78,14 +74,16 @@ export namespace Server {
             );
           };
 
+          const unsubscribe = Event.listen(write);
           try {
-            await Event.withSSE(write, handler);
+            await handler();
           } catch (e) {
             const error = e instanceof Error ? e.message : "Unknown error";
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ error })}\n\n`),
             );
           } finally {
+            unsubscribe();
             controller.close();
           }
         },
@@ -111,7 +109,7 @@ export namespace Server {
     Event.emit({ tag: "scan", action: "done" });
   }
 
-  type SearchResult = { key: string; distance: number };
+  export type SearchResult = { key: string; distance: number };
 
   async function search(
     _db: string,
@@ -195,11 +193,11 @@ export namespace Server {
       throw new Error("Failed to acquire lock - another server may be running");
     }
 
-    process.on("SIGINT", () => {
+    process.once("SIGINT", () => {
       stop();
       if (onShutdown) onShutdown();
     });
-    process.on("SIGTERM", () => {
+    process.once("SIGTERM", () => {
       stop();
       if (onShutdown) onShutdown();
     });

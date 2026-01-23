@@ -10,19 +10,21 @@ export type ConfigSchema = {
   rerankerModel: string;
 };
 
-const DEFAULTS: ConfigSchema = {
-  cacheDir: join(homedir(), ".cache", "spall"),
-  embeddingModel:
-    "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
-  rerankerModel:
-    "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf",
-};
+function getDefaults(): ConfigSchema {
+  return {
+    cacheDir: process.env.SPALL_CACHE_DIR ?? join(homedir(), ".cache", "spall"),
+    embeddingModel:
+      "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
+    rerankerModel:
+      "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf",
+  };
+}
 
 export namespace Config {
   let config: ConfigSchema | null = null;
 
   export function set(values: Partial<ConfigSchema>): void {
-    config = { ...DEFAULTS, ...values };
+    config = { ...getDefaults(), ...values };
   }
 
   export function load(): ConfigSchema {

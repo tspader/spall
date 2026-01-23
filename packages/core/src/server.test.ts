@@ -12,13 +12,15 @@ let testDir: string;
 describe("Client", () => {
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), "spall-test-"));
-    Config.set({ cacheDir: testDir });
+    process.env.SPALL_CACHE_DIR = testDir;
+    Config.reset();
     Client.reset();
   });
 
   afterEach(() => {
     Server.stop();
     Client.reset();
+    delete process.env.SPALL_CACHE_DIR;
     Config.reset();
     try {
       rmSync(testDir, { recursive: true });
@@ -78,11 +80,13 @@ describe("Client", () => {
 describe("Server.Lock", () => {
   beforeEach(() => {
     testDir = mkdtempSync(join(tmpdir(), "spall-test-"));
-    Config.set({ cacheDir: testDir });
+    process.env.SPALL_CACHE_DIR = testDir;
+    Config.reset();
   });
 
   afterEach(() => {
     Server.stop();
+    delete process.env.SPALL_CACHE_DIR;
     Config.reset();
     try {
       rmSync(testDir, { recursive: true });

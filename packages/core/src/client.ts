@@ -1,7 +1,6 @@
 import { Event, type Event as EventType } from "./event";
-import { Server } from "./server";
-
-type SearchResult = { key: string; distance: number };
+import { Server, type SearchResult } from "./server";
+import { Config } from "./config";
 
 /**
  * SDK-style client API for spall server.
@@ -21,30 +20,27 @@ export namespace Client {
 
     if (lock) Server.Lock.remove();
 
-    try {
-      Bun.spawn(["spall", "serve"], {
-        stdin: "ignore",
-        stdout: "ignore",
-        stderr: "ignore",
-      }).unref();
+    Bun.spawn(["spall", "serve"], {
+      stdin: "ignore",
+      stdout: "ignore",
+      stderr: "ignore",
+      env: {
+        ...process.env,
+        SPALL_CACHE_DIR: Config.get().cacheDir,
+      },
+    }).unref();
 
-      // Wait for server to start
-      for (let i = 0; i < 50; i++) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        const newLock = Server.Lock.read();
-        if (newLock && (await isServerRunning(newLock.port))) {
-          baseUrl = `http://127.0.0.1:${newLock.port}`;
-          return baseUrl;
-        }
-      }
-      throw new Error("Timeout waiting for server to start");
-    } catch {
-      // Lost race - connect to winner
+    // Wait for server to start
+    for (let i = 0; i < 50; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 100));
       const newLock = Server.Lock.read();
-      if (!newLock) throw new Error("No server available");
-      baseUrl = `http://127.0.0.1:${newLock.port}`;
-      return baseUrl;
+      if (newLock && (await isServerRunning(newLock.port))) {
+        baseUrl = `http://127.0.0.1:${newLock.port}`;
+        return baseUrl;
+      }
     }
+
+    throw new Error("Timeout waiting for server to start");
   }
 
   async function isServerRunning(port: number): Promise<boolean> {
