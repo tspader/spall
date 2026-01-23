@@ -1,6 +1,11 @@
 {
-  "extends": "@tsconfig/bun/tsconfig.json",
+  "extends": "../../tsconfig.json",
   "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
     "outDir": "dist",
     "rootDir": "src"
   },

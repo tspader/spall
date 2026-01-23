@@ -16,3 +16,4 @@ logs/
 ./test/
 doc
 AGENTS.md
+*.tsbuildinfo

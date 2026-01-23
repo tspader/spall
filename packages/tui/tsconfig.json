@@ -1,4 +1,15 @@
 {
   "extends": "../../tsconfig.json",
-  "exclude": ["src/test"]
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": ["src", "parsers"],
+  "exclude": ["src/test", "**/*.test.ts", "**/*.test.tsx"],
+  "references": [{ "path": "../core" }]
 }

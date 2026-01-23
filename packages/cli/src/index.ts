@@ -44,7 +44,7 @@ function formatBytes(bytes: number): string {
 }
 
 function setupEventHandler(): void {
-  Event.on((event) => {
+  Event.on((event: EventType) => {
     const tag = pc.gray(event.tag.padEnd(TAG_WIDTH));
     // Only handle init and model events here
     // scan and embed events are handled by command-specific handlers
@@ -124,53 +124,9 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
-      const onEvent = (event: EventType) => {
-        if (event.tag === "server") {
-          switch (event.action) {
-            case "listening":
-              console.log(
-                `${tag} Listening on port ${pc.cyanBright(String(event.port))}`,
-              );
-              break;
-            case "connect":
-              console.log(
-                `${tag} Client connected ${pc.dim(`(${event.clients} total)`)}`,
-              );
-              break;
-            case "disconnect":
-              console.log(
-                `${tag} Client disconnected ${pc.dim(`(${event.clients} total)`)}`,
-              );
-              break;
-          }
-        } else if (event.tag === "scan") {
-          switch (event.action) {
-            case "start":
-              console.log(
-                `${tag} Scan started ${pc.dim(`(${event.total} files)`)}`,
-              );
-              break;
-            case "done":
-              console.log(`${tag} Scan done`);
-              break;
-          }
-        } else if (event.tag === "embed") {
-          switch (event.action) {
-            case "start":
-              console.log(
-                `${tag} Embedding ${event.totalDocs} documents ${pc.dim(`(${event.totalChunks} chunks)`)}`,
-              );
-              break;
-            case "done":
-              console.log(`${tag} Embedding done`);
-              break;
-          }
-        }
-      };
+      const { port } = await Server.start({ persist: argv.persist });
+      console.log(`${tag} Listening on port ${pc.cyanBright(String(port))}`);
 
-      await Server.start({ persist: argv.persist, onEvent });
-
-      // Keep the process running
       await new Promise(() => {});
     },
   )
@@ -192,7 +148,12 @@ yargs(hideBin(process.argv))
       // Scan state
       let scanTotal = 0;
       let scanProcessed = 0;
-      const scanCounts = { added: 0, modified: 0, removed: 0, ok: 0 };
+      const scanCounts: Record<FileStatus, number> = {
+        [FileStatus.Added]: 0,
+        [FileStatus.Modified]: 0,
+        [FileStatus.Removed]: 0,
+        [FileStatus.Ok]: 0,
+      };
 
       const handleEvent = (event: EventType) => {
         if (event.tag === "scan") {
@@ -208,7 +169,9 @@ yargs(hideBin(process.argv))
               );
               break;
             case "done": {
-              const { added, modified, removed } = scanCounts;
+              const added = scanCounts[FileStatus.Added];
+              const modified = scanCounts[FileStatus.Modified];
+              const removed = scanCounts[FileStatus.Removed];
               const ignored = scanTotal - (added + modified + removed);
               if (scanTotal > 0) {
                 process.stdout.write("\n");
@@ -259,13 +222,10 @@ yargs(hideBin(process.argv))
         }
       };
 
-      // Connect to server and run index
+      Event.on(handleEvent);
       const client = await Server.ensureServer();
-
-      for await (const event of client.index(dbPath, notesDir)) {
-        handleEvent(event);
-      }
-
+      await client.index(dbPath, notesDir);
+      Event.off(handleEvent);
       client.close();
     },
   )
