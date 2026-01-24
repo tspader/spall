@@ -6,49 +6,15 @@ import {
   writeFileSync,
 } from "fs";
 import { join } from "path";
-import { Hono } from "hono";
-import { createMiddleware } from "hono/factory";
-import { streamSSE } from "hono/streaming";
-import { logger } from "hono/logger";
-import {
-  describeRoute,
-  generateSpecs,
-  resolver,
-  validator,
-} from "hono-openapi";
-import { z } from "zod";
 import { consola } from "consola";
 import pc from "picocolors";
 
 
 import { Bus, type Event } from "@spall/core/src/event";
 import { Config } from "@spall/core/src/config";
-import { Store } from "@spall/core/src/store";
-import { Model } from "@spall/core/src/model";
-import {
-  fn,
-  InitInput,
-  InitResponse,
-  IndexInput,
-  SearchInput,
-  SearchResult,
-  IndexResponse,
-} from "@spall/core/src/schema";
+import { App } from "@spall/sdk";
 
 type LockData = { pid: number; port: number | null };
-
-const SPALL_DIR = ".spall";
-const DB_NAME = "spall.db";
-const NOTES_DIR = "notes";
-
-function paths(directory: string) {
-  const spallDir = join(directory, SPALL_DIR);
-  return {
-    spallDir,
-    dbPath: join(spallDir, DB_NAME),
-    notesDir: join(spallDir, NOTES_DIR),
-  };
-}
 
 export namespace Cache {
   export function ensure(): void {
@@ -59,242 +25,6 @@ export namespace Cache {
   }
 }
 
-const work = async () => {
-  const totalTime = 3;
-  const numIter = 50;
-  const timePerIter = (totalTime * 1000) / numIter;
-
-  await Bus.emit({
-    tag: "model",
-    action: "download",
-    model: `${totalTime}s_download_model.gguf`
-  });
-
-
-  for (let i = 0; i < numIter; i++) {
-    await Bus.emit({
-      tag: "model",
-      action: "progress",
-      model: `${totalTime}s_download_model.gguf`,
-      total: totalTime * 1000,
-      downloaded: i * timePerIter
-    });
-    await Bun.sleep(timePerIter);
-  }
-
-  await Bus.emit({
-    tag: "model",
-    action: "ready",
-    model: `${totalTime}s_download_model.gguf`
-  });
-
-}
-
-export const init = fn(InitInput, async (input): Promise<void> => {
-  const { spallDir, dbPath, notesDir } = paths(input.directory);
-
-  if (!existsSync(spallDir)) {
-    mkdirSync(spallDir, { recursive: true });
-    await Bus.emit({ tag: "init", action: "create_dir", path: spallDir });
-  }
-
-  if (!existsSync(notesDir)) {
-    mkdirSync(notesDir, { recursive: true });
-    await Bus.emit({ tag: "init", action: "create_dir", path: notesDir });
-  }
-
-  await Store.create(dbPath);
-  Store.close();
-
-  // Download model (global, in ~/.cache/spall/models/)
-  Model.init();
-  await work();
-  await Model.download();
-
-  await Bus.emit({ tag: "init", action: "done" });
-});
-
-export const index = fn(IndexInput, async (input): Promise<void> => {
-  const { dbPath, notesDir } = paths(input.directory);
-
-  // TODO: Actually do indexing via Store
-  // For now, send stub events to prove the pipeline works
-  await Bus.emit({ tag: "scan", action: "start", total: 0 });
-  await Bus.emit({ tag: "scan", action: "done" });
-});
-
-export const search = fn(
-  SearchInput,
-  async (input): Promise<z.infer<typeof SearchResult>[]> => {
-    const { dbPath } = paths(input.directory);
-
-    // TODO: Actually do search via Store + Model
-    return [];
-  },
-);
-
-const trackRequest = createMiddleware(async (c, next) => {
-  Server.markRequest();
-  try {
-    await next();
-  } finally {
-    Server.unmarkRequest();
-  }
-});
-
-function trackedSSE(
-  context: Parameters<typeof streamSSE>[0],
-  cb: Parameters<typeof streamSSE>[1],
-) {
-  return streamSSE(context, async (stream) => {
-    Server.markSSE();
-    try {
-      await cb(stream);
-    } finally {
-      Server.unmarkSSE();
-    }
-  });
-}
-
-const app = new Hono()
-  .use(trackRequest)
-  .use(logger())
-  .post(
-    "/init",
-    describeRoute({
-      summary: "Initialize project",
-      description:
-        "Initialize a spall project in a directory, creating the database and downloading models. Emits progress events via SSE.",
-      operationId: "init",
-      responses: {
-        200: {
-          description: "Initialization events stream",
-          content: {
-            "text/event-stream": {
-              schema: resolver(InitResponse),
-            },
-          },
-        },
-      },
-    }),
-    validator("json", InitInput),
-    (context) => {
-      const input = context.req.valid("json");
-      return trackedSSE(context, async (stream) => {
-        const write = async (event: Event) => {
-          await stream.writeSSE({ data: JSON.stringify(event) });
-        };
-
-        const unsubscribe = Bus.listen(write);
-
-        try {
-          await init(input);
-        } catch (e) {
-          const error = e instanceof Error ? e.message : "Unknown error";
-          await stream.writeSSE({ data: JSON.stringify({ error }) });
-        } finally {
-          unsubscribe();
-        }
-      });
-    },
-  )
-  .post(
-    "/index",
-    describeRoute({
-      summary: "Index files",
-      description:
-        "Index files in a project directory, emitting progress events via SSE",
-      operationId: "index",
-      responses: {
-        200: {
-          description: "Indexing events stream",
-          content: {
-            "text/event-stream": {
-              schema: resolver(IndexResponse),
-            },
-          },
-        },
-      },
-    }),
-    validator("json", IndexInput),
-    (c) => {
-      const input = c.req.valid("json");
-      return trackedSSE(c, async (stream) => {
-        const write = async (event: Event) => {
-          await stream.writeSSE({ data: JSON.stringify(event) });
-        };
-
-        const unsubscribe = Bus.listen(write);
-
-        try {
-          await index(input);
-        } catch (e) {
-          const error = e instanceof Error ? e.message : "Unknown error";
-          await stream.writeSSE({ data: JSON.stringify({ error }) });
-        } finally {
-          unsubscribe();
-        }
-      });
-    },
-  )
-  .post(
-    "/search",
-    describeRoute({
-      summary: "Search",
-      description: "Search for similar content using embeddings",
-      operationId: "search",
-      responses: {
-        200: {
-          description: "Search results",
-          content: {
-            "application/json": {
-              schema: resolver(SearchResult.array()),
-            },
-          },
-        },
-      },
-    }),
-    validator("json", SearchInput),
-    async (c) => {
-      const input = c.req.valid("json");
-      const results = await search(input);
-      return c.json(results);
-    },
-  )
-  .get(
-    "/health",
-    describeRoute({
-      summary: "Health check",
-      description: "Check if the server is running",
-      operationId: "health",
-      responses: {
-        200: {
-          description: "Server is healthy",
-          content: {
-            "text/plain": {
-              schema: resolver(z.string()),
-            },
-          },
-        },
-      },
-    }),
-    (c) => {
-      return c.text("ok");
-    },
-  );
-
-export async function buildOpenApiSpec() {
-  return generateSpecs(app, {
-    documentation: {
-      info: {
-        title: "spall",
-        version: "0.0.1",
-        description: "Local semantic note store with embeddings",
-      },
-      openapi: "3.1.1",
-    },
-  });
-}
 
 export namespace Server {
   let server: Bun.Server;
@@ -418,7 +148,7 @@ export namespace Server {
 
     server = Bun.serve({
       port: 0,
-      fetch: app.fetch,
+      fetch: App.get().fetch,
     });
 
     const port = server.port;

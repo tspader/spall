@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun";
-import { buildOpenApiSpec } from "@spall/sdk";
+import { App } from "@spall/sdk";
 
 const dir = new URL("..", import.meta.url).pathname;
 process.chdir(dir);
 
 console.log("Generating OpenAPI spec...");
-const spec = await buildOpenApiSpec();
+const spec = await App.spec();
 await Bun.write("./openapi.json", JSON.stringify(spec, null, 2));
 console.log("Wrote openapi.json");
 

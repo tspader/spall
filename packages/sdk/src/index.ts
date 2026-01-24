@@ -1,3 +1,4 @@
 export { Client } from "./client";
-export { Server, buildOpenApiSpec } from "./server";
+export { Server } from "./server";
+export { App } from "./app";
 export * from "./gen/types.gen";
