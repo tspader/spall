@@ -77,11 +77,6 @@ export type InitResponses = {
       }
     | {
         tag: "model";
-        action: "progress";
-        percent: number;
-      }
-    | {
-        tag: "model";
         action: "load";
         model: string;
         path: string;
@@ -89,6 +84,7 @@ export type InitResponses = {
     | {
         tag: "model";
         action: "ready";
+        model: string;
       };
 };
 
@@ -113,17 +109,28 @@ export type IndexResponses = {
       }
     | {
         tag: "scan";
+        action: "progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan";
         action: "done";
       }
     | {
         tag: "embed";
         action: "start";
-        total: number;
+        totalDocs: number;
+        totalChunks: number;
+        totalBytes: number;
       }
     | {
         tag: "embed";
         action: "progress";
-        current: number;
+        filesProcessed: number;
+        totalFiles: number;
+        bytesProcessed: number;
+        totalBytes: number;
       }
     | {
         tag: "embed";

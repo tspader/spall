@@ -11,7 +11,11 @@ import { mkdirSync, mkdtempSync, rmSync } from "fs";
 import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { Server, Config, Model } from "@spall/core";
-import { spall, type InitResponse, type IndexResponse } from "./index";
+import {
+  createSpallClient,
+  type InitResponse,
+  type IndexResponse,
+} from "./index";
 
 // Shared cache directory for all tests (models downloaded once)
 const TEST_CACHE_DIR = resolve(__dirname, "../../../.cache");
@@ -52,7 +56,7 @@ describe("SDK SSE endpoints", () => {
   test("/init streams events and completes", async () => {
     const { port } = await Server.start({ persist: true });
     const baseUrl = `http://127.0.0.1:${port}`;
-    const client = spall({ baseUrl });
+    const client = createSpallClient({ baseUrl });
 
     const { stream } = await client.init({ body: { directory: projectDir } });
 
@@ -70,7 +74,7 @@ describe("SDK SSE endpoints", () => {
   test("/index streams events and completes", async () => {
     const { port } = await Server.start({ persist: true });
     const baseUrl = `http://127.0.0.1:${port}`;
-    const client = spall({ baseUrl });
+    const client = createSpallClient({ baseUrl });
 
     // Init first to create .spall directory
     const { stream: initStream } = await client.init({
@@ -119,7 +123,7 @@ describe("SDK auto-shutdown with SSE", () => {
       },
     });
     const baseUrl = `http://127.0.0.1:${port}`;
-    const client = spall({ baseUrl });
+    const client = createSpallClient({ baseUrl });
 
     // Start init but don't consume yet
     const { stream } = await client.init({ body: { directory: projectDir } });
@@ -147,7 +151,7 @@ describe("SDK auto-shutdown with SSE", () => {
       },
     });
     const baseUrl = `http://127.0.0.1:${port}`;
-    const client = spall({ baseUrl });
+    const client = createSpallClient({ baseUrl });
 
     // Consume the full SSE stream
     const { stream } = await client.init({ body: { directory: projectDir } });

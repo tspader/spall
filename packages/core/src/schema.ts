@@ -60,6 +60,10 @@ export type SearchResult = z.infer<typeof SearchResult>;
 // Event Schemas (for SSE streams)
 // ============================================
 
+/** File status for scan progress events */
+export const FileStatus = z.enum(["added", "modified", "removed", "ok"]);
+export type FileStatus = z.infer<typeof FileStatus>;
+
 export const InitEvent = z.discriminatedUnion("action", [
   z.object({
     tag: z.literal("init"),
@@ -86,11 +90,6 @@ export const ModelEvent = z.discriminatedUnion("action", [
   }),
   z.object({
     tag: z.literal("model"),
-    action: z.literal("progress"),
-    percent: z.number(),
-  }),
-  z.object({
-    tag: z.literal("model"),
     action: z.literal("load"),
     model: z.string(),
     path: z.string(),
@@ -98,6 +97,7 @@ export const ModelEvent = z.discriminatedUnion("action", [
   z.object({
     tag: z.literal("model"),
     action: z.literal("ready"),
+    model: z.string(),
   }),
 ]);
 export type ModelEvent = z.infer<typeof ModelEvent>;
@@ -110,6 +110,12 @@ export const ScanEvent = z.discriminatedUnion("action", [
   }),
   z.object({
     tag: z.literal("scan"),
+    action: z.literal("progress"),
+    path: z.string(),
+    status: FileStatus,
+  }),
+  z.object({
+    tag: z.literal("scan"),
     action: z.literal("done"),
   }),
 ]);
@@ -119,12 +125,17 @@ export const EmbedEvent = z.discriminatedUnion("action", [
   z.object({
     tag: z.literal("embed"),
     action: z.literal("start"),
-    total: z.number(),
+    totalDocs: z.number(),
+    totalChunks: z.number(),
+    totalBytes: z.number(),
   }),
   z.object({
     tag: z.literal("embed"),
     action: z.literal("progress"),
-    current: z.number(),
+    filesProcessed: z.number(),
+    totalFiles: z.number(),
+    bytesProcessed: z.number(),
+    totalBytes: z.number(),
   }),
   z.object({
     tag: z.literal("embed"),
@@ -133,8 +144,14 @@ export const EmbedEvent = z.discriminatedUnion("action", [
 ]);
 export type EmbedEvent = z.infer<typeof EmbedEvent>;
 
+/** All possible events (union of all event types) */
+export const Event = z.union([InitEvent, ModelEvent, ScanEvent, EmbedEvent]);
+export type Event = z.infer<typeof Event>;
+
+/** Events emitted during /init (init + model events) */
 export const InitResponse = z.union([InitEvent, ModelEvent]);
 export type InitResponse = z.infer<typeof InitResponse>;
 
-export const IndexEvent = z.union([ScanEvent, EmbedEvent]);
-export type IndexEvent = z.infer<typeof IndexEvent>;
+/** Events emitted during /index (scan + embed events) */
+export const IndexResponse = z.union([ScanEvent, EmbedEvent]);
+export type IndexResponse = z.infer<typeof IndexResponse>;

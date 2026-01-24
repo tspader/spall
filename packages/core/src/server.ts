@@ -28,7 +28,7 @@ import {
   IndexInput,
   SearchInput,
   SearchResult,
-  IndexEvent,
+  IndexResponse,
 } from "./schema";
 
 type LockData = { pid: number; port: number };
@@ -170,7 +170,7 @@ const app = new Hono()
           description: "Indexing events stream",
           content: {
             "text/event-stream": {
-              schema: resolver(IndexEvent),
+              schema: resolver(IndexResponse),
             },
           },
         },

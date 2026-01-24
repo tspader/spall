@@ -11,5 +11,6 @@
     "lib": ["ESNext", "DOM"]
   },
   "include": ["src"],
+  "exclude": ["src/**/*.test.ts"],
   "references": [{ "path": "../core" }]
 }

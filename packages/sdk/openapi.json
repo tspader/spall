@@ -113,27 +113,6 @@
                             },
                             "action": {
                               "type": "string",
-                              "const": "progress"
-                            },
-                            "percent": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "percent"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "model"
-                            },
-                            "action": {
-                              "type": "string",
                               "const": "load"
                             },
                             "model": {
@@ -160,11 +139,15 @@
                             "action": {
                               "type": "string",
                               "const": "ready"
+                            },
+                            "model": {
+                              "type": "string"
                             }
                           },
                           "required": [
                             "tag",
-                            "action"
+                            "action",
+                            "model"
                           ]
                         }
                       ]
@@ -230,6 +213,37 @@
                             },
                             "action": {
                               "type": "string",
+                              "const": "progress"
+                            },
+                            "path": {
+                              "type": "string"
+                            },
+                            "status": {
+                              "type": "string",
+                              "enum": [
+                                "added",
+                                "modified",
+                                "removed",
+                                "ok"
+                              ]
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "path",
+                            "status"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "scan"
+                            },
+                            "action": {
+                              "type": "string",
                               "const": "done"
                             }
                           },
@@ -253,14 +267,22 @@
                               "type": "string",
                               "const": "start"
                             },
-                            "total": {
+                            "totalDocs": {
+                              "type": "number"
+                            },
+                            "totalChunks": {
+                              "type": "number"
+                            },
+                            "totalBytes": {
                               "type": "number"
                             }
                           },
                           "required": [
                             "tag",
                             "action",
-                            "total"
+                            "totalDocs",
+                            "totalChunks",
+                            "totalBytes"
                           ]
                         },
                         {
@@ -274,14 +296,26 @@
                               "type": "string",
                               "const": "progress"
                             },
-                            "current": {
+                            "filesProcessed": {
+                              "type": "number"
+                            },
+                            "totalFiles": {
+                              "type": "number"
+                            },
+                            "bytesProcessed": {
+                              "type": "number"
+                            },
+                            "totalBytes": {
                               "type": "number"
                             }
                           },
                           "required": [
                             "tag",
                             "action",
-                            "current"
+                            "filesProcessed",
+                            "totalFiles",
+                            "bytesProcessed",
+                            "totalBytes"
                           ]
                         },
                         {

@@ -6,9 +6,11 @@ import { join, dirname } from "path";
 import { mkdirSync } from "fs";
 import { Glob } from "bun";
 import pc from "picocolors";
-import { Server, Io } from "@spall/core";
+import { Io, Server as CoreServer } from "@spall/core";
 import {
-  spall,
+  createSpallClient,
+  Client,
+  Server,
   type InitResponse,
   type IndexResponse,
   type SearchResult,
@@ -59,7 +61,13 @@ yargs(hideBin(process.argv))
       const directory = getDirectory();
       const tag = pc.gray("init".padEnd(TAG_WIDTH));
 
-      const handleEvent = (event: InitResponse) => {
+      // const url = await Server.ensure();
+      // const client = createSpallClient({ baseUrl: url });
+      const client = await Client.connect();
+
+      const { stream } = await client.init({ body: { directory } });
+
+      for await (const event of stream) {
         if (event.tag === "init") {
           switch (event.action) {
             case "create_dir":
@@ -84,14 +92,7 @@ yargs(hideBin(process.argv))
                 `${modelTag} Downloading ${pc.cyanBright(event.model)}`,
               );
               break;
-            case "progress": {
-              const bar = renderProgressBar(event.percent);
-              const percentStr = event.percent.toFixed(0).padStart(3);
-              process.stdout.write(`\r${bar} ${pc.bold(percentStr + "%")}`);
-              break;
-            }
             case "load": {
-              process.stdout.write("\n");
               const size = statSync(event.path).size;
               console.log(
                 `${modelTag} Loading ${pc.cyanBright(event.model)} ${pc.dim(`(${formatBytes(size)})`)}`,
@@ -99,21 +100,12 @@ yargs(hideBin(process.argv))
               break;
             }
             case "ready":
+              console.log(`${modelTag} Ready`);
               break;
           }
         }
-      };
-
-      // Connect to server (auto-start if needed)
-      const baseUrl = await Server.ensure();
-      const client = spall({ baseUrl });
-
-      // Call init endpoint and consume SSE stream
-      const { stream } = await client.init({ body: { directory } });
-
-      for await (const event of stream) {
-        handleEvent(event as InitResponse);
       }
+
     },
   )
   .command(
@@ -130,7 +122,7 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
-      const { port } = await Server.start({
+      const { port } = await CoreServer.start({
         persist: argv.daemon,
         onShutdown: () => process.exit(0),
       });
@@ -150,13 +142,17 @@ yargs(hideBin(process.argv))
 
       // Set up index event handler
       let startTimeNs = 0;
-      let totalChunks = 0;
+      let totalFiles = 0;
+      let totalBytes = 0;
 
       const handleEvent = (event: IndexResponse) => {
         if (event.tag === "scan") {
           switch (event.action) {
             case "start":
               console.log(`${tag} Scanning ${event.total} files`);
+              break;
+            case "progress":
+              // Could show per-file progress here if desired
               break;
             case "done":
               console.log(`${tag} Scan complete`);
@@ -166,24 +162,28 @@ yargs(hideBin(process.argv))
           switch (event.action) {
             case "start":
               startTimeNs = Bun.nanoseconds();
-              totalChunks = event.total;
-              console.log(`${tag} Embedding ${event.total} chunks`);
+              totalFiles = event.totalDocs;
+              totalBytes = event.totalBytes;
+              console.log(
+                `${tag} Embedding ${event.totalDocs} files (${event.totalChunks} chunks, ${formatBytes(event.totalBytes)})`,
+              );
               break;
             case "progress": {
-              const percent = (event.current / totalChunks) * 100;
+              const percent = (event.bytesProcessed / totalBytes) * 100;
               const bar = renderProgressBar(percent);
               const percentStr = percent.toFixed(0).padStart(3);
 
               const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-              const chunksPerSec = event.current / elapsedSec;
-              const remainingChunks = totalChunks - event.current;
-              const etaSec = remainingChunks / chunksPerSec;
+              const bytesPerSec = event.bytesProcessed / elapsedSec;
+              const remainingBytes = totalBytes - event.bytesProcessed;
+              const etaSec = remainingBytes / bytesPerSec;
 
-              const throughput = `${chunksPerSec.toFixed(1)} chunks/s`;
+              const throughput = `${formatBytes(bytesPerSec)}/s`;
               const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
+              const fileProgress = `${event.filesProcessed}/${totalFiles}`;
 
               process.stdout.write(
-                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
+                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(fileProgress)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
               );
               break;
             }
@@ -201,13 +201,13 @@ yargs(hideBin(process.argv))
 
       // Connect to server (auto-start if needed)
       const baseUrl = await Server.ensure();
-      const client = spall({ baseUrl });
+      const client = createSpallClient({ baseUrl });
 
       // Call index endpoint and consume SSE stream
       const { stream } = await client.index({ body: { directory } });
 
       for await (const event of stream) {
-        handleEvent(event as IndexResponse);
+        handleEvent(event);
       }
     },
   )
@@ -292,18 +292,18 @@ yargs(hideBin(process.argv))
 
       // Connect to server (auto-start if needed)
       const baseUrl = await Server.ensure();
-      const client = spall({ baseUrl });
+      const client = createSpallClient({ baseUrl });
 
       const result = await client.search({
         body: { directory, query: argv.query, limit: argv.limit },
       });
 
-      if (result.error) {
+      if (result.error || !result.data) {
         console.error("Search failed:", result.error);
         process.exit(1);
       }
 
-      const results = result.data as SearchResult[];
+      const results = result.data;
 
       if (results.length === 0) {
         console.log("No results found.");

@@ -1,36 +1,16 @@
-export enum FileStatus {
-  Added = "added",
-  Modified = "modified",
-  Removed = "removed",
-  Ok = "ok",
-}
+import { Event as EventSchema, FileStatus as FileStatusSchema } from "./schema";
 
-export type Event =
-  | { tag: "init"; action: "create_dir"; path: string }
-  | { tag: "init"; action: "create_db"; path: string }
-  | { tag: "init"; action: "done" }
-  | { tag: "model"; action: "download"; model: string }
-  | { tag: "model"; action: "load"; model: string; path: string }
-  | { tag: "model"; action: "ready"; model: string }
-  | { tag: "scan"; action: "start"; total: number }
-  | { tag: "scan"; action: "progress"; path: string; status: FileStatus }
-  | { tag: "scan"; action: "done" }
-  | {
-      tag: "embed";
-      action: "start";
-      totalDocs: number;
-      totalChunks: number;
-      totalBytes: number;
-    }
-  | {
-      tag: "embed";
-      action: "progress";
-      filesProcessed: number;
-      totalFiles: number;
-      bytesProcessed: number;
-      totalBytes: number;
-    }
-  | { tag: "embed"; action: "done" };
+// Re-export types derived from Zod schemas (single source of truth)
+export type Event = EventSchema;
+export type FileStatus = FileStatusSchema;
+
+// Re-export the Zod enum values for runtime use
+export const FileStatus = {
+  Added: "added" as const,
+  Modified: "modified" as const,
+  Removed: "removed" as const,
+  Ok: "ok" as const,
+};
 
 export namespace Event {
   export type Handler = (event: Event) => void;
