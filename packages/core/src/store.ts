@@ -1,7 +1,7 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname } from "path";
-import { file, Glob } from "bun";
+import { Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
 import { Bus } from "./event";
 import { Sql } from "./sql";
@@ -187,10 +187,6 @@ export namespace Store {
     return -1;
   }
 
-  /**
-   * Chunk text by token count using the embedding model's tokenizer.
-   * Finds natural break points (paragraph/sentence/line) for cleaner chunks.
-   */
   export async function chunk(text: string): Promise<Chunk[]> {
     const allTokens = await Model.tokenize(text);
     const totalTokens = allTokens.length;
@@ -222,7 +218,6 @@ export namespace Store {
       const charPos = Math.floor(tokenPos * avgCharsPerToken);
       chunks.push({ text: chunkText, pos: charPos });
 
-      // Done if we've reached the end
       if (chunkEnd >= totalTokens) break;
 
       // Advance by step tokens
@@ -393,7 +388,6 @@ export namespace Store {
       },
     };
 
-    //
     let filesProcessed = 0;
     let bytesProcessed = 0;
     let pendingChunks: ChunkWork[] = [];
