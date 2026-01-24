@@ -6,10 +6,10 @@ export {
   type IndexResult,
 } from "./store";
 export { Model, type Token } from "./model";
-export { Event, FileStatus, type Event as EventType } from "./event";
+export { Bus, FileStatus, type Event } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
-export { Server, openapi } from "./server";
+export { Server, buildOpenApiSpec } from "./server";
 export type {
   SearchResult,
   IndexInput,

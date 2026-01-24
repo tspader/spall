@@ -3,7 +3,7 @@ import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname } from "path";
 import { file, Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
-import { Event, FileStatus } from "./event";
+import { Bus, FileStatus } from "./event";
 import { Sql } from "./sql";
 import { Io } from "./io";
 import { Model } from "./model";
@@ -46,7 +46,7 @@ export namespace Store {
     return instance;
   }
 
-  export function create(path: string): Database {
+  export async function create(path: string): Promise<Database> {
     const dir = dirname(path);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
@@ -57,7 +57,7 @@ export namespace Store {
       unlinkSync(path);
     }
 
-    Event.emit({ tag: "init", action: "create_db", path });
+    await Bus.emit({ tag: "init", action: "create_db", path });
     instance = new Database(path);
 
     // Load sqlite-vec extension
@@ -284,7 +284,7 @@ export namespace Store {
       allFiles.push(file);
     }
 
-    Event.emit({ tag: "scan", action: "start", total: allFiles.length });
+    await Bus.emit({ tag: "scan", action: "start", total: allFiles.length });
 
     const diskFiles = new Set<string>();
     const added: string[] = [];
@@ -312,7 +312,7 @@ export namespace Store {
         status = FileStatus.Ok;
       }
 
-      Event.emit({ tag: "scan", action: "progress", path: file, status });
+      await Bus.emit({ tag: "scan", action: "progress", path: file, status });
     }
 
     // Check for deleted files
@@ -321,7 +321,7 @@ export namespace Store {
       if (!diskFiles.has(file)) {
         removeFile(file);
         removed.push(file);
-        Event.emit({
+        await Bus.emit({
           tag: "scan",
           action: "progress",
           path: file,
@@ -330,7 +330,7 @@ export namespace Store {
       }
     }
 
-    Event.emit({ tag: "scan", action: "done" });
+    await Bus.emit({ tag: "scan", action: "done" });
 
     const unembedded = listUnembeddedFiles();
     return { added, modified, removed, unembedded };
@@ -368,7 +368,7 @@ export namespace Store {
 
     const totalBytes = work.reduce((sum, file) => sum + file.size, 0);
     const totalChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
-    Event.emit({
+    await Bus.emit({
       tag: "embed",
       action: "start",
       totalDocs: work.length,
@@ -428,7 +428,7 @@ export namespace Store {
         filesProcessed += pendingFiles.length;
       })();
 
-      Event.emit({
+      await Bus.emit({
         tag: "embed",
         action: "progress",
         filesProcessed: filesProcessed,
@@ -452,6 +452,6 @@ export namespace Store {
 
     await flushBatch();
 
-    Event.emit({ tag: "embed", action: "done" });
+    await Bus.emit({ tag: "embed", action: "done" });
   }
 }

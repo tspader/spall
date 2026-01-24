@@ -162,7 +162,16 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/InitInput"
+                "type": "object",
+                "properties": {
+                  "directory": {
+                    "type": "string",
+                    "description": "Project root directory"
+                  }
+                },
+                "required": [
+                  "directory"
+                ]
               }
             }
           }
@@ -347,7 +356,16 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/IndexInput"
+                "type": "object",
+                "properties": {
+                  "directory": {
+                    "type": "string",
+                    "description": "Project root directory"
+                  }
+                },
+                "required": [
+                  "directory"
+                ]
               }
             }
           }
@@ -378,7 +396,25 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/SearchInput"
+                "type": "object",
+                "properties": {
+                  "directory": {
+                    "type": "string",
+                    "description": "Project root directory"
+                  },
+                  "query": {
+                    "type": "string",
+                    "description": "Search query text"
+                  },
+                  "limit": {
+                    "description": "Maximum number of results",
+                    "type": "number"
+                  }
+                },
+                "required": [
+                  "directory",
+                  "query"
+                ]
               }
             }
           }
@@ -407,30 +443,6 @@
   },
   "components": {
     "schemas": {
-      "InitInput": {
-        "type": "object",
-        "properties": {
-          "directory": {
-            "type": "string",
-            "description": "Project root directory"
-          }
-        },
-        "required": [
-          "directory"
-        ]
-      },
-      "IndexInput": {
-        "type": "object",
-        "properties": {
-          "directory": {
-            "type": "string",
-            "description": "Project root directory"
-          }
-        },
-        "required": [
-          "directory"
-        ]
-      },
       "SearchResult": {
         "type": "object",
         "properties": {
@@ -446,27 +458,6 @@
         "required": [
           "key",
           "distance"
-        ]
-      },
-      "SearchInput": {
-        "type": "object",
-        "properties": {
-          "directory": {
-            "type": "string",
-            "description": "Project root directory"
-          },
-          "query": {
-            "type": "string",
-            "description": "Search query text"
-          },
-          "limit": {
-            "description": "Maximum number of results",
-            "type": "number"
-          }
-        },
-        "required": [
-          "directory",
-          "query"
         ]
       }
     }

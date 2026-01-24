@@ -4,20 +4,6 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {});
 };
 
-export type InitInput = {
-  /**
-   * Project root directory
-   */
-  directory: string;
-};
-
-export type IndexInput = {
-  /**
-   * Project root directory
-   */
-  directory: string;
-};
-
 export type SearchResult = {
   /**
    * Unique identifier for the result
@@ -29,23 +15,13 @@ export type SearchResult = {
   distance: number;
 };
 
-export type SearchInput = {
-  /**
-   * Project root directory
-   */
-  directory: string;
-  /**
-   * Search query text
-   */
-  query: string;
-  /**
-   * Maximum number of results
-   */
-  limit?: number;
-};
-
 export type InitData = {
-  body?: InitInput;
+  body?: {
+    /**
+     * Project root directory
+     */
+    directory: string;
+  };
   path?: never;
   query?: never;
   url: "/init";
@@ -91,7 +67,12 @@ export type InitResponses = {
 export type InitResponse = InitResponses[keyof InitResponses];
 
 export type IndexData = {
-  body?: IndexInput;
+  body?: {
+    /**
+     * Project root directory
+     */
+    directory: string;
+  };
   path?: never;
   query?: never;
   url: "/index";
@@ -141,7 +122,20 @@ export type IndexResponses = {
 export type IndexResponse = IndexResponses[keyof IndexResponses];
 
 export type SearchData = {
-  body?: SearchInput;
+  body?: {
+    /**
+     * Project root directory
+     */
+    directory: string;
+    /**
+     * Search query text
+     */
+    query: string;
+    /**
+     * Maximum number of results
+     */
+    limit?: number;
+  };
   path?: never;
   query?: never;
   url: "/search";

@@ -12,7 +12,7 @@ import {
 export type { Token };
 import { join } from "path";
 import { mkdirSync, existsSync } from "fs";
-import { Event } from "./event";
+import { Bus } from "./event";
 import { Config } from "./config";
 
 export namespace Model {
@@ -104,13 +104,18 @@ export namespace Model {
 
       const needDownload = downloader.downloadedSize < downloader.totalSize;
       if (needDownload) {
-        Event.emit({ tag: "model", action: "download", model: instance.name });
+        await Bus.emit({
+          tag: "model",
+          action: "download",
+          model: instance.name,
+        });
       }
 
       instance.path = await downloader.download();
       instance.status = "downloaded";
 
-      Event.emit({ tag: "model", action: "ready", model: instance.name });
+      console.log('model.download: emit')
+      await Bus.emit({ tag: "model", action: "ready", model: instance.name });
     }
   }
 
@@ -120,7 +125,7 @@ export namespace Model {
     }
 
     if (!embedder.instance.model) {
-      Event.emit({
+      await Bus.emit({
         tag: "model",
         action: "load",
         model: embedder.instance.name,

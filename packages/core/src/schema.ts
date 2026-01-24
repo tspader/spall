@@ -29,23 +29,21 @@ export function fn<T extends z.ZodType, Result>(
  * All project-scoped operations take a directory.
  * Server derives paths: {directory}/.spall/spall.db, {directory}/.spall/notes/
  */
-export const DirectoryInput = z
-  .object({
-    directory: z.string().describe("Project root directory"),
-  })
-  .meta({ ref: "DirectoryInput" });
+export const DirectoryInput = z.object({
+  directory: z.string().describe("Project root directory"),
+});
 export type DirectoryInput = z.infer<typeof DirectoryInput>;
 
-export const InitInput = DirectoryInput.meta({ ref: "InitInput" });
+export const InitInput = DirectoryInput;
 export type InitInput = z.infer<typeof InitInput>;
 
-export const IndexInput = DirectoryInput.meta({ ref: "IndexInput" });
+export const IndexInput = DirectoryInput;
 export type IndexInput = z.infer<typeof IndexInput>;
 
 export const SearchInput = DirectoryInput.extend({
   query: z.string().describe("Search query text"),
   limit: z.number().optional().describe("Maximum number of results"),
-}).meta({ ref: "SearchInput" });
+});
 export type SearchInput = z.infer<typeof SearchInput>;
 
 export const SearchResult = z

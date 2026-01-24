@@ -61,11 +61,9 @@ yargs(hideBin(process.argv))
       const directory = getDirectory();
       const tag = pc.gray("init".padEnd(TAG_WIDTH));
 
-      // const url = await Server.ensure();
-      // const client = createSpallClient({ baseUrl: url });
       const client = await Client.connect();
 
-      const { stream } = await client.init({ body: { directory } });
+      const { stream } = await client.init({ directory });
 
       for await (const event of stream) {
         if (event.tag === "init") {
@@ -105,7 +103,6 @@ yargs(hideBin(process.argv))
           }
         }
       }
-
     },
   )
   .command(
@@ -122,13 +119,12 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
-      const { port } = await CoreServer.start({
+      const { port, stopped } = await CoreServer.start({
         persist: argv.daemon,
-        onShutdown: () => process.exit(0),
       });
       console.log(`${tag} Listening on port ${pc.cyanBright(String(port))}`);
 
-      await new Promise(() => {});
+      await stopped;
     },
   )
   .command(
@@ -204,7 +200,7 @@ yargs(hideBin(process.argv))
       const client = createSpallClient({ baseUrl });
 
       // Call index endpoint and consume SSE stream
-      const { stream } = await client.index({ body: { directory } });
+      const { stream } = await client.index({ directory });
 
       for await (const event of stream) {
         handleEvent(event);
@@ -295,7 +291,9 @@ yargs(hideBin(process.argv))
       const client = createSpallClient({ baseUrl });
 
       const result = await client.search({
-        body: { directory, query: argv.query, limit: argv.limit },
+        directory,
+        query: argv.query,
+        limit: argv.limit,
       });
 
       if (result.error || !result.data) {

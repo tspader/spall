@@ -6,8 +6,8 @@ import {
   writeFileSync,
 } from "fs";
 import { join } from "path";
-import type { Server as BunServer } from "bun";
 import { Hono } from "hono";
+import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
 import {
   describeRoute,
@@ -17,7 +17,7 @@ import {
 } from "hono-openapi";
 import { z } from "zod";
 
-import { Event, type Event as EventType } from "./event";
+import { Bus, type Event } from "./event";
 import { Config } from "./config";
 import { Store } from "./store";
 import { Model } from "./model";
@@ -31,13 +31,12 @@ import {
   IndexResponse,
 } from "./schema";
 
-type LockData = { pid: number; port: number };
+type LockData = { pid: number; port: number | null };
 
 const SPALL_DIR = ".spall";
 const DB_NAME = "spall.db";
 const NOTES_DIR = "notes";
 
-/** Derive paths from a project directory */
 function paths(directory: string) {
   const spallDir = join(directory, SPALL_DIR);
   return {
@@ -56,34 +55,27 @@ export namespace Cache {
   }
 }
 
-// ============================================
-// Domain Functions
-// ============================================
-
 export const init = fn(InitInput, async (input): Promise<void> => {
   const { spallDir, dbPath, notesDir } = paths(input.directory);
 
-  // Create .spall directory
   if (!existsSync(spallDir)) {
     mkdirSync(spallDir, { recursive: true });
-    Event.emit({ tag: "init", action: "create_dir", path: spallDir });
+    await Bus.emit({ tag: "init", action: "create_dir", path: spallDir });
   }
 
-  // Create notes directory
   if (!existsSync(notesDir)) {
     mkdirSync(notesDir, { recursive: true });
-    Event.emit({ tag: "init", action: "create_dir", path: notesDir });
+    await Bus.emit({ tag: "init", action: "create_dir", path: notesDir });
   }
 
-  // Create database (Store.create emits create_db event)
-  Store.create(dbPath);
+  await Store.create(dbPath);
   Store.close();
 
   // Download model (global, in ~/.cache/spall/models/)
   Model.init();
   await Model.download();
 
-  Event.emit({ tag: "init", action: "done" });
+  await Bus.emit({ tag: "init", action: "done" });
 });
 
 export const index = fn(IndexInput, async (input): Promise<void> => {
@@ -91,8 +83,8 @@ export const index = fn(IndexInput, async (input): Promise<void> => {
 
   // TODO: Actually do indexing via Store
   // For now, send stub events to prove the pipeline works
-  Event.emit({ tag: "scan", action: "start", total: 0 });
-  Event.emit({ tag: "scan", action: "done" });
+  await Bus.emit({ tag: "scan", action: "start", total: 0 });
+  await Bus.emit({ tag: "scan", action: "done" });
 });
 
 export const search = fn(
@@ -105,19 +97,17 @@ export const search = fn(
   },
 );
 
-// Re-export types for convenience
-export type {
-  InitInput,
-  SearchResult,
-  IndexInput,
-  SearchInput,
-} from "./schema";
-
-// ============================================
-// Hono App with OpenAPI
-// ============================================
+const trackRequest = createMiddleware(async (c, next) => {
+  Server.markRequest();
+  try {
+    await next();
+  } finally {
+    Server.unmarkRequest();
+  }
+});
 
 const app = new Hono()
+  .use(trackRequest)
   .post(
     "/init",
     describeRoute({
@@ -137,23 +127,22 @@ const app = new Hono()
       },
     }),
     validator("json", InitInput),
-    (c) => {
-      const input = c.req.valid("json");
-      return streamSSE(c, async (stream) => {
-        const pending: Promise<void>[] = [];
-        const write = (event: EventType) => {
-          pending.push(stream.writeSSE({ data: JSON.stringify(event) }));
+    (context) => {
+      const input = context.req.valid("json");
+      return streamSSE(context, async (stream) => {
+        const write = async (event: Event) => {
+          await stream.writeSSE({ data: JSON.stringify(event) });
         };
 
-        const unsubscribe = Event.listen(write);
+        const unsubscribe = Bus.listen(write);
+
         try {
           await init(input);
         } catch (e) {
           const error = e instanceof Error ? e.message : "Unknown error";
-          pending.push(stream.writeSSE({ data: JSON.stringify({ error }) }));
+          await stream.writeSSE({ data: JSON.stringify({ error }) });
         } finally {
           unsubscribe();
-          await Promise.all(pending);
         }
       });
     },
@@ -180,20 +169,19 @@ const app = new Hono()
     (c) => {
       const input = c.req.valid("json");
       return streamSSE(c, async (stream) => {
-        const pending: Promise<void>[] = [];
-        const write = (event: EventType) => {
-          pending.push(stream.writeSSE({ data: JSON.stringify(event) }));
+        const write = async (event: Event) => {
+          await stream.writeSSE({ data: JSON.stringify(event) });
         };
 
-        const unsubscribe = Event.listen(write);
+        const unsubscribe = Bus.listen(write);
+
         try {
           await index(input);
         } catch (e) {
           const error = e instanceof Error ? e.message : "Unknown error";
-          pending.push(stream.writeSSE({ data: JSON.stringify({ error }) }));
+          await stream.writeSSE({ data: JSON.stringify({ error }) });
         } finally {
           unsubscribe();
-          await Promise.all(pending);
         }
       });
     },
@@ -239,14 +227,13 @@ const app = new Hono()
         },
       },
     }),
-    (c) => c.text("ok"),
+    (c) => {
+      console.log("ok");
+      return c.text("ok");
+    },
   );
 
-/**
- * Generate OpenAPI spec from the Hono app.
- * Used by SDK build script.
- */
-export async function openapi() {
+export async function buildOpenApiSpec() {
   return generateSpecs(app, {
     documentation: {
       info: {
@@ -260,10 +247,12 @@ export async function openapi() {
 }
 
 export namespace Server {
-  let server: BunServer | null = null;
+  let server: Bun.Server;
   let persist = false;
   let activeRequests = 0;
-  let shutdownTimer: ReturnType<typeof setTimeout> | null = null;
+  let timer: Timer;
+  let idleTimeoutMs = 1000;
+  let resolved: () => void;
 
   export namespace Lock {
     export function path(): string {
@@ -279,16 +268,22 @@ export namespace Server {
       }
     }
 
-    export function write(port: number): boolean {
+    export function claim(): boolean {
       Cache.ensure();
       try {
-        writeFileSync(path(), JSON.stringify({ pid: process.pid, port }), {
-          flag: "wx",
-        });
+        writeFileSync(
+          path(),
+          JSON.stringify({ pid: process.pid, port: null }),
+          { flag: "wx" },
+        );
         return true;
       } catch {
         return false;
       }
+    }
+
+    export function setPort(port: number): void {
+      writeFileSync(path(), JSON.stringify({ pid: process.pid, port }));
     }
 
     export function remove(): void {
@@ -300,125 +295,114 @@ export namespace Server {
     }
   }
 
-  // ============================================
-  // Server Lifecycle
-  // ============================================
-
-  export type StartOptions = {
-    persist?: boolean;
-    onShutdown?: () => void;
-  };
-
-  function maybeScheduleShutdown(onShutdown?: () => void): void {
-    if (!persist && activeRequests === 0) {
-      shutdownTimer = setTimeout(() => {
-        if (activeRequests === 0) {
-          stop();
-          if (onShutdown) onShutdown();
-        }
-      }, 100);
+  function isProcessAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
     }
   }
 
-  export async function start(
-    options?: StartOptions,
-  ): Promise<{ port: number }> {
+  export type StartOptions = {
+    persist?: boolean;
+    idleTimeout?: number;
+  };
+
+  export function markRequest(): void {
+    activeRequests++;
+    clearTimeout(timer);
+  }
+
+  export function unmarkRequest(): void {
+    activeRequests--;
+    resetShutdownTimer();
+  }
+
+  function resetShutdownTimer(): void {
+    if (persist) return;
+    if (activeRequests > 0) return;
+
+    console.log(`set it: ${idleTimeoutMs}`);
+    timer = setTimeout(() => {
+      if (activeRequests === 0) {
+        stop();
+      }
+    }, idleTimeoutMs);
+  }
+
+  export interface ServerResult {
+    port: number;
+    stopped: Promise<void>;
+  }
+
+  export async function start(options?: StartOptions): Promise<ServerResult> {
     persist = options?.persist ?? false;
-    const onShutdown = options?.onShutdown;
+    idleTimeoutMs = options?.idleTimeout ?? 1000;
+
+    // Clean up stale locks before attempting to claim
+    const existing = Lock.read();
+    if (existing) {
+      if (existing.port !== null) {
+        // Has port - check if healthy
+        if (await checkHealth(existing.port)) {
+          throw new Error("Server already running");
+        }
+        // Unhealthy - stale lock
+        Lock.remove();
+      } else {
+        // port is null - someone claiming
+        if (isProcessAlive(existing.pid)) {
+          throw new Error("Another server is starting");
+        }
+        // Dead claimant - stale lock
+        Lock.remove();
+      }
+    }
+
+    // Now try to claim
+    if (!Lock.claim()) {
+      throw new Error("Failed to claim lock - race condition");
+    }
 
     server = Bun.serve({
       port: 0,
-      async fetch(req) {
-        activeRequests++;
-        if (shutdownTimer) {
-          clearTimeout(shutdownTimer);
-          shutdownTimer = null;
-        }
-
-        const response = await app.fetch(req);
-
-        // For streaming responses (SSE), we need to track when the body is fully consumed
-        // not when the Response object is returned
-        if (response.body) {
-          const reader = response.body.getReader();
-          let streamDone = false;
-
-          const wrappedBody = new ReadableStream({
-            async pull(controller) {
-              if (streamDone) return;
-              try {
-                const { done, value } = await reader.read();
-                if (done) {
-                  streamDone = true;
-                  controller.close();
-                  activeRequests--;
-                  maybeScheduleShutdown(onShutdown);
-                } else {
-                  controller.enqueue(value);
-                }
-              } catch (e) {
-                streamDone = true;
-                controller.error(e);
-                activeRequests--;
-                maybeScheduleShutdown(onShutdown);
-              }
-            },
-            cancel() {
-              reader.cancel();
-              if (!streamDone) {
-                streamDone = true;
-                activeRequests--;
-                maybeScheduleShutdown(onShutdown);
-              }
-            },
-          });
-
-          return new Response(wrappedBody, {
-            status: response.status,
-            statusText: response.statusText,
-            headers: response.headers,
-          });
-        }
-
-        // Non-streaming response - decrement immediately
-        activeRequests--;
-        maybeScheduleShutdown(onShutdown);
-        return response;
-      },
+      fetch: app.fetch,
     });
 
     const port = server.port;
     if (!port) {
       server.stop();
+      Lock.remove();
       throw new Error("Failed to get server port");
     }
 
-    if (!Lock.write(port)) {
-      server.stop();
-      throw new Error("");
-    }
+    // Update lock with actual port
+    Lock.setPort(port);
 
     process.once("SIGINT", () => {
       stop();
-      if (onShutdown) onShutdown();
     });
     process.once("SIGTERM", () => {
       stop();
-      if (onShutdown) onShutdown();
     });
 
-    return { port };
+    resetShutdownTimer();
+
+    const stopped = new Promise<void>((resolve) => {
+      resolved = resolve;
+    });
+
+    return { port, stopped };
   }
 
   export function stop(): void {
-    if (server) {
-      server.stop();
-      server = null;
-    }
+    server.stop();
     Lock.remove();
+    resolved();
   }
 
-  async function check(port: number): Promise<boolean> {
+  async function checkHealth(port: number): Promise<boolean> {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/health`);
       return response.ok;
@@ -427,21 +411,54 @@ export namespace Server {
     }
   }
 
-  async function tryLock(): Promise<string | null> {
-    const lock = Lock.read();
-    if (!lock) return null;
-    if (await check(lock.port)) {
-      return `http://127.0.0.1:${lock.port}`;
+  type AcquireResult = { role: "leader" } | { role: "follower"; url: string };
+
+  async function acquire(): Promise<AcquireResult> {
+    while (true) {
+      // Try to claim the lock
+      if (Lock.claim()) {
+        return { role: "leader" };
+      }
+
+      // Someone else has the lock - read it
+      const lock = Lock.read();
+
+      if (!lock) {
+        // Lock disappeared, retry
+        continue;
+      }
+
+      if (lock.port !== null) {
+        // Port written - health check it
+        if (await checkHealth(lock.port)) {
+          return { role: "follower", url: `http://127.0.0.1:${lock.port}` };
+        }
+        // Unhealthy - remove stale lock, retry
+        Lock.remove();
+        continue;
+      }
+
+      // port is null - someone is claiming, check if alive
+      if (!isProcessAlive(lock.pid)) {
+        // Dead claimant - remove stale lock, retry
+        Lock.remove();
+        continue;
+      }
+
+      // Alive, still starting - wait and retry
+      await Bun.sleep(50);
     }
-    Lock.remove();
-    return null;
   }
 
   // Atomically start a local server, or connect to an existing one.
   export async function ensure(): Promise<string> {
-    const existing = await tryLock();
-    if (existing) return existing;
+    const result = await acquire();
 
+    if (result.role === "follower") {
+      return result.url;
+    }
+
+    // We're the leader - spawn server
     Bun.spawn(["spall", "serve"], {
       stdin: "ignore",
       stdout: "ignore",
@@ -452,10 +469,17 @@ export namespace Server {
       },
     }).unref();
 
+    // We claimed the lock but the spawned process will try to claim too.
+    // Release our claim so the spawned process can take over.
+    Lock.remove();
+
+    // Wait for spawned server to write port
     for (let i = 0; i < 40; i++) {
-      await Bun.sleep(25);
-      const url = await tryLock();
-      if (url) return url;
+      await Bun.sleep(50);
+      const lock = Lock.read();
+      if (lock && lock.port !== null) {
+        return `http://127.0.0.1:${lock.port}`;
+      }
     }
 
     throw new Error("Timeout waiting for server to start");
