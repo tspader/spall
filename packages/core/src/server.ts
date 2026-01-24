@@ -18,6 +18,8 @@ import {
 } from "hono-openapi";
 import { z } from "zod";
 import { consola } from "consola";
+import pc from "picocolors";
+
 
 import { Bus, type Event } from "./event";
 import { Config } from "./config";
@@ -57,6 +59,30 @@ export namespace Cache {
   }
 }
 
+const work = async () => {
+  const totalTime = 3;
+  const numIter = 50;
+  const timePerIter = (totalTime * 1000) / numIter;
+
+  await Bus.emit({
+    tag: "model",
+    action: "download",
+    model: `${totalTime}s_download_model.gguf`
+  });
+
+
+  for (let i = 0; i < numIter; i++) {
+    await Bun.sleep(timePerIter);
+  }
+
+  await Bus.emit({
+    tag: "model",
+    action: "ready",
+    model: `${totalTime}s_download_model.gguf`
+  });
+
+}
+
 export const init = fn(InitInput, async (input): Promise<void> => {
   const { spallDir, dbPath, notesDir } = paths(input.directory);
 
@@ -75,7 +101,8 @@ export const init = fn(InitInput, async (input): Promise<void> => {
 
   // Download model (global, in ~/.cache/spall/models/)
   Model.init();
-  await Model.download();
+  await work();
+  //await Model.download();
 
   await Bus.emit({ tag: "init", action: "done" });
 });
@@ -108,6 +135,20 @@ const trackRequest = createMiddleware(async (c, next) => {
   }
 });
 
+function trackedSSE(
+  context: Parameters<typeof streamSSE>[0],
+  cb: Parameters<typeof streamSSE>[1],
+) {
+  return streamSSE(context, async (stream) => {
+    Server.markSSE();
+    try {
+      await cb(stream);
+    } finally {
+      Server.unmarkSSE();
+    }
+  });
+}
+
 const app = new Hono()
   .use(trackRequest)
   .use(logger())
@@ -132,8 +173,9 @@ const app = new Hono()
     validator("json", InitInput),
     (context) => {
       const input = context.req.valid("json");
-      return streamSSE(context, async (stream) => {
+      return trackedSSE(context, async (stream) => {
         const write = async (event: Event) => {
+          consola.info(`${pc.gray(event.tag)} ${pc.cyanBright(event.action)}`)
           await stream.writeSSE({ data: JSON.stringify(event) });
         };
 
@@ -171,7 +213,7 @@ const app = new Hono()
     validator("json", IndexInput),
     (c) => {
       const input = c.req.valid("json");
-      return streamSSE(c, async (stream) => {
+      return trackedSSE(c, async (stream) => {
         const write = async (event: Event) => {
           await stream.writeSSE({ data: JSON.stringify(event) });
         };
@@ -252,6 +294,7 @@ export namespace Server {
   let server: Bun.Server;
   let persist = false;
   let activeRequests = 0;
+  let activeSSE = 0;
   let timer: Timer;
   let idleTimeoutMs = 1000;
   let resolved: () => void;
@@ -322,12 +365,22 @@ export namespace Server {
     resetShutdownTimer();
   }
 
+  export function markSSE(): void {
+    activeSSE++;
+    clearTimeout(timer);
+  }
+
+  export function unmarkSSE(): void {
+    activeSSE--;
+    resetShutdownTimer();
+  }
+
   function resetShutdownTimer(): void {
     if (persist) return;
-    if (activeRequests > 0) return;
+    if (activeRequests > 0 || activeSSE > 0) return;
 
     timer = setTimeout(() => {
-      if (activeRequests === 0) {
+      if (activeRequests === 0 && activeSSE === 0) {
         stop();
       }
     }, idleTimeoutMs);
@@ -387,6 +440,7 @@ export namespace Server {
   }
 
   export function stop(): void {
+    consola.info('Killing server')
     server.stop();
     Lock.remove();
     resolved();
@@ -474,6 +528,8 @@ export namespace Server {
       }
     }
 
-    throw new Error("Claimed leader role, but timed out waiting for server to start");
+    throw new Error(
+      "Claimed leader role, but timed out waiting for server to start",
+    );
   }
 }

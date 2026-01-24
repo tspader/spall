@@ -98,7 +98,7 @@ yargs(hideBin(process.argv))
               break;
             }
             case "ready":
-              console.log(`${modelTag} Ready`);
+              console.log(`${modelTag} Finished downloading ${pc.cyanBright(event.model)}`);
               break;
           }
         }
