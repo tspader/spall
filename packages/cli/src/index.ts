@@ -109,18 +109,26 @@ yargs(hideBin(process.argv))
     "serve",
     "Start the spall server",
     (yargs) => {
-      return yargs.option("daemon", {
-        alias: "d",
-        type: "boolean",
-        default: false,
-        describe: "Run indefinitely (don't exit after last client disconnects)",
-      });
+      return yargs
+        .option("daemon", {
+          alias: "d",
+          type: "boolean",
+          default: false,
+          describe: "Do not stop after last client disconnects",
+        })
+        .option("timeout", {
+          alias: "t",
+          type: "number",
+          default: 1,
+          describe: "Seconds to wait after last client disconnects",
+        })
     },
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
       const { port, stopped } = await CoreServer.start({
         persist: argv.daemon,
+        idleTimeout: argv.timeout * 1000,
       });
       console.log(`${tag} Listening on port ${pc.cyanBright(String(port))}`);
 
