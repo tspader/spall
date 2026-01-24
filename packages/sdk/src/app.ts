@@ -10,21 +10,22 @@ import {
 import { z } from "zod";
 
 import {
-  InitInput,
-  InitResponse,
-  IndexInput,
-  SearchInput,
-  SearchResult,
-  IndexResponse,
 } from "@spall/core/src/schema";
 
 import {
   init,
   index,
   search,
-} from "./api"
+  Event,
+  InitInput,
+  InitEvents,
+  IndexInput,
+  IndexEvents,
+  SearchInput,
+  SearchResult,
+} from "@spall/core"
 
-import { Bus, type Event } from "@spall/core/src/event";
+import { Bus } from "@spall/core/src/event";
 
 import { Server } from "./server";
 
@@ -57,7 +58,7 @@ export namespace App {
             description: "Initialization events stream",
             content: {
               "text/event-stream": {
-                schema: resolver(InitResponse),
+                schema: resolver(InitEvents),
               },
             },
           },
@@ -81,7 +82,7 @@ export namespace App {
             description: "Indexing events stream",
             content: {
               "text/event-stream": {
-                schema: resolver(IndexResponse),
+                schema: resolver(IndexEvents)
               },
             },
           },
@@ -176,7 +177,7 @@ export namespace App {
   }
 
   export async function spec() {
-    return generateSpecs(app, {
+    return generateSpecs(App.get(), {
       documentation: {
         info: {
           title: "spall",

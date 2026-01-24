@@ -6,15 +6,25 @@ export {
   type IndexResult,
 } from "./store";
 export { Model, type Token } from "./model";
-export { Bus, FileStatus, type Event } from "./event";
+export { Bus } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
-export type {
+export {
+  Event,
+  InitEvent,
+  EmbedEvent,
+  ModelEvent,
+  InitInput,
+  InitEvents,
+  SearchInput,
   SearchResult,
   IndexInput,
-  SearchInput,
-  InitResponse,
-  IndexResponse,
+  IndexEvents,
+  FileStatus,
 } from "./schema";
-export { fn } from "./schema";
 export { Config, type ConfigSchema } from "./config";
+export {
+  init,
+  index,
+  search
+} from "./api"

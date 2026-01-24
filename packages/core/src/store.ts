@@ -3,10 +3,11 @@ import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname } from "path";
 import { file, Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
-import { Bus, FileStatus } from "./event";
+import { Bus } from "./event";
 import { Sql } from "./sql";
 import { Io } from "./io";
 import { Model } from "./model";
+import { FileStatus } from "./schema";
 
 export type Chunk = {
   text: string;
@@ -301,15 +302,15 @@ export namespace Store {
       if (!existing) {
         upsertFile(file, meta.modTime);
         added.push(file);
-        status = FileStatus.Added;
+        status = "added";
       } else if (meta.modTime > existing.mtime) {
         upsertFile(file, meta.modTime);
         clearEmbeddings(file);
         markUnembedded(file);
         modified.push(file);
-        status = FileStatus.Modified;
+        status = "modified";
       } else {
-        status = FileStatus.Ok;
+        status = "ok"
       }
 
       await Bus.emit({ tag: "scan", action: "progress", path: file, status });
@@ -325,7 +326,7 @@ export namespace Store {
           tag: "scan",
           action: "progress",
           path: file,
-          status: FileStatus.Removed,
+          status: "removed"
         });
       }
     }

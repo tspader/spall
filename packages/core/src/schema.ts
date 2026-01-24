@@ -1,65 +1,19 @@
 import { z } from "zod";
 
-/**
- * Helper to attach a Zod schema to a function.
- * Enables reuse of the schema for validation in routes.
- *
- * Usage:
- *   export const search = fn(SearchInput, async (input) => { ... })
- *   // Then in routes: validator("json", search.schema)
- */
-export function fn<T extends z.ZodType, Result>(
-  schema: T,
-  cb: (input: z.infer<T>) => Result,
-) {
-  const result = (input: z.infer<T>) => {
-    const parsed = schema.parse(input);
-    return cb(parsed);
-  };
-  result.force = (input: z.infer<T>) => cb(input);
-  result.schema = schema;
-  return result;
-}
-
-// ============================================
-// Shared Schemas
-// ============================================
-
-/**
- * All project-scoped operations take a directory.
- * Server derives paths: {directory}/.spall/spall.db, {directory}/.spall/notes/
- */
-export const DirectoryInput = z.object({
-  directory: z.string().describe("Project root directory"),
-});
-export type DirectoryInput = z.infer<typeof DirectoryInput>;
-
-export const InitInput = DirectoryInput;
-export type InitInput = z.infer<typeof InitInput>;
-
-export const IndexInput = DirectoryInput;
-export type IndexInput = z.infer<typeof IndexInput>;
-
-export const SearchInput = DirectoryInput.extend({
-  query: z.string().describe("Search query text"),
-  limit: z.number().optional().describe("Maximum number of results"),
-});
-export type SearchInput = z.infer<typeof SearchInput>;
-
-export const SearchResult = z
-  .object({
-    key: z.string().describe("Unique identifier for the result"),
-    distance: z.number().describe("Distance/similarity score"),
-  })
-  .meta({ ref: "SearchResult" });
-export type SearchResult = z.infer<typeof SearchResult>;
-
-/////////
-// SSE //
-/////////
+///////////////
+// UTILITIES //
+///////////////
 export const FileStatus = z.enum(["added", "modified", "removed", "ok"]);
+
 export type FileStatus = z.infer<typeof FileStatus>;
 
+////////////////
+// SSE EVENTS //
+////////////////
+//
+// these are the base events we can emit; any given API call could emit
+// any subset of these
+//
 export const InitEvent = z.discriminatedUnion("action", [
   z.object({
     tag: z.literal("init"),
@@ -76,7 +30,6 @@ export const InitEvent = z.discriminatedUnion("action", [
     action: z.literal("done"),
   }),
 ]);
-export type InitEvent = z.infer<typeof InitEvent>;
 
 export const ModelEvent = z.discriminatedUnion("action", [
   z.object({
@@ -103,7 +56,6 @@ export const ModelEvent = z.discriminatedUnion("action", [
     model: z.string(),
   }),
 ]);
-export type ModelEvent = z.infer<typeof ModelEvent>;
 
 export const ScanEvent = z.discriminatedUnion("action", [
   z.object({
@@ -122,7 +74,6 @@ export const ScanEvent = z.discriminatedUnion("action", [
     action: z.literal("done"),
   }),
 ]);
-export type ScanEvent = z.infer<typeof ScanEvent>;
 
 export const EmbedEvent = z.discriminatedUnion("action", [
   z.object({
@@ -145,16 +96,60 @@ export const EmbedEvent = z.discriminatedUnion("action", [
     action: z.literal("done"),
   }),
 ]);
-export type EmbedEvent = z.infer<typeof EmbedEvent>;
 
-/** All possible events (union of all event types) */
 export const Event = z.union([InitEvent, ModelEvent, ScanEvent, EmbedEvent]);
+
+export type InitEvent = z.infer<typeof InitEvent>;
+export type ScanEvent = z.infer<typeof ScanEvent>;
+export type EmbedEvent = z.infer<typeof EmbedEvent>;
+export type ModelEvent = z.infer<typeof ModelEvent>;
 export type Event = z.infer<typeof Event>;
 
-/** Events emitted during /init (init + model events) */
-export const InitResponse = z.union([InitEvent, ModelEvent]);
-export type InitResponse = z.infer<typeof InitResponse>;
 
-/** Events emitted during /index (scan + embed events) */
-export const IndexResponse = z.union([ScanEvent, EmbedEvent]);
-export type IndexResponse = z.infer<typeof IndexResponse>;
+/////////
+// API //
+/////////
+//
+// simple input and output types for API functions
+//
+export const SearchInput = z.object({
+  directory: z.string().describe("Project root directory"),
+  query: z.string().describe("Search query text"),
+  limit: z.number().optional().describe("Maximum number of results"),
+});
+
+export const SearchResult = z
+  .object({
+    key: z.string().describe("Unique identifier for the result"),
+    distance: z.number().describe("Distance/similarity score"),
+  })
+  .meta({ ref: "SearchResult" });
+
+export type SearchInput = z.infer<typeof SearchInput>;
+export type SearchResult = z.infer<typeof SearchResult>;
+
+
+/////////////
+// SSE API //
+/////////////
+//
+// input and output types for API functions that stream over SSE; the input
+// types are analagous to non-streaming SSE functions, but obviously there's
+// no singular type that is returned.
+//
+// rather, the "output" type is just a union of all events it can emit
+//
+export const InitInput = z.object({
+  directory: z.string().describe("Project root directory"),
+});
+export const InitEvents = z.union([InitEvent, ModelEvent]);
+
+export const IndexInput = z.object({
+  directory: z.string().describe("Project root directory"),
+});
+export const IndexEvents = z.union([ScanEvent, EmbedEvent]);
+
+export type InitInput = z.infer<typeof InitInput>;
+export type IndexInput = z.infer<typeof IndexInput>;
+export type InitEvents = z.infer<typeof InitEvents>;
+export type IndexEvents = z.infer<typeof IndexEvents>;

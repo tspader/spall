@@ -1,15 +1,8 @@
-import { Event as EventSchema, FileStatus as FileStatusSchema } from "./schema";
+import z from "zod"
+import type { ZodType } from "zod"
+
+import { type Event } from "./schema";
 import pc from "picocolors";
-
-export type Event = EventSchema;
-export type FileStatus = FileStatusSchema;
-
-export const FileStatus = {
-  Added: "added" as const,
-  Modified: "modified" as const,
-  Removed: "removed" as const,
-  Ok: "ok" as const,
-};
 
 export namespace Bus {
   export type Handler = (event: Event) => void | Promise<void>;
@@ -49,5 +42,4 @@ export namespace Bus {
 
     return event.action;
   }
-
 }

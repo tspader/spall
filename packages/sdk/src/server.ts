@@ -10,7 +10,8 @@ import { consola } from "consola";
 import pc from "picocolors";
 
 
-import { Bus, type Event } from "@spall/core/src/event";
+import { Event } from "@spall/core";
+import { Bus } from "@spall/core/src/event";
 import { Config } from "@spall/core/src/config";
 import { App } from "@spall/sdk";
 

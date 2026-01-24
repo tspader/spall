@@ -5,18 +5,15 @@ import {
 import { join } from "path";
 import { z } from "zod";
 
-import { Bus } from "@spall/core/src/event";
-import { Store } from "@spall/core/src/store";
-import { Model } from "@spall/core/src/model";
+import { Bus } from   "./event";
+import { Store } from "./store";
+import { Model } from "./model";
 import {
-  fn,
   InitInput,
-  InitResponse,
   IndexInput,
   SearchInput,
   SearchResult,
-  IndexResponse,
-} from "@spall/core/src/schema";
+} from "./schema";
 
 const SPALL_DIR = ".spall";
 const DB_NAME = "spall.db";
@@ -31,6 +28,20 @@ function paths(directory: string) {
   };
 }
 
+// define a function which takes a schema type and parses it, instead of
+// duplicating the parsing in many places
+export function api<T extends z.ZodType, Result>(
+  schema: T,
+  cb: (input: z.infer<T>) => Result,
+) {
+  const result = (input: z.infer<T>) => {
+    const parsed = schema.parse(input);
+    return cb(parsed);
+  };
+  result.force = (input: z.infer<T>) => cb(input);
+  result.schema = schema;
+  return result;
+}
 
 const work = async () => {
   const totalTime = 3;
@@ -63,7 +74,7 @@ const work = async () => {
 
 }
 
-export const init = fn(InitInput, async (input): Promise<void> => {
+export const init = api(InitInput, async (input): Promise<void> => {
   const { spallDir, dbPath, notesDir } = paths(input.directory);
 
   if (!existsSync(spallDir)) {
@@ -87,7 +98,7 @@ export const init = fn(InitInput, async (input): Promise<void> => {
   await Bus.emit({ tag: "init", action: "done" });
 });
 
-export const index = fn(IndexInput, async (input): Promise<void> => {
+export const index = api(IndexInput, async (input): Promise<void> => {
   const { dbPath, notesDir } = paths(input.directory);
 
   // TODO: Actually do indexing via Store
@@ -96,7 +107,7 @@ export const index = fn(IndexInput, async (input): Promise<void> => {
   await Bus.emit({ tag: "scan", action: "done" });
 });
 
-export const search = fn(
+export const search = api(
   SearchInput,
   async (input): Promise<z.infer<typeof SearchResult>[]> => {
     const { dbPath } = paths(input.directory);
