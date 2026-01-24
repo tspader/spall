@@ -54,11 +54,9 @@ export const SearchResult = z
   .meta({ ref: "SearchResult" });
 export type SearchResult = z.infer<typeof SearchResult>;
 
-// ============================================
-// Event Schemas (for SSE streams)
-// ============================================
-
-/** File status for scan progress events */
+/////////
+// SSE //
+/////////
 export const FileStatus = z.enum(["added", "modified", "removed", "ok"]);
 export type FileStatus = z.infer<typeof FileStatus>;
 
@@ -85,6 +83,13 @@ export const ModelEvent = z.discriminatedUnion("action", [
     tag: z.literal("model"),
     action: z.literal("download"),
     model: z.string(),
+  }),
+  z.object({
+    tag: z.literal("model"),
+    action: z.literal("progress"),
+    model: z.string(),
+    total: z.number(),
+    downloaded: z.number(),
   }),
   z.object({
     tag: z.literal("model"),

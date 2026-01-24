@@ -113,6 +113,35 @@
                             },
                             "action": {
                               "type": "string",
+                              "const": "progress"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "total": {
+                              "type": "number"
+                            },
+                            "downloaded": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "model",
+                            "total",
+                            "downloaded"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "model"
+                            },
+                            "action": {
+                              "type": "string",
                               "const": "load"
                             },
                             "model": {

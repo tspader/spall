@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun";
-import { buildOpenApiSpec } from "@spall/core";
+import { buildOpenApiSpec } from "@spall/sdk";
 
 const dir = new URL("..", import.meta.url).pathname;
 process.chdir(dir);

@@ -53,6 +53,13 @@ export type InitResponses = {
       }
     | {
         tag: "model";
+        action: "progress";
+        model: string;
+        total: number;
+        downloaded: number;
+      }
+    | {
+        tag: "model";
         action: "load";
         model: string;
         path: string;

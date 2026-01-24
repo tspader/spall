@@ -6,14 +6,11 @@ import { join, dirname } from "path";
 import { mkdirSync } from "fs";
 import { Glob } from "bun";
 import pc from "picocolors";
-import { Io, Server as CoreServer } from "@spall/core";
+import { Io } from "@spall/core";
 import {
-  createSpallClient,
   Client,
   Server,
-  type InitResponse,
   type IndexResponse,
-  type SearchResult,
 } from "@spall/sdk";
 
 const SPALL_DIR = ".spall";
@@ -21,6 +18,10 @@ const NOTES_DIR = "notes";
 
 const TAG_WIDTH = 8;
 const BAR_WIDTH = 20;
+
+namespace Cli {
+  export const CLEAR = "\x1b[K";
+}
 
 function renderProgressBar(percent: number): string {
   const filled = Math.round((percent / 100) * BAR_WIDTH);
@@ -56,7 +57,7 @@ yargs(hideBin(process.argv))
   .command(
     "init",
     "Initialize spall in the current directory",
-    () => {},
+    () => { },
     async () => {
       const directory = getDirectory();
       const tag = pc.gray("init".padEnd(TAG_WIDTH));
@@ -90,6 +91,17 @@ yargs(hideBin(process.argv))
                 `${modelTag} Downloading ${pc.cyanBright(event.model)}`,
               );
               break;
+            case "progress": {
+              const percent = (event.downloaded / event.total) * 100;
+              const bar = renderProgressBar(percent);
+              const percentStr = percent.toFixed(0).padStart(3);
+
+              process.stdout.write(
+                `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
+              );
+
+              break;
+            }
             case "load": {
               const size = statSync(event.path).size;
               console.log(
@@ -126,7 +138,7 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
-      const { port, stopped } = await CoreServer.start({
+      const { port, stopped } = await Server.start({
         persist: argv.daemon,
         idleTimeout: argv.timeout * 1000,
       });
@@ -138,7 +150,7 @@ yargs(hideBin(process.argv))
   .command(
     "index",
     "Index all notes in .spall/notes",
-    () => {},
+    () => { },
     async () => {
       const directory = getDirectory();
       const tag = pc.gray("index".padEnd(TAG_WIDTH));
@@ -203,9 +215,7 @@ yargs(hideBin(process.argv))
         }
       };
 
-      // Connect to server (auto-start if needed)
-      const baseUrl = await Server.ensure();
-      const client = createSpallClient({ baseUrl });
+      const client = await Client.connect();
 
       // Call index endpoint and consume SSE stream
       const { stream } = await client.index({ directory });
@@ -295,8 +305,7 @@ yargs(hideBin(process.argv))
       const directory = getDirectory();
 
       // Connect to server (auto-start if needed)
-      const baseUrl = await Server.ensure();
-      const client = createSpallClient({ baseUrl });
+      const client = await Client.connect();
 
       const result = await client.search({
         directory,
@@ -324,7 +333,7 @@ yargs(hideBin(process.argv))
           const content = Io.read(getNotesDir(), r.key);
           const preview = content
             ? content.slice(0, 80).replace(/\n/g, " ") +
-              (content.length > 80 ? "..." : "")
+            (content.length > 80 ? "..." : "")
             : "(no content)";
 
           console.log(
@@ -433,7 +442,7 @@ yargs(hideBin(process.argv))
   .command(
     "review",
     "Launch the interactive diff review TUI",
-    () => {},
+    () => { },
     async () => {
       const { spawn } = await import("child_process");
       const tuiPath = require.resolve("@spall/tui");

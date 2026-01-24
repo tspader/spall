@@ -9,7 +9,6 @@ export { Model, type Token } from "./model";
 export { Bus, FileStatus, type Event } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
-export { Server, buildOpenApiSpec } from "./server";
 export type {
   SearchResult,
   IndexInput,

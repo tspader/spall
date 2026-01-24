@@ -1,4 +1,3 @@
-export { createSpallClient, SpallClient, Client } from "./client";
-export type { SpallClientConfig } from "./client";
+export { Client } from "./client";
+export { Server, buildOpenApiSpec } from "./server";
 export * from "./gen/types.gen";
-export { Server } from "./server";

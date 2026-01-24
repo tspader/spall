@@ -57,13 +57,6 @@ export namespace Model {
     return llama;
   }
 
-  async function createDownloader(modelUri: string): Promise<ModelDownloader> {
-    ensureCacheDir();
-    return createModelDownloader({
-      modelUri,
-      dirPath: modelCacheDir(),
-    });
-  }
 
   export function init(): void {
     if (initialized) return;
@@ -79,28 +72,44 @@ export namespace Model {
   }
 
   export async function download(): Promise<void> {
+    ensureCacheDir();
+
     type DownloadWork = {
       instance: Instance;
-      downloader: ModelDownloader;
       uri: string;
     };
 
-    const cfg = Config.get();
+    const config = Config.get();
+
     const work: DownloadWork[] = [
       {
         instance: embedder.instance,
-        downloader: await createDownloader(cfg.embeddingModel),
-        uri: cfg.embeddingModel,
+        uri: config.embeddingModel,
       },
       {
         instance: reranker.instance,
-        downloader: await createDownloader(cfg.rerankerModel),
-        uri: cfg.rerankerModel,
+        uri: config.rerankerModel,
       },
     ];
 
-    for (const { instance, downloader, uri } of work) {
+    for (const { instance, uri } of work) {
       instance.name = uri.split("/").pop()!;
+
+      const downloader = await createModelDownloader({
+        modelUri: uri,
+        dirPath: modelCacheDir(),
+        onProgress: ({ totalSize, downloadedSize }) => {
+          if (totalSize != downloadedSize) {
+            Bus.emit({
+              tag: "model",
+              action: "progress",
+              model: instance.name,
+              total: totalSize,
+              downloaded: downloadedSize
+            })
+          }
+        }
+      });
 
       const needDownload = downloader.downloadedSize < downloader.totalSize;
       if (needDownload) {
@@ -114,8 +123,9 @@ export namespace Model {
       instance.path = await downloader.download();
       instance.status = "downloaded";
 
-      console.log('model.download: emit')
-      await Bus.emit({ tag: "model", action: "ready", model: instance.name });
+      if (needDownload) {
+        await Bus.emit({ tag: "model", action: "ready", model: instance.name });
+      }
     }
   }
 
