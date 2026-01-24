@@ -8,11 +8,15 @@ import {
   afterEach,
 } from "bun:test";
 import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from "fs";
-import { join } from "path";
+import { join, resolve } from "path";
 import { tmpdir } from "os";
 import { Store } from "./store";
 import { Model } from "./model";
+import { Config } from "./config";
 import { Io } from "./io";
+
+// Shared cache directory for all tests (models downloaded once)
+const TEST_CACHE_DIR = resolve(__dirname, "../../../.cache");
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -22,12 +26,16 @@ describe("Store integration (with model)", () => {
   let notesDir: string;
 
   beforeAll(async () => {
+    mkdirSync(TEST_CACHE_DIR, { recursive: true });
+    process.env.SPALL_CACHE_DIR = TEST_CACHE_DIR;
+    Config.reset();
+
     Model.init();
     await Model.download();
   });
 
   afterAll(async () => {
-    await Model.dispose();
+    // Don't dispose model - it's shared across test files
   });
 
   beforeEach(() => {

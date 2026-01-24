@@ -1,23 +1,20 @@
 #!/usr/bin/env bun
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { mkdirSync, writeFileSync, existsSync, statSync } from "fs";
+import { writeFileSync, existsSync, statSync } from "fs";
 import { join, dirname } from "path";
+import { mkdirSync } from "fs";
 import { Glob } from "bun";
 import pc from "picocolors";
+import { Server, Io } from "@spall/core";
 import {
-  Store,
-  Model,
-  Event,
-  FileStatus,
-  Io,
-  Server,
-  Client,
-  type EventType,
-} from "@spall/core";
+  spall,
+  type InitResponse,
+  type IndexResponse,
+  type SearchResult,
+} from "@spall/sdk";
 
 const SPALL_DIR = ".spall";
-const DB_NAME = "spall.db";
 const NOTES_DIR = "notes";
 
 const TAG_WIDTH = 8;
@@ -44,42 +41,8 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-function setupEventHandler(): void {
-  Event.listen((event: EventType) => {
-    const tag = pc.gray(event.tag.padEnd(TAG_WIDTH));
-    // Only handle init and model events here
-    // scan and embed events are handled by command-specific handlers
-    if (event.tag === "init") {
-      switch (event.action) {
-        case "create_db":
-          console.log(
-            `${tag} Creating database at ${pc.cyanBright(event.path)}`,
-          );
-          break;
-        case "done":
-          break;
-      }
-    } else if (event.tag === "model") {
-      switch (event.action) {
-        case "download":
-          console.log(`${tag} Downloading ${pc.cyanBright(event.model)}`);
-          break;
-        case "load": {
-          const size = statSync(event.path).size;
-          console.log(
-            `${tag} Loading ${pc.cyanBright(event.model)} ${pc.dim(`(${formatBytes(size)})`)}`,
-          );
-          break;
-        }
-        case "ready":
-          break;
-      }
-    }
-  });
-}
-
-function getDbPath(): string {
-  return join(process.cwd(), SPALL_DIR, DB_NAME);
+function getDirectory(): string {
+  return process.cwd();
 }
 
 function getNotesDir(): string {
@@ -93,40 +56,82 @@ yargs(hideBin(process.argv))
     "Initialize spall in the current directory",
     () => {},
     async () => {
-      setupEventHandler();
-      const dbPath = getDbPath();
-      const notesDir = getNotesDir();
+      const directory = getDirectory();
+      const tag = pc.gray("init".padEnd(TAG_WIDTH));
 
-      // Create notes directory
-      if (!existsSync(notesDir)) {
-        mkdirSync(notesDir, { recursive: true });
+      const handleEvent = (event: InitResponse) => {
+        if (event.tag === "init") {
+          switch (event.action) {
+            case "create_dir":
+              console.log(
+                `${tag} Creating directory ${pc.cyanBright(event.path)}`,
+              );
+              break;
+            case "create_db":
+              console.log(
+                `${tag} Creating database ${pc.cyanBright(event.path)}`,
+              );
+              break;
+            case "done":
+              console.log(`${tag} Done`);
+              break;
+          }
+        } else if (event.tag === "model") {
+          const modelTag = pc.gray("model".padEnd(TAG_WIDTH));
+          switch (event.action) {
+            case "download":
+              console.log(
+                `${modelTag} Downloading ${pc.cyanBright(event.model)}`,
+              );
+              break;
+            case "progress": {
+              const bar = renderProgressBar(event.percent);
+              const percentStr = event.percent.toFixed(0).padStart(3);
+              process.stdout.write(`\r${bar} ${pc.bold(percentStr + "%")}`);
+              break;
+            }
+            case "load": {
+              process.stdout.write("\n");
+              const size = statSync(event.path).size;
+              console.log(
+                `${modelTag} Loading ${pc.cyanBright(event.model)} ${pc.dim(`(${formatBytes(size)})`)}`,
+              );
+              break;
+            }
+            case "ready":
+              break;
+          }
+        }
+      };
+
+      // Connect to server (auto-start if needed)
+      const baseUrl = await Server.ensure();
+      const client = spall({ baseUrl });
+
+      // Call init endpoint and consume SSE stream
+      const { stream } = await client.init({ body: { directory } });
+
+      for await (const event of stream) {
+        handleEvent(event as InitResponse);
       }
-
-      Store.create(dbPath);
-
-      Model.init();
-      await Model.download();
-
-      Event.emit({ tag: "init", action: "done" });
-      Store.close();
     },
   )
   .command(
     "serve",
     "Start the spall server",
     (yargs) => {
-      return yargs.option("persist", {
-        alias: "p",
+      return yargs.option("daemon", {
+        alias: "d",
         type: "boolean",
         default: false,
-        describe: "Keep server running even with no clients",
+        describe: "Run indefinitely (don't exit after last client disconnects)",
       });
     },
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
 
       const { port } = await Server.start({
-        persist: argv.persist,
+        persist: argv.daemon,
         onShutdown: () => process.exit(0),
       });
       console.log(`${tag} Listening on port ${pc.cyanBright(String(port))}`);
@@ -139,94 +144,71 @@ yargs(hideBin(process.argv))
     "Index all notes in .spall/notes",
     () => {},
     async () => {
-      const dbPath = getDbPath();
-      const notesDir = getNotesDir();
-
+      const directory = getDirectory();
       const tag = pc.gray("index".padEnd(TAG_WIDTH));
       const clear = "\x1b[K";
 
       // Set up index event handler
       let startTimeNs = 0;
-      let totalBytes = 0;
+      let totalChunks = 0;
 
-      // Scan state
-      let scanTotal = 0;
-      let scanProcessed = 0;
-      const scanCounts: Record<FileStatus, number> = {
-        [FileStatus.Added]: 0,
-        [FileStatus.Modified]: 0,
-        [FileStatus.Removed]: 0,
-        [FileStatus.Ok]: 0,
-      };
-
-      Event.listen((event: EventType) => {
+      const handleEvent = (event: IndexResponse) => {
         if (event.tag === "scan") {
           switch (event.action) {
             case "start":
-              scanTotal = event.total;
+              console.log(`${tag} Scanning ${event.total} files`);
               break;
-            case "progress":
-              scanProcessed++;
-              scanCounts[event.status]++;
-              process.stdout.write(
-                `\r${tag} Scanning ${pc.dim(`${scanProcessed}/${scanTotal}`)}${clear}`,
-              );
+            case "done":
+              console.log(`${tag} Scan complete`);
               break;
-            case "done": {
-              const added = scanCounts[FileStatus.Added];
-              const modified = scanCounts[FileStatus.Modified];
-              const removed = scanCounts[FileStatus.Removed];
-              const ignored = scanTotal - (added + modified + removed);
-              if (scanTotal > 0) {
-                process.stdout.write("\n");
-              }
-              console.log(
-                `${tag} ${added} added, ${modified} modified, ${removed} removed, ${ignored} up to date`,
-              );
-              break;
-            }
           }
         } else if (event.tag === "embed") {
           switch (event.action) {
             case "start":
               startTimeNs = Bun.nanoseconds();
-              totalBytes = event.totalBytes;
-              console.log(
-                `${tag} Embedding ${event.totalDocs} documents (${pc.dim(`${event.totalChunks} chunks, ${formatBytes(event.totalBytes)}`)})`,
-              );
+              totalChunks = event.total;
+              console.log(`${tag} Embedding ${event.total} chunks`);
               break;
             case "progress": {
-              const percent = (event.bytesProcessed / event.totalBytes) * 100;
+              const percent = (event.current / totalChunks) * 100;
               const bar = renderProgressBar(percent);
               const percentStr = percent.toFixed(0).padStart(3);
 
               const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-              const bytesPerSec = event.bytesProcessed / elapsedSec;
-              const remainingBytes = event.totalBytes - event.bytesProcessed;
-              const etaSec = remainingBytes / bytesPerSec;
+              const chunksPerSec = event.current / elapsedSec;
+              const remainingChunks = totalChunks - event.current;
+              const etaSec = remainingChunks / chunksPerSec;
 
-              const throughput = `${formatBytes(bytesPerSec)}/s`;
+              const throughput = `${chunksPerSec.toFixed(1)} chunks/s`;
               const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
 
               process.stdout.write(
-                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(`${event.filesProcessed}/${event.totalFiles}`)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
+                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
               );
               break;
             }
             case "done": {
               const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-              const avgThroughput = formatBytes(totalBytes / totalTimeSec);
               console.log(`\r${renderProgressBar(100)} 100%${clear}`);
               console.log(
-                `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s ${pc.dim(`(${avgThroughput}/s)`)}`,
+                `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s`,
               );
               break;
             }
           }
         }
-      });
+      };
 
-      await Client.index(dbPath, notesDir);
+      // Connect to server (auto-start if needed)
+      const baseUrl = await Server.ensure();
+      const client = spall({ baseUrl });
+
+      // Call index endpoint and consume SSE stream
+      const { stream } = await client.index({ body: { directory } });
+
+      for await (const event of stream) {
+        handleEvent(event as IndexResponse);
+      }
     },
   )
   .command(
@@ -306,42 +288,44 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv) => {
-      setupEventHandler();
-      const dbPath = getDbPath();
-      Store.open(dbPath);
-      Model.init();
-      await Model.download();
-      await Model.load();
+      const directory = getDirectory();
 
-      const queryEmbedding = await Model.embed(argv.query);
+      // Connect to server (auto-start if needed)
+      const baseUrl = await Server.ensure();
+      const client = spall({ baseUrl });
 
-      // Search
-      const results = Store.vsearch(queryEmbedding, argv.limit);
+      const result = await client.search({
+        body: { directory, query: argv.query, limit: argv.limit },
+      });
+
+      if (result.error) {
+        console.error("Search failed:", result.error);
+        process.exit(1);
+      }
+
+      const results = result.data as SearchResult[];
 
       if (results.length === 0) {
         console.log("No results found.");
       } else {
         // Dedupe by key (multiple chunks may match)
         const seen = new Set<string>();
-        for (const result of results) {
-          if (seen.has(result.key)) continue;
-          seen.add(result.key);
+        for (const r of results) {
+          if (seen.has(r.key)) continue;
+          seen.add(r.key);
 
-          const similarity = (1 - result.distance).toFixed(3);
-          const content = Io.read(getNotesDir(), result.key);
+          const similarity = (1 - r.distance).toFixed(3);
+          const content = Io.read(getNotesDir(), r.key);
           const preview = content
             ? content.slice(0, 80).replace(/\n/g, " ") +
               (content.length > 80 ? "..." : "")
             : "(no content)";
 
           console.log(
-            `${pc.green(similarity)} ${pc.cyan(result.key)} ${pc.gray(preview)}`,
+            `${pc.green(similarity)} ${pc.cyan(r.key)} ${pc.gray(preview)}`,
           );
         }
       }
-
-      await Model.dispose();
-      Store.close();
     },
   )
   .command(

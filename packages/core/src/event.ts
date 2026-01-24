@@ -6,6 +6,7 @@ export enum FileStatus {
 }
 
 export type Event =
+  | { tag: "init"; action: "create_dir"; path: string }
   | { tag: "init"; action: "create_db"; path: string }
   | { tag: "init"; action: "done" }
   | { tag: "model"; action: "download"; model: string }

@@ -1,0 +1,440 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "spall",
+    "description": "Local semantic note store with embeddings",
+    "version": "0.0.1"
+  },
+  "paths": {
+    "/init": {
+      "post": {
+        "operationId": "init",
+        "summary": "Initialize project",
+        "description": "Initialize a spall project in a directory, creating the database and downloading models. Emits progress events via SSE.",
+        "responses": {
+          "200": {
+            "description": "Initialization events stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "init"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "create_dir"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "path"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "init"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "create_db"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "path"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "init"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "done"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "model"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "download"
+                            },
+                            "model": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "model"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "model"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "progress"
+                            },
+                            "percent": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "percent"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "model"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "load"
+                            },
+                            "model": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "model",
+                            "path"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "model"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "ready"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InitInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/index": {
+      "post": {
+        "operationId": "index",
+        "summary": "Index files",
+        "description": "Index files in a project directory, emitting progress events via SSE",
+        "responses": {
+          "200": {
+            "description": "Indexing events stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "anyOf": [
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "scan"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "start"
+                            },
+                            "total": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "total"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "scan"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "done"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "embed"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "start"
+                            },
+                            "total": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "total"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "embed"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "progress"
+                            },
+                            "current": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action",
+                            "current"
+                          ]
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "tag": {
+                              "type": "string",
+                              "const": "embed"
+                            },
+                            "action": {
+                              "type": "string",
+                              "const": "done"
+                            }
+                          },
+                          "required": [
+                            "tag",
+                            "action"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IndexInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/search": {
+      "post": {
+        "operationId": "search",
+        "summary": "Search",
+        "description": "Search for similar content using embeddings",
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SearchResult"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchInput"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Health check",
+        "description": "Check if the server is running",
+        "responses": {
+          "200": {
+            "description": "Server is healthy",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "InitInput": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "description": "Project root directory"
+          }
+        },
+        "required": [
+          "directory"
+        ]
+      },
+      "IndexInput": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "description": "Project root directory"
+          }
+        },
+        "required": [
+          "directory"
+        ]
+      },
+      "SearchResult": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Unique identifier for the result"
+          },
+          "distance": {
+            "type": "number",
+            "description": "Distance/similarity score"
+          }
+        },
+        "required": [
+          "key",
+          "distance"
+        ]
+      },
+      "SearchInput": {
+        "type": "object",
+        "properties": {
+          "directory": {
+            "type": "string",
+            "description": "Project root directory"
+          },
+          "query": {
+            "type": "string",
+            "description": "Search query text"
+          },
+          "limit": {
+            "description": "Maximum number of results",
+            "type": "number"
+          }
+        },
+        "required": [
+          "directory",
+          "query"
+        ]
+      }
+    }
+  }
+}
