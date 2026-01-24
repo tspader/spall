@@ -9,6 +9,7 @@ import { join } from "path";
 import { Hono } from "hono";
 import { createMiddleware } from "hono/factory";
 import { streamSSE } from "hono/streaming";
+import { logger } from "hono/logger";
 import {
   describeRoute,
   generateSpecs,
@@ -16,6 +17,7 @@ import {
   validator,
 } from "hono-openapi";
 import { z } from "zod";
+import { consola } from "consola";
 
 import { Bus, type Event } from "./event";
 import { Config } from "./config";
@@ -108,6 +110,7 @@ const trackRequest = createMiddleware(async (c, next) => {
 
 const app = new Hono()
   .use(trackRequest)
+  .use(logger())
   .post(
     "/init",
     describeRoute({
@@ -228,7 +231,6 @@ const app = new Hono()
       },
     }),
     (c) => {
-      console.log("ok");
       return c.text("ok");
     },
   );
@@ -283,6 +285,7 @@ export namespace Server {
     }
 
     export function setPort(port: number): void {
+      Cache.ensure();
       writeFileSync(path(), JSON.stringify({ pid: process.pid, port }));
     }
 
@@ -323,7 +326,6 @@ export namespace Server {
     if (persist) return;
     if (activeRequests > 0) return;
 
-    console.log(`set it: ${idleTimeoutMs}`);
     timer = setTimeout(() => {
       if (activeRequests === 0) {
         stop();
@@ -340,29 +342,19 @@ export namespace Server {
     persist = options?.persist ?? false;
     idleTimeoutMs = options?.idleTimeout ?? 1000;
 
-    // Clean up stale locks before attempting to claim
+    // sanity check; this function should only be called when you have the
+    // process lock, so we *can* unconditionally write our pid and port to
+    // the lock.
+    //
+    // but we're nice and check if the current pid + port is a healthy server,
+    // in case the user tried to spin up two daemons on accident
     const existing = Lock.read();
-    if (existing) {
-      if (existing.port !== null) {
-        // Has port - check if healthy
-        if (await checkHealth(existing.port)) {
-          throw new Error("Server already running");
-        }
-        // Unhealthy - stale lock
-        Lock.remove();
-      } else {
-        // port is null - someone claiming
-        if (isProcessAlive(existing.pid)) {
-          throw new Error("Another server is starting");
-        }
-        // Dead claimant - stale lock
-        Lock.remove();
-      }
-    }
-
-    // Now try to claim
-    if (!Lock.claim()) {
-      throw new Error("Failed to claim lock - race condition");
+    if (
+      existing &&
+      existing.port !== null &&
+      (await checkHealth(existing.port))
+    ) {
+      throw new Error(`Server is already running at port ${existing.port}`);
     }
 
     server = Bun.serve({
@@ -373,11 +365,9 @@ export namespace Server {
     const port = server.port;
     if (!port) {
       server.stop();
-      Lock.remove();
-      throw new Error("Failed to get server port");
+      throw new Error("Failed to start server");
     }
 
-    // Update lock with actual port
     Lock.setPort(port);
 
     process.once("SIGINT", () => {
@@ -411,41 +401,48 @@ export namespace Server {
     }
   }
 
-  type AcquireResult = { role: "leader" } | { role: "follower"; url: string };
+  const Role = {
+    Leader: "leader",
+    Follower: "follower",
+  } as const;
+
+  type AcquireResult =
+    | { role: typeof Role.Leader }
+    | { role: typeof Role.Follower; url: string };
 
   async function acquire(): Promise<AcquireResult> {
     while (true) {
-      // Try to claim the lock
       if (Lock.claim()) {
-        return { role: "leader" };
+        return { role: Role.Leader };
       }
 
-      // Someone else has the lock - read it
       const lock = Lock.read();
 
+      // the claimant died after check but before read; narrow, but no big deal
       if (!lock) {
-        // Lock disappeared, retry
         continue;
       }
 
+      // if the lock has a port, there should be a healthy server.
+      //   - if we can connect, we're done
+      //   - if we can't, it's a stale lock. remove it and start over.
       if (lock.port !== null) {
-        // Port written - health check it
         if (await checkHealth(lock.port)) {
-          return { role: "follower", url: `http://127.0.0.1:${lock.port}` };
+          return { role: Role.Follower, url: `http://127.0.0.1:${lock.port}` };
         }
-        // Unhealthy - remove stale lock, retry
+
         Lock.remove();
         continue;
       }
 
-      // port is null - someone is claiming, check if alive
+      // at this point, the lock file exists but has no port. another client
+      // beat us. make sure they're alive (otherwise, it's stale)
       if (!isProcessAlive(lock.pid)) {
-        // Dead claimant - remove stale lock, retry
         Lock.remove();
         continue;
       }
 
-      // Alive, still starting - wait and retry
+      // give the other client time to start the server
       await Bun.sleep(50);
     }
   }
@@ -454,11 +451,10 @@ export namespace Server {
   export async function ensure(): Promise<string> {
     const result = await acquire();
 
-    if (result.role === "follower") {
+    if (result.role === Role.Follower) {
       return result.url;
     }
 
-    // We're the leader - spawn server
     Bun.spawn(["spall", "serve"], {
       stdin: "ignore",
       stdout: "ignore",
@@ -469,11 +465,7 @@ export namespace Server {
       },
     }).unref();
 
-    // We claimed the lock but the spawned process will try to claim too.
-    // Release our claim so the spawned process can take over.
-    Lock.remove();
-
-    // Wait for spawned server to write port
+    // spin, waiting for the server to write its port to the lock file
     for (let i = 0; i < 40; i++) {
       await Bun.sleep(50);
       const lock = Lock.read();
@@ -482,6 +474,6 @@ export namespace Server {
       }
     }
 
-    throw new Error("Timeout waiting for server to start");
+    throw new Error("Claimed leader role, but timed out waiting for server to start");
   }
 }

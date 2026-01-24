@@ -6,6 +6,7 @@
       "name": "spall",
       "dependencies": {
         "@clack/prompts": "^0.11.0",
+        "consola": "^3.4.2",
         "yargs": "^18.0.0",
       },
       "devDependencies": {
