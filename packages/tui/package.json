@@ -16,6 +16,7 @@
     "@opentui/core": "^0.1.74",
     "@opentui/solid": "^0.1.74",
     "@spall/core": "workspace:*",
+    "@spall/sdk": "workspace:*",
     "diff": "^8.0.3",
     "solid-js": "1.9.9",
     "tree-sitter-wasms": "^0.1.13"

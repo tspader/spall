@@ -30,6 +30,10 @@ export interface ThemeColors {
   // Indicators
   indicatorDefault: string; // Default state for hunk indicators (not hovered, not selected)
 
+  // Connection status
+  connected: string; // Bright green for connected
+  disconnected: string; // Bright red for disconnected
+
   // Diff backgrounds (for syntax-highlighted diff view)
   diffAddedBg: string; // Background for added lines
   diffRemovedBg: string; // Background for removed lines
@@ -80,6 +84,8 @@ const defaultTheme: ThemeColors = {
   removed: "#e06c75", // darkRed
   modified: "#e5c07b", // darkYellow
   indicatorDefault: "#4a4a4a", // medium-dark gray for unselected hunks
+  connected: "#73d936", // bright green
+  disconnected: "#ff5555", // bright red
 
   // Diff styling (ayu-inspired colors)
   diffAddedBg: "#20303b", // dark blue-green tint
@@ -116,6 +122,8 @@ const systemTheme: ThemeColors = {
   removed: "red",
   modified: "yellow",
   indicatorDefault: "gray",
+  connected: "brightGreen",
+  disconnected: "brightRed",
 
   // Diff styling (ANSI-based)
   diffAddedBg: "green",

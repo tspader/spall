@@ -108,9 +108,9 @@ export function countDiffLines(diffContent: string): number {
 
 export async function getDiffEntries(repoPath: string): Promise<DiffEntry[]> {
   const entries: DiffEntry[] = []
-
+  const filesResult = await $`git -C ${repoPath} diff HEAD --name-only --relative`.quiet()
   // Get list of tracked changed files (staged + unstaged vs HEAD)
-  const filesResult = await $`git -C ${repoPath} diff HEAD --name-only`.quiet()
+  //const filesResult = await $`git -C ${repoPath} diff HEAD --name-only`.quiet()
   const filesOutput = filesResult.stdout.toString().trim()
   const trackedFiles = filesOutput ? filesOutput.split("\n").filter(Boolean) : []
 

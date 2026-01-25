@@ -152,14 +152,19 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const client = await Client.connect();
 
-      const project = await client.project.get({
-        name: argv.project
+      const projectResult = await client.project.get({
+        name: argv.project,
       });
+
+      if (projectResult.error || !projectResult.data) {
+        consola.error("Failed to get project:", projectResult.error);
+        process.exit(1);
+      }
 
       const result = await client.note.add({
         path: argv.path,
         content: argv.text,
-        project: project.id,
+        project: projectResult.data.id,
       });
 
       if (result.error || !result.data) {
@@ -501,10 +506,14 @@ yargs(hideBin(process.argv))
     async () => {
       const { spawn } = await import("child_process");
       const tuiPath = require.resolve("@spall/tui");
-      const child = spawn("bun", ["run", tuiPath], {
-        stdio: "inherit",
-        cwd: process.cwd(),
-      });
+      const child = spawn(
+        "bun",
+        ["run", "--preload", "@opentui/solid/preload", tuiPath],
+        {
+          stdio: "inherit",
+          cwd: process.cwd(),
+        },
+      );
       await new Promise<void>((resolve, reject) => {
         child.on("close", (code) => {
           if (code === 0) resolve();

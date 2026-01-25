@@ -26,7 +26,7 @@ export interface HalfLineShadowProps {
 /**
  * A half-line shadow effect using the upper half block character (▀).
  * Creates a visual separator that's only half the height of a normal line.
- * 
+ *
  * Uses the border system with customBorderChars to automatically fill the width,
  * rather than manually repeating characters.
  */

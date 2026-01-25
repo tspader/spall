@@ -4,6 +4,7 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import type { DisplayItem } from "../lib/tree";
 import { useTheme } from "../context/theme";
 import { HalfLineShadow } from "./HalfLineShadow";
+import { Section } from "./Section";
 
 export interface FileListProps {
   displayItems: Accessor<DisplayItem[]>;
@@ -64,28 +65,19 @@ export function FileList(props: FileListProps) {
   });
 
   return (
-    <box
-      width={35}
-      flexDirection="column"
-      backgroundColor={theme.backgroundPanel}
-    >
-      {/* Title bar */}
-      <box height={1} paddingLeft={1}>
-        <text>
-          <span style={{ bold: true }}>Files</span>
-        </text>
-      </box>
-
+    <Section title="Files">
       <Show when={props.loading()}>
-        <box padding={1}>
+        <box>
           <text>Loading...</text>
         </box>
       </Show>
+
       <Show when={!props.loading() && props.displayItems().length === 0}>
-        <box padding={1}>
+        <box>
           <text>No changes found</text>
         </box>
       </Show>
+
       <Show when={!props.loading() && props.displayItems().length > 0}>
         <scrollbox ref={(r) => (scrollbox = r)}>
           <For each={props.displayItems()}>
@@ -93,16 +85,16 @@ export function FileList(props: FileListProps) {
               if (item.node.type === "dir") {
                 return (
                   <box flexDirection="row">
-                    <text>{"  ".repeat(item.depth)}</text>
-                    <text>{"\u25BC "}</text>
+                    <Show when={item.depth > 0}>
+                      <text>{"  ".repeat(item.depth)}</text>
+                    </Show>
+                    <text>{"\u25BE "}</text>
                     <text>{item.node.name}</text>
                   </box>
                 );
               }
 
-              // File node - use reactive accessor for selection
-              const textColor = () =>
-                isSelected(item) ? theme.primary : undefined;
+              const textColor = () => isSelected(item) ? theme.primary : undefined;
               const statusColor = () => {
                 const entryIdx = item.node.entryIndex;
                 return entryIdx !== undefined &&
@@ -112,7 +104,9 @@ export function FileList(props: FileListProps) {
               };
               return (
                 <box flexDirection="row">
-                  <text>{"  ".repeat(item.depth)}</text>
+                  <Show when={item.depth > 0}>
+                    <text>{"  ".repeat(item.depth)}</text>
+                  </Show>
                   <text fg={statusColor()}>{item.node.status} </text>
                   <text fg={textColor()}>{item.node.name}</text>
                 </box>
@@ -121,8 +115,6 @@ export function FileList(props: FileListProps) {
           </For>
         </scrollbox>
       </Show>
-
-      <HalfLineShadow />
-    </box>
+    </Section>
   );
 }

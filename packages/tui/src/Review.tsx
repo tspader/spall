@@ -13,9 +13,18 @@ import {
   createMemo,
   Show,
   onMount,
+  onCleanup,
 } from "solid-js";
 import { getDiffEntries, parseChangeBlocks, type DiffEntry } from "./lib/git";
-import { FileList, DiffPanel, EditorPanel, CommandPalette } from "./components";
+import {
+  FileList,
+  DiffPanel,
+  EditorPanel,
+  CommandPalette,
+  ServerStatus,
+  HalfLineShadow,
+} from "./components";
+import { Client } from "@spall/sdk";
 import {
   type Selection,
   createSelectionState,
@@ -81,6 +90,10 @@ function App(props: AppProps) {
   const dialog = useDialog();
   const command = useCommand();
   const { theme, themeName, setTheme } = useTheme();
+
+  // Server state
+  const [serverUrl, setServerUrl] = createSignal<string | null>(null);
+  const [serverConnected, setServerConnected] = createSignal(false);
 
   // Data state
   const [entries, setEntries] = createSignal<DiffEntry[]>([]);
@@ -193,6 +206,18 @@ function App(props: AppProps) {
     const diffEntries = await getDiffEntries(props.repoPath);
     setEntries(diffEntries);
     setLoading(false);
+
+    // Connect to server
+    try {
+      const client = await Client.connect();
+      const result = await client.health();
+      if (result.response.ok) {
+        setServerUrl(result.response.url.replace("/health", ""));
+        setServerConnected(true);
+      }
+    } catch {
+      setServerConnected(false);
+    }
   });
 
   // Helper functions for commands
@@ -471,19 +496,21 @@ function App(props: AppProps) {
       backgroundColor={theme.background}
       padding={1}
     >
-      {/* Main content area */}
       <box flexGrow={1} flexDirection="row" gap={1}>
-        <FileList
-          displayItems={displayItems}
-          selectedFileIndex={selectedFileIndex}
-          fileIndices={fileIndices}
-          loading={loading}
-          focused={() => focusPanel() === "sidebar"}
-          hasSelectedHunks={(fileIndex) =>
-            getFileSelectionCount(selectedHunks(), fileIndex) > 0 ||
-            getFileLineSelectionCount(lineSelections(), fileIndex) > 0
-          }
-        />
+        <box width={35} flexDirection="column" gap={1} padding={1} backgroundColor={theme.backgroundPanel}>
+          <ServerStatus url={serverUrl} connected={serverConnected} />
+          <FileList
+            displayItems={displayItems}
+            selectedFileIndex={selectedFileIndex}
+            fileIndices={fileIndices}
+            loading={loading}
+            focused={() => focusPanel() === "sidebar"}
+            hasSelectedHunks={(fileIndex) =>
+              getFileSelectionCount(selectedHunks(), fileIndex) > 0 ||
+              getFileLineSelectionCount(lineSelections(), fileIndex) > 0
+            }
+          />
+        </box>
 
         <box flexGrow={1} flexDirection="column">
           <DiffPanel

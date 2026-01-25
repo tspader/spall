@@ -239,13 +239,12 @@ export function DiffPanel(props: DiffPanelProps) {
         <scrollbox
           ref={props.onScrollboxRef}
           focused={false}
-          style={{
-            width: "100%",
-            height: "100%",
-            flexGrow: 1,
-          }}
+          width={"100%"}
+          height={"100%"}
+          flexGrow={1}
         >
           <box flexDirection="row">
+            <text>{totalLines()}</text>
             <DiffIndicator
               lineMode={props.lineMode}
               blocks={props.blocks}
@@ -284,7 +283,6 @@ export function DiffPanel(props: DiffPanelProps) {
         </box>
       </Show>
 
-      <HalfLineShadow />
     </box>
   );
 }
