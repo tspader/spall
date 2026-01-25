@@ -128,6 +128,51 @@ yargs(hideBin(process.argv))
       .demandCommand(1, "You must specify a subcommand");
   })
   .command(
+    "add <path>",
+    "Add a note to the corpus",
+    (yargs) => {
+      return yargs
+        .positional("path", {
+          describe: "Path/name for the note",
+          type: "string",
+          demandOption: true,
+        })
+        .option("text", {
+          alias: "t",
+          type: "string",
+          describe: "Note content",
+          demandOption: true,
+        })
+        .option("project", {
+          alias: "p",
+          type: "string",
+          describe: "Project name (defaults to 'default')",
+        });
+    },
+    async (argv) => {
+      const client = await Client.connect();
+
+      const project = await client.project.get({
+        name: argv.project
+      });
+
+      const result = await client.note.add({
+        path: argv.path,
+        content: argv.text,
+        project: project.id,
+      });
+
+      if (result.error || !result.data) {
+        consola.error("Failed to add note:", result.error);
+        process.exit(1);
+      }
+
+      consola.success(
+        `Added note ${pc.cyanBright(result.data.path)} (id: ${result.data.id}, project: ${result.data.project})`,
+      );
+    },
+  )
+  .command(
     "serve",
     "Start the spall server",
     (yargs) => {

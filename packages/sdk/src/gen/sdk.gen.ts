@@ -11,7 +11,10 @@ import type {
   HealthResponses,
   IndexResponses,
   InitResponses,
+  NoteAddErrors,
+  NoteAddResponses,
   ProjectCreateResponses,
+  ProjectGetResponses,
   SearchResponses,
 } from "./types.gen";
 
@@ -62,6 +65,40 @@ class HeyApiRegistry<T> {
 
 export class Project extends HeyApiClient {
   /**
+   * Get project
+   *
+   * Look up a project by name or id. Returns default project if neither specified.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      name?: string;
+      id?: number;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "name" },
+            { in: "query", key: "id" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      ProjectGetResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/project",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
    * Create a project
    *
    * Create a project
@@ -90,6 +127,49 @@ export class Project extends HeyApiClient {
       ThrowOnError
     >({
       url: "/project",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+}
+
+export class Note extends HeyApiClient {
+  /**
+   * Add a note
+   *
+   * Add a note to a project and embed it. Requires project ID.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters?: {
+      project?: number;
+      path?: string;
+      content?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "project" },
+            { in: "body", key: "path" },
+            { in: "body", key: "content" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).post<
+      NoteAddResponses,
+      NoteAddErrors,
+      ThrowOnError
+    >({
+      url: "/project/note",
       ...options,
       ...params,
       headers: {
@@ -230,5 +310,10 @@ export class SpallClient extends HeyApiClient {
   private _project?: Project;
   get project(): Project {
     return (this._project ??= new Project({ client: this.client }));
+  }
+
+  private _note?: Note;
+  get note(): Note {
+    return (this._note ??= new Note({ client: this.client }));
   }
 }

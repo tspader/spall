@@ -103,4 +103,39 @@ export namespace Sql {
   export const INSERT_PROJECT = `
     INSERT INTO projects (name, dir) VALUES (?, ?) RETURNING id
   `;
+
+  export const GET_DEFAULT_PROJECT = `
+    SELECT id FROM projects WHERE id = 1
+  `;
+
+  export const INSERT_DEFAULT_PROJECT = `
+    INSERT OR IGNORE INTO projects (id, name, dir) VALUES (1, 'default', '')
+  `;
+
+  export const CREATE_NOTES_TABLE = `
+    CREATE TABLE IF NOT EXISTS notes (
+      id INTEGER PRIMARY KEY,
+      project_id INTEGER NOT NULL,
+      path TEXT NOT NULL,
+      content TEXT NOT NULL,
+      mtime INTEGER NOT NULL,
+      FOREIGN KEY (project_id) REFERENCES projects(id)
+    )
+  `;
+
+  export const INSERT_NOTE = `
+    INSERT INTO notes (project_id, path, content, mtime) VALUES (?, ?, ?, ?) RETURNING id
+  `;
+
+  export const GET_NOTE = `
+    SELECT id, project_id, path, content, mtime FROM notes WHERE id = ?
+  `;
+
+  export const GET_PROJECT_BY_NAME = `
+    SELECT id, name, dir FROM projects WHERE name = ?
+  `;
+
+  export const GET_PROJECT_BY_ID = `
+    SELECT id, name, dir FROM projects WHERE id = ?
+  `;
 }

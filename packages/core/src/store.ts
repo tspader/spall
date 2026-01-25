@@ -93,9 +93,13 @@ export namespace Store {
     instance.run(Sql.CREATE_EMBEDDINGS_TABLE);
     instance.run(Sql.CREATE_VECTORS_TABLE);
     instance.run(Sql.CREATE_PROJECT_TABLE);
+    instance.run(Sql.CREATE_NOTES_TABLE);
 
     // Store metadata
     instance.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
+
+    // Create default project
+    instance.run(Sql.INSERT_DEFAULT_PROJECT);
 
     await Bus.publish({ tag: "store.created", path: path });
 

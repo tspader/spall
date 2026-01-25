@@ -125,20 +125,21 @@ export namespace Model {
     return llama;
   }
 
-  export function init(): void {
-    if (initialized) return;
-    initialized = true;
-
-    embedder = {
-      instance: { name: "", path: null, status: "pending", model: null },
-      context: null,
-    };
-    reranker = {
-      instance: { name: "", path: null, status: "pending", model: null },
-    };
-  }
-
   export async function download(): Promise<void> {
+    if (!initialized) {
+      initialized = true;
+      embedder = {
+        instance: { name: "", path: null, status: "pending", model: null },
+        context: null,
+      };
+      reranker = {
+        instance: { name: "", path: null, status: "pending", model: null },
+      };
+    }
+
+    // Already downloaded
+    if (embedder.instance.path) return;
+
     ensureCacheDir();
 
     type DownloadWork = {
@@ -197,8 +198,10 @@ export namespace Model {
   }
 
   export async function load(): Promise<void> {
+    await download();
+
     if (!embedder.instance.path) {
-      throw new Error("Model not downloaded. Call Model.download() first.");
+      throw new Error("Model not downloaded");
     }
 
     if (!embedder.instance.model) {

@@ -7,8 +7,18 @@ import { Sql } from "./sql";
 import { Model } from "./model";
 
 export namespace Project {
+  export const Id = z.coerce.number().brand<"ProjectId">();
+  export type Id = z.infer<typeof Id>;
+
+  export class NotFoundError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "NotFoundError";
+    }
+  }
+
   export const Info = z.object({
-    id: z.number(),
+    id: Id,
     name: z.string(),
     dir: z.string(),
   });
@@ -22,6 +32,46 @@ export namespace Project {
       foo: z.number(),
     }),
   };
+
+  export const DEFAULT_NAME = "default";
+
+  type ProjectRow = { id: number; name: string; dir: string };
+
+  export const get = api(
+    z.object({
+      name: z.string().optional(),
+      id: z.coerce.number().optional(),
+    }),
+    async (input): Promise<Info> => {
+      await Store.ensure();
+      const db = Store.get();
+
+      let row: ProjectRow | null;
+
+      if (input.id !== undefined) {
+        row = db
+          .prepare(Sql.GET_PROJECT_BY_ID)
+          .get(input.id) as ProjectRow | null;
+        if (!row) {
+          throw new NotFoundError(`Project not found: id=${input.id}`);
+        }
+      } else {
+        const name = input.name ?? DEFAULT_NAME;
+        row = db
+          .prepare(Sql.GET_PROJECT_BY_NAME)
+          .get(name) as ProjectRow | null;
+        if (!row) {
+          throw new NotFoundError(`Project not found: ${name}`);
+        }
+      }
+
+      return {
+        id: Id.parse(row.id),
+        name: row.name,
+        dir: row.dir,
+      };
+    },
+  );
 
   export const create = api(
     z.object({
@@ -40,7 +90,7 @@ export namespace Project {
       await Model.fakeDownload();
 
       const project: Info = {
-        id: row.id,
+        id: Id.parse(row.id),
         name,
         dir: input.dir,
       };

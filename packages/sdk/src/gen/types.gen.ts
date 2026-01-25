@@ -15,6 +15,29 @@ export type SearchResult = {
   distance: number;
 };
 
+export type ProjectGetData = {
+  body?: never;
+  path?: never;
+  query?: {
+    name?: string;
+    id?: number;
+  };
+  url: "/project";
+};
+
+export type ProjectGetResponses = {
+  /**
+   * Project info
+   */
+  200: {
+    id: number;
+    name: string;
+    dir: string;
+  };
+};
+
+export type ProjectGetResponse = ProjectGetResponses[keyof ProjectGetResponses];
+
 export type ProjectCreateData = {
   body?: {
     dir: string;
@@ -88,6 +111,37 @@ export type ProjectCreateResponses = {
 
 export type ProjectCreateResponse =
   ProjectCreateResponses[keyof ProjectCreateResponses];
+
+export type NoteAddData = {
+  body?: {
+    project: number;
+    path: string;
+    content: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/project/note";
+};
+
+export type NoteAddErrors = {
+  /**
+   * Project not found
+   */
+  404: unknown;
+};
+
+export type NoteAddResponses = {
+  /**
+   * Note info
+   */
+  200: {
+    id: number;
+    project: number;
+    path: string;
+  };
+};
+
+export type NoteAddResponse = NoteAddResponses[keyof NoteAddResponses];
 
 export type InitData = {
   body?: {

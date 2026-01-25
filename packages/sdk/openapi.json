@@ -260,6 +260,118 @@
             }
           }
         }
+      },
+      "get": {
+        "operationId": "project.get",
+        "summary": "Get project",
+        "description": "Look up a project by name or id. Returns default project if neither specified.",
+        "responses": {
+          "200": {
+            "description": "Project info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "dir": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "dir"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "name",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "id",
+            "schema": {
+              "type": "number"
+            }
+          }
+        ]
+      }
+    },
+    "/project/note": {
+      "post": {
+        "operationId": "note.add",
+        "summary": "Add a note",
+        "description": "Add a note to a project and embed it. Requires project ID.",
+        "responses": {
+          "200": {
+            "description": "Note info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "project": {
+                      "type": "number"
+                    },
+                    "path": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "project",
+                    "path"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "project": {
+                    "type": "number"
+                  },
+                  "path": {
+                    "type": "string"
+                  },
+                  "content": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "project",
+                  "path",
+                  "content"
+                ]
+              }
+            }
+          }
+        }
       }
     },
     "/init": {
