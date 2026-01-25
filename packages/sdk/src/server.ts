@@ -13,7 +13,7 @@ import pc from "picocolors";
 import { Event } from "@spall/core";
 import { Bus } from "@spall/core/src/event";
 import { Config } from "@spall/core/src/config";
-import { App } from "@spall/sdk";
+import { App } from "./app";
 
 type LockData = { pid: number; port: number | null };
 

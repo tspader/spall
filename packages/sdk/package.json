@@ -8,12 +8,21 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@hey-api/openapi-ts": "^0.90.9",
     "@types/bun": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "@hey-api/openapi-ts": "^0.90.10",
+    "openapi-types": "^12.1.3"
   },
   "dependencies": {
+    "@hey-api/client-fetch": "^0.10.0",
     "@spall/core": "workspace:*",
-    "@hey-api/client-fetch": "^0.10.0"
+    "consola": "catalog:",
+    "hono": "^4.11.5",
+    "hono-openapi": "^1.1.2",
+    "picocolors": "catalog:",
+    "zod": "catalog:",
+    "@standard-community/standard-json": "^0.3.5",
+    "@standard-community/standard-openapi": "^0.2.9",
+    "@standard-schema/spec": "^1.1.0"
   }
 }

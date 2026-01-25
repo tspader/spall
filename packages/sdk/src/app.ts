@@ -9,8 +9,7 @@ import {
 } from "hono-openapi";
 import { z } from "zod";
 
-import {
-} from "@spall/core/src/schema";
+import {} from "@spall/core/src/schema";
 
 import {
   init,
@@ -23,7 +22,7 @@ import {
   IndexEvents,
   SearchInput,
   SearchResult,
-} from "@spall/core"
+} from "@spall/core";
 
 import { Bus } from "@spall/core/src/event";
 
@@ -37,108 +36,108 @@ export namespace App {
     if (loaded) return;
 
     app
-    .use(async (_, next) => {
-      Server.markRequest();
-      try {
-        await next();
-      } finally {
-        Server.unmarkRequest();
-      }
-    })
-    .use(logger())
-    .post(
-      "/init",
-      describeRoute({
-        summary: "Initialize project",
-        description:
-          "Initialize a spall project in a directory, creating the database and downloading models. Emits progress events via SSE.",
-        operationId: "init",
-        responses: {
-          200: {
-            description: "Initialization events stream",
-            content: {
-              "text/event-stream": {
-                schema: resolver(InitEvents),
+      .use(async (_, next) => {
+        Server.markRequest();
+        try {
+          await next();
+        } finally {
+          Server.unmarkRequest();
+        }
+      })
+      .use(logger())
+      .post(
+        "/init",
+        describeRoute({
+          summary: "Initialize project",
+          description:
+            "Initialize a spall project in a directory, creating the database and downloading models. Emits progress events via SSE.",
+          operationId: "init",
+          responses: {
+            200: {
+              description: "Initialization events stream",
+              content: {
+                "text/event-stream": {
+                  schema: resolver(InitEvents),
+                },
               },
             },
           },
+        }),
+        validator("json", InitInput),
+        (context) => {
+          const input = context.req.valid("json");
+          return sse(context, init, input);
         },
-      }),
-      validator("json", InitInput),
-      (context) => {
-        const input = context.req.valid("json");
-        return sse(context, init, input);
-      },
-    )
-    .post(
-      "/index",
-      describeRoute({
-        summary: "Index files",
-        description:
-          "Index files in a project directory, emitting progress events via SSE",
-        operationId: "index",
-        responses: {
-          200: {
-            description: "Indexing events stream",
-            content: {
-              "text/event-stream": {
-                schema: resolver(IndexEvents)
+      )
+      .post(
+        "/index",
+        describeRoute({
+          summary: "Index files",
+          description:
+            "Index files in a project directory, emitting progress events via SSE",
+          operationId: "index",
+          responses: {
+            200: {
+              description: "Indexing events stream",
+              content: {
+                "text/event-stream": {
+                  schema: resolver(IndexEvents),
+                },
               },
             },
           },
+        }),
+        validator("json", IndexInput),
+        (context) => {
+          const input = context.req.valid("json");
+          return sse(context, index, input);
         },
-      }),
-      validator("json", IndexInput),
-      (context) => {
-        const input = context.req.valid("json");
-        return sse(context, index, input);
-      },
-    )
-    .post(
-      "/search",
-      describeRoute({
-        summary: "Search",
-        description: "Search for similar content using embeddings",
-        operationId: "search",
-        responses: {
-          200: {
-            description: "Search results",
-            content: {
-              "application/json": {
-                schema: resolver(SearchResult.array()),
+      )
+      .post(
+        "/search",
+        describeRoute({
+          summary: "Search",
+          description: "Search for similar content using embeddings",
+          operationId: "search",
+          responses: {
+            200: {
+              description: "Search results",
+              content: {
+                "application/json": {
+                  schema: resolver(SearchResult.array()),
+                },
               },
             },
           },
+        }),
+        validator("json", SearchInput),
+        async (c) => {
+          const input = c.req.valid("json");
+          const results = await search(input);
+          return c.json(results);
         },
-      }),
-      validator("json", SearchInput),
-      async (c) => {
-        const input = c.req.valid("json");
-        const results = await search(input);
-        return c.json(results);
-      },
-    )
-    .get(
-      "/health",
-      describeRoute({
-        summary: "Health check",
-        description: "Check if the server is running",
-        operationId: "health",
-        responses: {
-          200: {
-            description: "Server is healthy",
-            content: {
-              "text/plain": {
-                schema: resolver(z.string()),
+      )
+      .get(
+        "/health",
+        describeRoute({
+          summary: "Health check",
+          description: "Check if the server is running",
+          operationId: "health",
+          responses: {
+            200: {
+              description: "Server is healthy",
+              content: {
+                "text/plain": {
+                  schema: resolver(z.string()),
+                },
               },
             },
           },
+        }),
+        (c) => {
+          return c.text("ok");
         },
-      }),
-      (c) => {
-        return c.text("ok");
-      },
-    );
+      );
     return app;
   }
 
@@ -152,7 +151,11 @@ export namespace App {
   //   - clean up subscriptions when finished
   type SseContext = Parameters<typeof streamSSE>[0];
 
-  function sse<T>(context: SseContext, handler: (arg: T) => Promise<void>, input: T) {
+  function sse<T>(
+    context: SseContext,
+    handler: (arg: T) => Promise<void>,
+    input: T,
+  ) {
     return streamSSE(context, async (stream) => {
       Server.markSSE();
 
@@ -163,20 +166,19 @@ export namespace App {
       const unsubscribe = Bus.listen(write);
 
       try {
-        await handler(input)
-      }
-      catch (error) {
-        const message = error instanceof Error ? error.message : "unknown error";
+        await handler(input);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "unknown error";
         await stream.writeSSE({ data: JSON.stringify({ error: message }) });
-      }
-      finally {
+      } finally {
         unsubscribe();
         Server.unmarkSSE();
       }
     });
   }
 
-  export async function spec() {
+  export async function spec(): Promise<Record<string, unknown>> {
     return generateSpecs(App.get(), {
       documentation: {
         info: {
@@ -188,7 +190,4 @@ export namespace App {
       },
     });
   }
-
-
 }
-
