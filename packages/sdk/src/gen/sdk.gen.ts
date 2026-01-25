@@ -11,6 +11,7 @@ import type {
   HealthResponses,
   IndexResponses,
   InitResponses,
+  ProjectCreateResponses,
   SearchResponses,
 } from "./types.gen";
 
@@ -56,6 +57,39 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class Project extends HeyApiClient {
+  /**
+   * Create a project
+   *
+   * Create a project
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      dir?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "body", key: "dir" }] }],
+    );
+    return (options?.client ?? this.client).sse.post<
+      ProjectCreateResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/project",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
   }
 }
 
@@ -183,5 +217,10 @@ export class SpallClient extends HeyApiClient {
       unknown,
       ThrowOnError
     >({ url: "/health", ...options });
+  }
+
+  private _project?: Project;
+  get project(): Project {
+    return (this._project ??= new Project({ client: this.client }));
   }
 }

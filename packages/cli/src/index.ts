@@ -12,6 +12,7 @@ import {
   Server,
   type IndexResponse,
 } from "@spall/sdk";
+import consola from "consola";
 
 const SPALL_DIR = ".spall";
 const NOTES_DIR = "notes";
@@ -59,59 +60,37 @@ yargs(hideBin(process.argv))
     "Initialize spall in the current directory",
     () => { },
     async () => {
-      const directory = getDirectory();
-      const tag = pc.gray("init".padEnd(TAG_WIDTH));
-
       const client = await Client.connect();
-
-      const { stream } = await client.init({ directory });
+      const { stream } = await client.project.create({  });
 
       for await (const event of stream) {
-        if (event.tag === "init") {
-          switch (event.action) {
-            case "create_dir":
-              console.log(
-                `${tag} Creating directory ${pc.cyanBright(event.path)}`,
-              );
-              break;
-            case "create_db":
-              console.log(
-                `${tag} Creating database ${pc.cyanBright(event.path)}`,
-              );
-              break;
-            case "done":
-              console.log(`${tag} Done`);
-              break;
+        const [tag, action] = event.tag.split(".");
+        switch (event.tag) {
+          case "store.create": consola.info(`Creating database at ${pc.cyanBright(event.path)}`); break;
+          case "store.created": consola.info(`Created database at ${pc.cyanBright(event.path)}`); break;
+          case "model.download": consola.info(`Downloading ${pc.cyanBright(event.info.name)}`); break;
+          case "model.progress": {
+            const percent = (event.downloaded / event.total) * 100;
+            const bar = renderProgressBar(percent);
+            const percentStr = percent.toFixed(0).padStart(3);
+
+            process.stdout.write(
+              `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
+            );
+
+            break;
           }
-        } else if (event.tag === "model") {
-          const modelTag = pc.gray("model".padEnd(TAG_WIDTH));
-          switch (event.action) {
-            case "download":
-              console.log(
-                `${modelTag} Downloading ${pc.cyanBright(event.model)}`,
-              );
-              break;
-            case "progress": {
-              const percent = (event.downloaded / event.total) * 100;
-              const bar = renderProgressBar(percent);
-              const percentStr = percent.toFixed(0).padStart(3);
-
-              process.stdout.write(
-                `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
-              );
-
-              break;
-            }
-            case "load": {
-              const size = statSync(event.path).size;
-              console.log(
-                `${modelTag} Loading ${pc.cyanBright(event.model)} ${pc.dim(`(${formatBytes(size)})`)}`,
-              );
-              break;
-            }
-            case "ready":
-              console.log(`${modelTag} Finished downloading ${pc.cyanBright(event.model)}`);
-              break;
+          case "model.downloaded": {
+            const size = statSync(event.info.path).size;
+            const bytes = formatBytes(size)
+            console.log(
+              `Loading ${pc.cyanBright(event.info.name)} ${pc.dim(`(${bytes})`)}`,
+            );
+            break;
+          }
+          case "model.load": {
+            console.log(`Finished downloading ${pc.cyanBright(event.info.name)}`);
+            break;
           }
         }
       }

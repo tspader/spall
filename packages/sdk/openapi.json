@@ -6,6 +6,259 @@
     "version": "0.0.1"
   },
   "paths": {
+    "/project": {
+      "post": {
+        "operationId": "project.create",
+        "summary": "Create a project",
+        "description": "Create a project",
+        "responses": {
+          "200": {
+            "description": "Event stream",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "project.created"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "dir": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dir"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "project.updated"
+                        },
+                        "foo": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "foo"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.download"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "path"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.progress"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "path"
+                          ]
+                        },
+                        "downloaded": {
+                          "type": "number"
+                        },
+                        "total": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info",
+                        "downloaded",
+                        "total"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.downloaded"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "path"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.load"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "path"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "store.create"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "path"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "store.created"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "path"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dir": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "dir"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
     "/init": {
       "post": {
         "operationId": "init",
@@ -17,134 +270,69 @@
             "content": {
               "text/event-stream": {
                 "schema": {
-                  "anyOf": [
+                  "oneOf": [
                     {
-                      "oneOf": [
-                        {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "project.created"
+                        },
+                        "info": {
                           "type": "object",
                           "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "init"
+                            "id": {
+                              "type": "number"
                             },
-                            "action": {
-                              "type": "string",
-                              "const": "create_dir"
+                            "name": {
+                              "type": "string"
                             },
-                            "path": {
+                            "dir": {
                               "type": "string"
                             }
                           },
                           "required": [
-                            "tag",
-                            "action",
-                            "path"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "init"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "create_db"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "path"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "init"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "done"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action"
+                            "id",
+                            "name",
+                            "dir"
                           ]
                         }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
                       ]
                     },
                     {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "model"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "download"
-                            },
-                            "model": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "model"
-                          ]
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "project.updated"
                         },
-                        {
+                        "foo": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "foo"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.download"
+                        },
+                        "info": {
                           "type": "object",
                           "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "model"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "progress"
-                            },
-                            "model": {
-                              "type": "string"
-                            },
-                            "total": {
+                            "id": {
                               "type": "number"
                             },
-                            "downloaded": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "model",
-                            "total",
-                            "downloaded"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "model"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "load"
-                            },
-                            "model": {
+                            "name": {
                               "type": "string"
                             },
                             "path": {
@@ -152,33 +340,151 @@
                             }
                           },
                           "required": [
-                            "tag",
-                            "action",
-                            "model",
+                            "id",
+                            "name",
                             "path"
                           ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.progress"
                         },
-                        {
+                        "info": {
                           "type": "object",
                           "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "model"
+                            "id": {
+                              "type": "number"
                             },
-                            "action": {
-                              "type": "string",
-                              "const": "ready"
+                            "name": {
+                              "type": "string"
                             },
-                            "model": {
+                            "path": {
                               "type": "string"
                             }
                           },
                           "required": [
-                            "tag",
-                            "action",
-                            "model"
+                            "id",
+                            "name",
+                            "path"
+                          ]
+                        },
+                        "downloaded": {
+                          "type": "number"
+                        },
+                        "total": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info",
+                        "downloaded",
+                        "total"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.downloaded"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "path"
                           ]
                         }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.load"
+                        },
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "path": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "path"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "store.create"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "path"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "store.created"
+                        },
+                        "path": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "path"
                       ]
                     }
                   ]

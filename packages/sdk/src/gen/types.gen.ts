@@ -15,6 +15,79 @@ export type SearchResult = {
   distance: number;
 };
 
+export type ProjectCreateData = {
+  body?: {
+    dir: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/project";
+};
+
+export type ProjectCreateResponses = {
+  /**
+   * Event stream
+   */
+  200:
+    | {
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+        };
+      }
+    | {
+        tag: "project.updated";
+        foo: number;
+      }
+    | {
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+        downloaded: number;
+        total: number;
+      }
+    | {
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "store.create";
+        path: string;
+      }
+    | {
+        tag: "store.created";
+        path: string;
+      };
+};
+
+export type ProjectCreateResponse =
+  ProjectCreateResponses[keyof ProjectCreateResponses];
+
 export type InitData = {
   body?: {
     /**
@@ -33,41 +106,58 @@ export type InitResponses = {
    */
   200:
     | {
-        tag: "init";
-        action: "create_dir";
-        path: string;
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+        };
       }
     | {
-        tag: "init";
-        action: "create_db";
-        path: string;
+        tag: "project.updated";
+        foo: number;
       }
     | {
-        tag: "init";
-        action: "done";
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
       }
     | {
-        tag: "model";
-        action: "download";
-        model: string;
-      }
-    | {
-        tag: "model";
-        action: "progress";
-        model: string;
-        total: number;
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
         downloaded: number;
+        total: number;
       }
     | {
-        tag: "model";
-        action: "load";
-        model: string;
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "store.create";
         path: string;
       }
     | {
-        tag: "model";
-        action: "ready";
-        model: string;
+        tag: "store.created";
+        path: string;
       };
 };
 

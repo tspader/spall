@@ -49,17 +49,22 @@ const work = async () => {
   });
 };
 
-export const init = api(InitInput, async (): Promise<void> => {
-  await Store.create();
-  Store.close();
+export const init = api(
+  z.object({
+    directory: z.string()
+  }),
+  async (): Promise<void> => {
+    await Store.ensure();
+    Store.close();
 
-  // Download model (global, in ~/.cache/spall/models/)
-  Model.init();
-  await work();
-  await Model.download();
+    // Download model (global, in ~/.cache/spall/models/)
+    Model.init();
+    await work();
+    await Model.download();
 
-  await Bus.emit({ tag: "init", action: "done" });
-});
+    await Bus.emit({ tag: "init", action: "done" });
+  }
+);
 
 export const index = api(IndexInput, async (input): Promise<void> => {
   // TODO: Actually do indexing via Store

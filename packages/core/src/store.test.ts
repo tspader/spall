@@ -13,7 +13,7 @@ describe("Store integration", () => {
     Io.clear();
     tmpDir = mkdtempSync(join(tmpdir(), "spall-test-"));
     dbPath = join(tmpDir, "test.db");
-    Store.create(dbPath);
+    Store.ensure();
   });
 
   afterEach(() => {
@@ -111,7 +111,7 @@ describe("Store.scan", () => {
     dbPath = join(tmpDir, "test.db");
     notesDir = join(tmpDir, "notes");
     mkdirSync(notesDir, { recursive: true });
-    Store.create(dbPath);
+    Store.ensure();
   });
 
   afterEach(() => {

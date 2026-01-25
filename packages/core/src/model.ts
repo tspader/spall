@@ -15,7 +15,37 @@ import { mkdirSync, existsSync } from "fs";
 import { Bus } from "./event";
 import { Config } from "./config";
 
+import z from "zod";
+import { Uuid } from "./uuid"
+import { api } from "./api"
+import { Store } from "./store"
+
+
 export namespace Model {
+  export const Info = z.object({
+    id: z.number(),
+    name: z.string(),
+    path: z.string()
+  })
+  export type Info = z.infer<typeof Info>
+
+  export const Event = {
+    Download: Bus.define("model.download", {
+      info: Info
+    }),
+    Progress: Bus.define("model.progress", {
+      info: Info,
+      downloaded: z.number(),
+      total: z.number(),
+    }),
+    Downloaded: Bus.define("model.downloaded", {
+      info: Info,
+    }),
+    Load: Bus.define("model.load", {
+      info: Info,
+    }),
+  }
+
   function modelCacheDir(): string {
     return join(Config.get().dirs.cache, "models");
   }

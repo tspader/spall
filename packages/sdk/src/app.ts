@@ -1,5 +1,4 @@
 import { Hono } from "hono";
-import { streamSSE } from "hono/streaming";
 import { logger } from "hono/logger";
 import {
   describeRoute,
@@ -22,11 +21,13 @@ import {
   IndexEvents,
   SearchInput,
   SearchResult,
+  EventUnion,
 } from "@spall/core";
 
-import { Bus } from "@spall/core/src/event";
+import { ProjectRoutes } from "./routes/project";
 
 import { Server } from "./server";
+import { Sse } from "./sse";
 
 export namespace App {
   const app = new Hono();
@@ -37,14 +38,18 @@ export namespace App {
 
     app
       .use(async (_, next) => {
-        Server.markRequest();
+        Server.increment();
         try {
           await next();
         } finally {
-          Server.unmarkRequest();
+          Server.decrement();
         }
       })
       .use(logger())
+      .route(
+        "/project",
+        ProjectRoutes()
+      )
       .post(
         "/init",
         describeRoute({
@@ -57,7 +62,7 @@ export namespace App {
               description: "Initialization events stream",
               content: {
                 "text/event-stream": {
-                  schema: resolver(InitEvents),
+                  schema: resolver(EventUnion),
                 },
               },
             },
@@ -66,7 +71,7 @@ export namespace App {
         validator("json", InitInput),
         (context) => {
           const input = context.req.valid("json");
-          return sse(context, init, input);
+          return Sse.stream(context, init, input);
         },
       )
       .post(
@@ -90,7 +95,7 @@ export namespace App {
         validator("json", IndexInput),
         (context) => {
           const input = context.req.valid("json");
-          return sse(context, index, input);
+          return Sse.stream(context, index, input);
         },
       )
       .post(
@@ -144,38 +149,6 @@ export namespace App {
   export function get(): Hono {
     ensure();
     return app;
-  }
-
-  // small helper to wrap hono's sse streaming with code to
-  //   - track the sse connection
-  //   - clean up subscriptions when finished
-  type SseContext = Parameters<typeof streamSSE>[0];
-
-  function sse<T>(
-    context: SseContext,
-    handler: (arg: T) => Promise<void>,
-    input: T,
-  ) {
-    return streamSSE(context, async (stream) => {
-      Server.markSSE();
-
-      const write = async (event: Event) => {
-        await stream.writeSSE({ data: JSON.stringify(event) });
-      };
-
-      const unsubscribe = Bus.listen(write);
-
-      try {
-        await handler(input);
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "unknown error";
-        await stream.writeSSE({ data: JSON.stringify({ error: message }) });
-      } finally {
-        unsubscribe();
-        Server.unmarkSSE();
-      }
-    });
   }
 
   export async function spec(): Promise<Record<string, unknown>> {

@@ -10,7 +10,7 @@ import { consola } from "consola";
 import pc from "picocolors";
 
 
-import { Event } from "@spall/core";
+import { Event, type EventUnion } from "@spall/core";
 import { Bus } from "@spall/core/src/event";
 import { Config } from "@spall/core/src/config";
 import { App } from "./app";
@@ -92,23 +92,13 @@ export namespace Server {
     idleTimeout?: number;
   };
 
-  export function markRequest(): void {
+  export function increment(): void {
     activeRequests++;
     clearTimeout(timer);
   }
 
-  export function unmarkRequest(): void {
+  export function decrement(): void {
     activeRequests--;
-    resetShutdownTimer();
-  }
-
-  export function markSSE(): void {
-    activeSSE++;
-    clearTimeout(timer);
-  }
-
-  export function unmarkSSE(): void {
-    activeSSE--;
     resetShutdownTimer();
   }
 
@@ -127,6 +117,25 @@ export namespace Server {
     port: number;
     stopped: Promise<void>;
   }
+
+  export function render(event: EventUnion): string {
+    switch (event.tag) {
+      case "model.download": return `Downloading ${pc.cyan(event.info.name)}`;
+      case "model.downloaded": return `Finished downloading ${pc.cyanBright(event.info.name)}`
+      case "model.progress": {
+        const percent = (event.downloaded / event.total) * 100;
+        const percentStr = percent.toFixed(0).padStart(3);
+
+        return `${pc.cyan(event.info.name)} ${pc.bold(percentStr + "%")}`
+      }
+      case "model.load": return `Loaded ${pc.cyanBright(event.info.name)}`
+      case "store.create": return `Creating database at ${pc.cyanBright(event.path)}`
+      case "store.created": return `Created database at ${pc.cyanBright(event.path)}`
+    }
+
+    return event.tag
+  }
+
 
   export async function start(options?: StartOptions): Promise<ServerResult> {
     persist = options?.persist ?? false;
@@ -172,6 +181,11 @@ export namespace Server {
     const stopped = new Promise<void>((resolve) => {
       resolved = resolve;
     });
+
+    Bus.subscribe((event: EventUnion) => { consola.info(render(event)) });
+    Bus.subscribe((event: EventUnion) => {
+      consola.info(`${pc.gray(event.tag)} ${render(event)}`)
+    })
 
     Bus.listen((event: Event) => {
       consola.info(`${pc.gray(event.tag)} ${Bus.render(event)}`)

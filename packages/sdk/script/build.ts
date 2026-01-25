@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
 import { $ } from "bun";
-import { App } from "@spall/sdk";
+import { App } from "../src/app";
 
 const dir = new URL("..", import.meta.url).pathname;
 process.chdir(dir);

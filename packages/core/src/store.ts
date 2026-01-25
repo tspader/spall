@@ -1,3 +1,4 @@
+import { z } from 'zod'
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
@@ -36,6 +37,15 @@ export type ScanResult = IndexResult & {
 };
 
 export namespace Store {
+  export const Event = {
+    Create: Bus.define("store.create", {
+      path: z.string()
+    }),
+    Created: Bus.define("store.created", {
+      path: z.string()
+    }),
+  }
+
   let instance: Database | null = null;
 
   const CHUNK_TOKENS = 512;
@@ -53,19 +63,19 @@ export namespace Store {
     return instance;
   }
 
-  export async function create(dbPath?: string): Promise<Database> {
-    const path = dbPath ?? Store.path();
-    const dir = dirname(path);
+  export async function ensure(): Promise<Database> {
+    const dir = Config.get().dirs.data;
+    const path = join(dir, DB_NAME);
+
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
-    // Remove existing db for clean slate
     if (existsSync(path)) {
       unlinkSync(path);
     }
 
-    await Bus.emit({ tag: "init", action: "create_db", path });
+    Bus.publish({ tag: "store.create", path: path });
     instance = new Database(path);
 
     // Load sqlite-vec extension
@@ -79,6 +89,8 @@ export namespace Store {
 
     // Store metadata
     instance.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
+
+    Bus.publish({ tag: "store.created", path: path });
 
     return instance;
   }
