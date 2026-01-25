@@ -44,9 +44,9 @@ export namespace Bus {
     return () => subscriptions.delete(subscription);
   }
 
-  export function publish(event: EventUnion) {
+  export async function publish(event: EventUnion) {
     for (const subscription of subscriptions) {
-      subscription(event);
+      await subscription(event);
     }
   }
 

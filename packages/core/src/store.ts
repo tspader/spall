@@ -71,11 +71,17 @@ export namespace Store {
       mkdirSync(dir, { recursive: true });
     }
 
-    if (existsSync(path)) {
-      unlinkSync(path);
+    const dbExists = existsSync(path);
+
+    if (dbExists) {
+      // Open existing database
+      instance = new Database(path);
+      sqliteVec.load(instance);
+      return instance;
     }
 
-    Bus.publish({ tag: "store.create", path: path });
+    // Create new database
+    await Bus.publish({ tag: "store.create", path: path });
     instance = new Database(path);
 
     // Load sqlite-vec extension
@@ -91,7 +97,7 @@ export namespace Store {
     // Store metadata
     instance.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
 
-    Bus.publish({ tag: "store.created", path: path });
+    await Bus.publish({ tag: "store.created", path: path });
 
     return instance;
   }

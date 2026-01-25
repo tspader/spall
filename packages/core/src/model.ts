@@ -16,22 +16,21 @@ import { Bus } from "./event";
 import { Config } from "./config";
 
 import z from "zod";
-import { Uuid } from "./uuid"
-import { api } from "./api"
-import { Store } from "./store"
-
+import { Uuid } from "./uuid";
+import { api } from "./api";
+import { Store } from "./store";
 
 export namespace Model {
   export const Info = z.object({
     id: z.number(),
     name: z.string(),
-    path: z.string()
-  })
-  export type Info = z.infer<typeof Info>
+    path: z.string(),
+  });
+  export type Info = z.infer<typeof Info>;
 
   export const Event = {
     Download: Bus.define("model.download", {
-      info: Info
+      info: Info,
     }),
     Progress: Bus.define("model.progress", {
       info: Info,
@@ -44,7 +43,7 @@ export namespace Model {
     Load: Bus.define("model.load", {
       info: Info,
     }),
-  }
+  };
 
   function modelCacheDir(): string {
     return join(Config.get().dirs.cache, "models");
@@ -78,22 +77,22 @@ export namespace Model {
     const numIter = 50;
     const timePerIter = (totalTime * 1000) / numIter;
 
-    Bus.publish({
+    await Bus.publish({
       tag: "model.download",
       info: {
         id: 0,
         name: `${totalTime}s_download_model.gguf`,
-        path: "/foo/bar"
-      }
+        path: "/foo/bar",
+      },
     });
 
     for (let i = 0; i < numIter; i++) {
-      Bus.publish({
+      await Bus.publish({
         tag: "model.progress",
         info: {
           id: 0,
           name: `${totalTime}s_download_model.gguf`,
-          path: "/foo/bar"
+          path: "/foo/bar",
         },
         downloaded: i * timePerIter,
         total: totalTime * 1000,
@@ -102,17 +101,15 @@ export namespace Model {
       await Bun.sleep(timePerIter);
     }
 
-    Bus.publish({
+    await Bus.publish({
       tag: "model.downloaded",
       info: {
         id: 0,
         name: `${totalTime}s_download_model.gguf`,
-        path: "/foo/bar"
-      }
+        path: "/foo/bar",
+      },
     });
-};
-
-
+  };
 
   function ensureCacheDir(): void {
     const dir = modelCacheDir();
@@ -127,7 +124,6 @@ export namespace Model {
     }
     return llama;
   }
-
 
   export function init(): void {
     if (initialized) return;
@@ -176,10 +172,10 @@ export namespace Model {
               action: "progress",
               model: instance.name,
               total: totalSize,
-              downloaded: downloadedSize
-            })
+              downloaded: downloadedSize,
+            });
           }
-        }
+        },
       });
 
       const needDownload = downloader.downloadedSize < downloader.totalSize;

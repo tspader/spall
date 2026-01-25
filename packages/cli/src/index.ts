@@ -88,6 +88,34 @@ yargs(hideBin(process.argv))
                   `Created database at ${pc.cyanBright(event.path)}`,
                 );
                 break;
+              case "model.download":
+                consola.info(`Downloading ${pc.cyanBright(event.info.name)}`);
+                break;
+              case "model.progress": {
+                const percent = (event.downloaded / event.total) * 100;
+                const bar = renderProgressBar(percent);
+                const percentStr = percent.toFixed(0).padStart(3);
+                process.stdout.write(
+                  `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
+                );
+                break;
+              }
+              case "model.downloaded": {
+                let sizeStr = "";
+                if (existsSync(event.info.path)) {
+                  const size = statSync(event.info.path).size;
+                  sizeStr = ` ${pc.dim(`(${formatBytes(size)})`)}`;
+                }
+                // Overwrite progress bar line
+                process.stdout.write(`\r${Cli.CLEAR}`);
+                consola.success(
+                  `Loaded ${pc.cyanBright(event.info.name)}${sizeStr}`,
+                );
+                break;
+              }
+              case "model.load":
+                consola.info(`Model ready: ${pc.cyanBright(event.info.name)}`);
+                break;
               case "project.created":
                 consola.success(
                   `Created project ${pc.cyanBright(event.info.name)} (id: ${event.info.id})`,

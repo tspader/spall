@@ -37,14 +37,14 @@ export namespace Project {
         id: number;
       };
 
-      await Model.fakeDownload()
+      await Model.fakeDownload();
 
       const project: Info = {
         id: row.id,
         name,
         dir: input.dir,
       };
-      Bus.publish({ tag: "project.created", info: project });
+      await Bus.publish({ tag: "project.created", info: project });
     },
   );
 }
