@@ -1,4 +1,4 @@
-import { z } from 'zod'
+import { z } from "zod";
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
 import { dirname, join } from "path";
@@ -39,12 +39,12 @@ export type ScanResult = IndexResult & {
 export namespace Store {
   export const Event = {
     Create: Bus.define("store.create", {
-      path: z.string()
+      path: z.string(),
     }),
     Created: Bus.define("store.created", {
-      path: z.string()
+      path: z.string(),
     }),
-  }
+  };
 
   let instance: Database | null = null;
 
@@ -86,6 +86,7 @@ export namespace Store {
     instance.run(Sql.CREATE_META_TABLE);
     instance.run(Sql.CREATE_EMBEDDINGS_TABLE);
     instance.run(Sql.CREATE_VECTORS_TABLE);
+    instance.run(Sql.CREATE_PROJECT_TABLE);
 
     // Store metadata
     instance.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);

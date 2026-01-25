@@ -100,8 +100,7 @@ export namespace Sql {
     WHERE data MATCH ? AND k = ?
   `;
 
-  export const CREATE_PROJECT = `
-    INSERT INTO projects (name, dir) VALUES (?, ?)
+  export const INSERT_PROJECT = `
+    INSERT INTO projects (name, dir) VALUES (?, ?) RETURNING id
   `;
-
 }

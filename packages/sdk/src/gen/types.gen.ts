@@ -18,6 +18,7 @@ export type SearchResult = {
 export type ProjectCreateData = {
   body?: {
     dir: string;
+    name?: string;
   };
   path?: never;
   query?: never;

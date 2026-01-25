@@ -73,6 +73,47 @@ export namespace Model {
   let reranker!: Reranker;
   let llama: Llama | null = null;
 
+  export const fakeDownload = async () => {
+    const totalTime = 3;
+    const numIter = 50;
+    const timePerIter = (totalTime * 1000) / numIter;
+
+    Bus.publish({
+      tag: "model.download",
+      info: {
+        id: 0,
+        name: `${totalTime}s_download_model.gguf`,
+        path: "/foo/bar"
+      }
+    });
+
+    for (let i = 0; i < numIter; i++) {
+      Bus.publish({
+        tag: "model.progress",
+        info: {
+          id: 0,
+          name: `${totalTime}s_download_model.gguf`,
+          path: "/foo/bar"
+        },
+        downloaded: i * timePerIter,
+        total: totalTime * 1000,
+      });
+
+      await Bun.sleep(timePerIter);
+    }
+
+    Bus.publish({
+      tag: "model.downloaded",
+      info: {
+        id: 0,
+        name: `${totalTime}s_download_model.gguf`,
+        path: "/foo/bar"
+      }
+    });
+};
+
+
+
   function ensureCacheDir(): void {
     const dir = modelCacheDir();
     if (!existsSync(dir)) {

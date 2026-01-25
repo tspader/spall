@@ -15,7 +15,7 @@ export namespace Sse {
     input: T,
   ) {
     return streamSSE(context, async (stream) => {
-      Server.increment();
+      Server.incrementSse();
 
       const write = async (event: EventUnion) => {
         await stream.writeSSE({ data: JSON.stringify(event) });
@@ -31,7 +31,7 @@ export namespace Sse {
         await stream.writeSSE({ data: JSON.stringify({ error: message }) });
       } finally {
         unsubscribe();
-        Server.decrement();
+        Server.decrementSse();
       }
     });
   }

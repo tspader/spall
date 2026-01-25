@@ -7,11 +7,7 @@ import { mkdirSync } from "fs";
 import { Glob } from "bun";
 import pc from "picocolors";
 import { Io } from "@spall/core";
-import {
-  Client,
-  Server,
-  type IndexResponse,
-} from "@spall/sdk";
+import { Client, Server, type IndexResponse } from "@spall/sdk";
 import consola from "consola";
 
 const SPALL_DIR = ".spall";
@@ -55,47 +51,54 @@ function getNotesDir(): string {
 
 yargs(hideBin(process.argv))
   .scriptName("spall")
-  .command(
-    "init",
-    "Initialize spall in the current directory",
-    () => { },
-    async () => {
-      const client = await Client.connect();
-      const { stream } = await client.project.create({  });
+  .command("project", "Manage projects", (yargs) => {
+    return yargs
+      .command(
+        "create [name]",
+        "Create a new project",
+        (yargs) => {
+          return yargs
+            .positional("name", {
+              describe: "Project name (defaults to directory name)",
+              type: "string",
+            })
+            .option("dir", {
+              alias: "d",
+              type: "string",
+              describe: "Project directory",
+              default: process.cwd(),
+            });
+        },
+        async (argv) => {
+          const client = await Client.connect();
+          const { stream } = await client.project.create({
+            dir: argv.dir,
+            name: argv.name,
+          });
 
-      for await (const event of stream) {
-        const [tag, action] = event.tag.split(".");
-        switch (event.tag) {
-          case "store.create": consola.info(`Creating database at ${pc.cyanBright(event.path)}`); break;
-          case "store.created": consola.info(`Created database at ${pc.cyanBright(event.path)}`); break;
-          case "model.download": consola.info(`Downloading ${pc.cyanBright(event.info.name)}`); break;
-          case "model.progress": {
-            const percent = (event.downloaded / event.total) * 100;
-            const bar = renderProgressBar(percent);
-            const percentStr = percent.toFixed(0).padStart(3);
-
-            process.stdout.write(
-              `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
-            );
-
-            break;
+          for await (const event of stream) {
+            switch (event.tag) {
+              case "store.create":
+                consola.info(
+                  `Creating database at ${pc.cyanBright(event.path)}`,
+                );
+                break;
+              case "store.created":
+                consola.info(
+                  `Created database at ${pc.cyanBright(event.path)}`,
+                );
+                break;
+              case "project.created":
+                consola.success(
+                  `Created project ${pc.cyanBright(event.info.name)} (id: ${event.info.id})`,
+                );
+                break;
+            }
           }
-          case "model.downloaded": {
-            const size = statSync(event.info.path).size;
-            const bytes = formatBytes(size)
-            console.log(
-              `Loading ${pc.cyanBright(event.info.name)} ${pc.dim(`(${bytes})`)}`,
-            );
-            break;
-          }
-          case "model.load": {
-            console.log(`Finished downloading ${pc.cyanBright(event.info.name)}`);
-            break;
-          }
-        }
-      }
-    },
-  )
+        },
+      )
+      .demandCommand(1, "You must specify a subcommand");
+  })
   .command(
     "serve",
     "Start the spall server",
@@ -112,7 +115,7 @@ yargs(hideBin(process.argv))
           type: "number",
           default: 1,
           describe: "Seconds to wait after last client disconnects",
-        })
+        });
     },
     async (argv) => {
       const tag = pc.gray("server".padEnd(TAG_WIDTH));
@@ -129,7 +132,7 @@ yargs(hideBin(process.argv))
   .command(
     "index",
     "Index all notes in .spall/notes",
-    () => { },
+    () => {},
     async () => {
       const directory = getDirectory();
       const tag = pc.gray("index".padEnd(TAG_WIDTH));
@@ -312,7 +315,7 @@ yargs(hideBin(process.argv))
           const content = Io.read(getNotesDir(), r.key);
           const preview = content
             ? content.slice(0, 80).replace(/\n/g, " ") +
-            (content.length > 80 ? "..." : "")
+              (content.length > 80 ? "..." : "")
             : "(no content)";
 
           console.log(
@@ -421,7 +424,7 @@ yargs(hideBin(process.argv))
   .command(
     "review",
     "Launch the interactive diff review TUI",
-    () => { },
+    () => {},
     async () => {
       const { spawn } = await import("child_process");
       const tuiPath = require.resolve("@spall/tui");

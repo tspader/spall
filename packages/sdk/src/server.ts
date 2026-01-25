@@ -31,7 +31,7 @@ export namespace Server {
   let server: Bun.Server;
   let persist = false;
   let activeRequests = 0;
-  let activeSSE = 0;
+  let activeSse = 0;
   let timer: Timer;
   let idleTimeoutMs = 1000;
   let resolved: () => void;
@@ -102,12 +102,22 @@ export namespace Server {
     resetShutdownTimer();
   }
 
+  export function incrementSse(): void {
+    activeSse++;
+    clearTimeout(timer);
+  }
+
+  export function decrementSse(): void {
+    activeSse--;
+    resetShutdownTimer();
+  }
+
   function resetShutdownTimer(): void {
     if (persist) return;
-    if (activeRequests > 0 || activeSSE > 0) return;
+    if (activeRequests > 0 || activeSse > 0) return;
 
     timer = setTimeout(() => {
-      if (activeRequests === 0 && activeSSE === 0) {
+      if (activeRequests === 0 && activeSse === 0) {
         stop();
       }
     }, idleTimeoutMs);
@@ -182,13 +192,8 @@ export namespace Server {
       resolved = resolve;
     });
 
-    Bus.subscribe((event: EventUnion) => { consola.info(render(event)) });
     Bus.subscribe((event: EventUnion) => {
       consola.info(`${pc.gray(event.tag)} ${render(event)}`)
-    })
-
-    Bus.listen((event: Event) => {
-      consola.info(`${pc.gray(event.tag)} ${Bus.render(event)}`)
     })
 
     return { port, stopped };

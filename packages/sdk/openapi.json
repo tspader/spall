@@ -248,6 +248,9 @@
                 "properties": {
                   "dir": {
                     "type": "string"
+                  },
+                  "name": {
+                    "type": "string"
                   }
                 },
                 "required": [

@@ -20,34 +20,6 @@ export function api<T extends z.ZodType, Result>(
   return result;
 }
 
-const work = async () => {
-  const totalTime = 3;
-  const numIter = 50;
-  const timePerIter = (totalTime * 1000) / numIter;
-
-  await Bus.emit({
-    tag: "model",
-    action: "download",
-    model: `${totalTime}s_download_model.gguf`,
-  });
-
-  for (let i = 0; i < numIter; i++) {
-    await Bus.emit({
-      tag: "model",
-      action: "progress",
-      model: `${totalTime}s_download_model.gguf`,
-      total: totalTime * 1000,
-      downloaded: i * timePerIter,
-    });
-    await Bun.sleep(timePerIter);
-  }
-
-  await Bus.emit({
-    tag: "model",
-    action: "ready",
-    model: `${totalTime}s_download_model.gguf`,
-  });
-};
 
 export const init = api(
   z.object({
@@ -59,7 +31,7 @@ export const init = api(
 
     // Download model (global, in ~/.cache/spall/models/)
     Model.init();
-    await work();
+    //await work();
     await Model.download();
 
     await Bus.emit({ tag: "init", action: "done" });
