@@ -1,32 +1,9 @@
-import {
-  mkdirSync,
-  existsSync,
-} from "fs";
-import { join } from "path";
 import { z } from "zod";
 
-import { Bus } from   "./event";
+import { Bus } from "./event";
 import { Store } from "./store";
 import { Model } from "./model";
-import {
-  InitInput,
-  IndexInput,
-  SearchInput,
-  SearchResult,
-} from "./schema";
-
-const SPALL_DIR = ".spall";
-const DB_NAME = "spall.db";
-const NOTES_DIR = "notes";
-
-function paths(directory: string) {
-  const spallDir = join(directory, SPALL_DIR);
-  return {
-    spallDir,
-    dbPath: join(spallDir, DB_NAME),
-    notesDir: join(spallDir, NOTES_DIR),
-  };
-}
+import { InitInput, IndexInput, SearchInput, SearchResult } from "./schema";
 
 // define a function which takes a schema type and parses it, instead of
 // duplicating the parsing in many places
@@ -51,9 +28,8 @@ const work = async () => {
   await Bus.emit({
     tag: "model",
     action: "download",
-    model: `${totalTime}s_download_model.gguf`
+    model: `${totalTime}s_download_model.gguf`,
   });
-
 
   for (let i = 0; i < numIter; i++) {
     await Bus.emit({
@@ -61,7 +37,7 @@ const work = async () => {
       action: "progress",
       model: `${totalTime}s_download_model.gguf`,
       total: totalTime * 1000,
-      downloaded: i * timePerIter
+      downloaded: i * timePerIter,
     });
     await Bun.sleep(timePerIter);
   }
@@ -69,25 +45,12 @@ const work = async () => {
   await Bus.emit({
     tag: "model",
     action: "ready",
-    model: `${totalTime}s_download_model.gguf`
+    model: `${totalTime}s_download_model.gguf`,
   });
+};
 
-}
-
-export const init = api(InitInput, async (input): Promise<void> => {
-  const { spallDir, dbPath, notesDir } = paths(input.directory);
-
-  if (!existsSync(spallDir)) {
-    mkdirSync(spallDir, { recursive: true });
-    await Bus.emit({ tag: "init", action: "create_dir", path: spallDir });
-  }
-
-  if (!existsSync(notesDir)) {
-    mkdirSync(notesDir, { recursive: true });
-    await Bus.emit({ tag: "init", action: "create_dir", path: notesDir });
-  }
-
-  await Store.create(dbPath);
+export const init = api(InitInput, async (): Promise<void> => {
+  await Store.create();
   Store.close();
 
   // Download model (global, in ~/.cache/spall/models/)
@@ -99,8 +62,6 @@ export const init = api(InitInput, async (input): Promise<void> => {
 });
 
 export const index = api(IndexInput, async (input): Promise<void> => {
-  const { dbPath, notesDir } = paths(input.directory);
-
   // TODO: Actually do indexing via Store
   // For now, send stub events to prove the pipeline works
   await Bus.emit({ tag: "scan", action: "start", total: 0 });
@@ -110,8 +71,6 @@ export const index = api(IndexInput, async (input): Promise<void> => {
 export const search = api(
   SearchInput,
   async (input): Promise<z.infer<typeof SearchResult>[]> => {
-    const { dbPath } = paths(input.directory);
-
     // TODO: Actually do search via Store + Model
     return [];
   },

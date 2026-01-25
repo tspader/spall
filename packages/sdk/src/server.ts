@@ -19,7 +19,7 @@ type LockData = { pid: number; port: number | null };
 
 export namespace Cache {
   export function ensure(): void {
-    const dir = Config.get().cacheDir;
+    const dir = Config.get().dirs.cache;
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
@@ -38,7 +38,7 @@ export namespace Server {
 
   export namespace Lock {
     export function path(): string {
-      return join(Config.get().cacheDir, "server.lock");
+      return join(Config.get().dirs.cache, "server.lock");
     }
 
     export function read(): LockData | null {
@@ -256,7 +256,7 @@ export namespace Server {
       stderr: "ignore",
       env: {
         ...process.env,
-        SPALL_CACHE_DIR: Config.get().cacheDir,
+        SPALL_CACHE_DIR: Config.get().dirs.cache,
       },
     }).unref();
 

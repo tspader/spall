@@ -1,12 +1,13 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync, unlinkSync } from "fs";
-import { dirname } from "path";
+import { dirname, join } from "path";
 import { Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
 import { Bus } from "./event";
 import { Sql } from "./sql";
 import { Io } from "./io";
 import { Model } from "./model";
+import { Config } from "./config";
 import { FileStatus } from "./schema";
 
 export type Chunk = {
@@ -39,6 +40,11 @@ export namespace Store {
 
   const CHUNK_TOKENS = 512;
   const CHUNK_OVERLAP_TOKENS = 64;
+  const DB_NAME = "spall.db";
+
+  export function path(): string {
+    return join(Config.get().dirs.data, DB_NAME);
+  }
 
   export function get(): Database {
     if (!instance) {
@@ -47,7 +53,8 @@ export namespace Store {
     return instance;
   }
 
-  export async function create(path: string): Promise<Database> {
+  export async function create(dbPath?: string): Promise<Database> {
+    const path = dbPath ?? Store.path();
     const dir = dirname(path);
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
@@ -76,11 +83,12 @@ export namespace Store {
     return instance;
   }
 
-  export function open(path: string): Database {
-    if (!existsSync(path)) {
-      throw new Error(`Database not found at ${path}. Run 'spall init' first.`);
+  export function open(dbPath?: string): Database {
+    const p = dbPath ?? Store.path();
+    if (!existsSync(p)) {
+      throw new Error(`Database not found at ${p}. Run 'spall init' first.`);
     }
-    instance = new Database(path);
+    instance = new Database(p);
     sqliteVec.load(instance);
     return instance;
   }
@@ -305,7 +313,7 @@ export namespace Store {
         modified.push(file);
         status = "modified";
       } else {
-        status = "ok"
+        status = "ok";
       }
 
       await Bus.emit({ tag: "scan", action: "progress", path: file, status });
@@ -321,7 +329,7 @@ export namespace Store {
           tag: "scan",
           action: "progress",
           path: file,
-          status: "removed"
+          status: "removed",
         });
       }
     }

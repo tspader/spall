@@ -11,25 +11,40 @@ describe("Config", () => {
   test("get() returns defaults when not configured", () => {
     const cfg = Config.get();
 
-    expect(cfg.cacheDir).toBe(join(homedir(), ".cache", "spall"));
-    expect(cfg.embeddingModel).toContain("embeddinggemma");
-    expect(cfg.rerankerModel).toContain("reranker");
+    expect(cfg.dirs.cache).toBe(join(homedir(), ".cache", "spall"));
+    expect(cfg.dirs.data).toBe(join(homedir(), ".local", "share", "spall"));
+    expect(cfg.models.embedding).toContain("embeddinggemma");
+    expect(cfg.models.reranker).toContain("reranker");
   });
 
   test("set() overrides specific values", () => {
-    Config.set({ cacheDir: "/tmp/custom" });
+    Config.set({
+      dirs: {
+        cache: "/tmp/custom",
+        data: ""
+      },
+      models: {
+        embedding: "",
+        reranker: ""
+      }
+    });
     const cfg = Config.get();
 
-    expect(cfg.cacheDir).toBe("/tmp/custom");
+    expect(cfg.dirs.cache).toBe("/tmp/custom");
     // Other values should be defaults
-    expect(cfg.embeddingModel).toContain("embeddinggemma");
+    expect(cfg.models.embedding).toContain("embeddinggemma");
   });
 
   test("set() can override all values", () => {
     const custom: ConfigSchema = {
-      cacheDir: "/tmp/cache",
-      embeddingModel: "custom-embed",
-      rerankerModel: "custom-rerank",
+      dirs: {
+        cache: "/tmp/cache",
+        data: "/tmp/data",
+      },
+      models: {
+        embedding: "custom-embed",
+        reranker: "custom-rerank",
+      },
     };
 
     Config.set(custom);
@@ -39,13 +54,23 @@ describe("Config", () => {
   });
 
   test("reset() clears config", () => {
-    Config.set({ cacheDir: "/tmp/custom" });
-    expect(Config.get().cacheDir).toBe("/tmp/custom");
+    Config.set({
+      dirs: {
+        cache: "/tmp/custom",
+        data: ""
+      },
+      models: {
+        embedding: "",
+        reranker: ""
+      }
+    });
+
+    expect(Config.get().dirs.cache).toBe("/tmp/custom");
 
     Config.reset();
 
     // Should return to defaults
-    expect(Config.get().cacheDir).toBe(join(homedir(), ".cache", "spall"));
+    expect(Config.get().dirs.cache).toBe(join(homedir(), ".cache", "spall"));
   });
 
   test("get() is idempotent", () => {

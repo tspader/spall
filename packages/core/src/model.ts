@@ -17,7 +17,7 @@ import { Config } from "./config";
 
 export namespace Model {
   function modelCacheDir(): string {
-    return join(Config.get().cacheDir, "models");
+    return join(Config.get().dirs.cache, "models");
   }
 
   export type Status = "pending" | "downloaded";
@@ -84,11 +84,11 @@ export namespace Model {
     const work: DownloadWork[] = [
       {
         instance: embedder.instance,
-        uri: config.embeddingModel,
+        uri: config.models.embedding,
       },
       {
         instance: reranker.instance,
-        uri: config.rerankerModel,
+        uri: config.models.reranker,
       },
     ];
 

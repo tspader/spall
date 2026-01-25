@@ -37,6 +37,7 @@
       "version": "0.0.1",
       "dependencies": {
         "node-llama-cpp": "^3.15.0",
+        "picocolors": "catalog:",
         "sqlite-vec": "^0.1.7-alpha.2",
         "zod": "catalog:",
       },
@@ -50,6 +51,7 @@
       "version": "0.0.1",
       "dependencies": {
         "@hey-api/client-fetch": "^0.10.0",
+        "@hono/standard-validator": "^0.2.2",
         "@spall/core": "workspace:*",
         "@standard-community/standard-json": "^0.3.5",
         "@standard-community/standard-openapi": "^0.2.9",
@@ -75,6 +77,7 @@
         "@opentui/solid": "^0.1.74",
         "@spall/core": "workspace:*",
         "diff": "^8.0.3",
+        "solid-js": "1.9.9",
         "tree-sitter-wasms": "^0.1.13",
       },
       "devDependencies": {
@@ -167,6 +170,8 @@
     "@hey-api/openapi-ts": ["@hey-api/openapi-ts@0.90.10", "", { "dependencies": { "@hey-api/codegen-core": "^0.5.5", "@hey-api/json-schema-ref-parser": "1.2.2", "@hey-api/types": "0.1.2", "ansi-colors": "4.1.3", "color-support": "1.1.3", "commander": "14.0.2", "open": "11.0.0", "semver": "7.7.3" }, "peerDependencies": { "typescript": ">=5.5.3" }, "bin": { "openapi-ts": "bin/run.js" } }, "sha512-o0wlFxuLt1bcyIV/ZH8DQ1wrgODTnUYj/VfCHOOYgXUQlLp9Dm2PjihOz+WYrZLowhqUhSKeJRArOGzvLuOTsg=="],
 
     "@hey-api/types": ["@hey-api/types@0.1.2", "", {}, "sha512-uNNtiVAWL7XNrV/tFXx7GLY9lwaaDazx1173cGW3+UEaw4RUPsHEmiB4DSpcjNxMIcrctfz2sGKLnVx5PBG2RA=="],
+
+    "@hono/standard-validator": ["@hono/standard-validator@0.2.2", "", { "peerDependencies": { "@standard-schema/spec": "^1.0.0", "hono": ">=3.9.0" } }, "sha512-mJ7W84Bt/rSvoIl63Ynew+UZOHAzzRAoAXb3JaWuxAkM/Lzg+ZHTCUiz77KOtn2e623WNN8LkD57Dk0szqUrIw=="],
 
     "@huggingface/jinja": ["@huggingface/jinja@0.5.3", "", {}, "sha512-asqfZ4GQS0hD876Uw4qiUb7Tr/V5Q+JZuo2L+BtdrD4U40QU58nIRq3ZSgAzJgT874VLjhGVacaYfrdpXtEvtA=="],
 

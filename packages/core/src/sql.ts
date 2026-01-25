@@ -26,6 +26,14 @@ export namespace Sql {
     )
   `;
 
+  export const CREATE_PROJECT_TABLE = `
+    CREATE TABLE IF NOT EXISTS projects (
+      id INTEGER PRIMARY KEY,
+      name TEXT NOT NULL,
+      dir TEXT NOT NULL
+    )
+  `;
+
   export const CREATE_VECTORS_TABLE = `
     CREATE VIRTUAL TABLE IF NOT EXISTS vectors USING vec0(
       key TEXT PRIMARY KEY,
@@ -91,4 +99,9 @@ export namespace Sql {
     FROM vectors
     WHERE data MATCH ? AND k = ?
   `;
+
+  export const CREATE_PROJECT = `
+    INSERT INTO projects (name, dir) VALUES (?, ?)
+  `;
+
 }

@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "node-llama-cpp": "^3.15.0",
+    "picocolors": "catalog:",
     "sqlite-vec": "^0.1.7-alpha.2",
     "zod": "catalog:"
   }

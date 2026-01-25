@@ -5,18 +5,26 @@ import { join } from "path";
 const CONFIG_PATH = join(homedir(), ".config", "spall", "spall.json");
 
 export type ConfigSchema = {
-  cacheDir: string;
-  embeddingModel: string;
-  rerankerModel: string;
+  dirs: {
+    cache: string,
+    data: string,
+  },
+  models: {
+    embedding: string,
+    reranker: string,
+  },
 };
 
 function getDefaults(): ConfigSchema {
   return {
-    cacheDir: process.env.SPALL_CACHE_DIR ?? join(homedir(), ".cache", "spall"),
-    embeddingModel:
-      "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
-    rerankerModel:
-      "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf",
+    dirs: {
+      cache: process.env.SPALL_CACHE_DIR ?? join(homedir(), ".cache", "spall"),
+      data: process.env.SPALL_DATA_DIR ?? join(homedir(), ".local", "share", "spall"),
+    },
+    models: {
+      embedding: "hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf",
+      reranker:  "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf",
+    }
   };
 }
 
