@@ -7,6 +7,76 @@ import { Project, Note, EventUnion } from "@spall/core";
 
 export const ProjectRoutes = lazy(() =>
   new Hono()
+    .get(
+      "/:id/list",
+      describeRoute({
+        summary: "List notes",
+        description: "List all note paths in a project.",
+        operationId: "note.list",
+        responses: {
+          200: {
+            description: "List of notes",
+            content: {
+              "application/json": {
+                schema: resolver(Note.ListItem.array()),
+              },
+            },
+          },
+          404: {
+            description: "Project not found",
+          },
+        },
+      }),
+      async (c) => {
+        const id = c.req.param("id");
+        const result = await Note.list({
+          project: Project.Id.parse(id),
+        })
+          .then((result) => {
+            return c.json(result);
+          })
+          .catch((error) => {
+            return c.json({ error: error.message }, 404);
+          });
+        return result;
+      },
+    )
+    .get(
+      "/:id/note/:path{.+}",
+      describeRoute({
+        summary: "Get a note",
+        description: "Get a note by path within a project.",
+        operationId: "note.get",
+        responses: {
+          200: {
+            description: "Note with content",
+            content: {
+              "application/json": {
+                schema: resolver(Note.Info),
+              },
+            },
+          },
+          404: {
+            description: "Project or note not found",
+          },
+        },
+      }),
+      async (c) => {
+        const id = c.req.param("id");
+        const path = c.req.param("path");
+        const result = await Note.get({
+          project: Project.Id.parse(id),
+          path,
+        })
+          .then((result) => {
+            return c.json(result);
+          })
+          .catch((error) => {
+            return c.json({ error: error.message }, 404);
+          });
+        return result;
+      },
+    )
     .post(
       "/",
       describeRoute({

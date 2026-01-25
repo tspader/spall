@@ -13,12 +13,12 @@
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@opentui/core": "^0.1.74",
-    "@opentui/solid": "^0.1.74",
+    "@opentui/core": "catalog:",
+    "@opentui/solid": "catalog:",
     "@spall/core": "workspace:*",
     "@spall/sdk": "workspace:*",
-    "diff": "^8.0.3",
-    "solid-js": "1.9.9",
-    "tree-sitter-wasms": "^0.1.13"
+    "solid-js": "catalog:",
+    "tree-sitter-wasms": "catalog:",
+    "diff": "^8.0.3"
   }
 }

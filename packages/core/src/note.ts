@@ -10,8 +10,70 @@ export namespace Note {
     id: z.number(),
     project: Project.Id,
     path: z.string(),
+    content: z.string(),
   });
   export type Info = z.infer<typeof Info>;
+
+  export class NotFoundError extends Error {
+    constructor(message: string) {
+      super(message);
+      this.name = "NotFoundError";
+    }
+  }
+
+  export type Row = {
+    id: number;
+    project_id: number;
+    path: string;
+    content: string;
+  } | null;
+
+  export const get = api(
+    z.object({
+      project: Project.Id,
+      path: z.string(),
+    }),
+    async (input): Promise<Info> => {
+      await Project.get({ id: input.project });
+      const db = Store.get();
+
+      const row = db
+        .prepare(Sql.GET_NOTE_BY_PATH)
+        .get(input.project, input.path) as Row;
+
+      if (!row) throw new NotFoundError(`Note not found: ${input.path}`);
+
+      return {
+        id: row.id,
+        project: Project.Id.parse(row.project_id),
+        path: row.path,
+        content: row.content,
+      };
+    },
+  );
+
+  export const ListItem = z.object({
+    id: z.number(),
+    path: z.string(),
+  });
+  export type ListItem = z.infer<typeof ListItem>;
+
+  export const list = api(
+    z.object({
+      project: Project.Id,
+    }),
+    async (input): Promise<ListItem[]> => {
+      await Project.get({ id: input.project });
+      const db = Store.get();
+
+      const rows = db.prepare(Sql.LIST_NOTES).all(input.project) as {
+        id: number;
+        path: string;
+      }[];
+
+      return rows;
+    },
+  );
 
   export const add = api(
     z.object({
@@ -56,6 +118,7 @@ export namespace Note {
         id: row.id,
         project: project.id,
         path: input.path,
+        content: input.content,
       };
     },
   );

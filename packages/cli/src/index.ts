@@ -152,10 +152,11 @@ yargs(hideBin(process.argv))
     async (argv) => {
       const client = await Client.connect();
 
-      const project = await client.project.get({ name: argv.project })
+      const project = await client.project
+        .get({ name: argv.project })
         .catch(() => {
-          consola.error(`Failed to find project: ${pc.bgCyan(argv.project)}`)
-          process.exit(1)
+          consola.error(`Failed to find project: ${pc.bgCyan(argv.project)}`);
+          process.exit(1);
         })
         .then(Client.unwrap);
 
@@ -166,8 +167,8 @@ yargs(hideBin(process.argv))
           project: project.id,
         })
         .catch((error) => {
-          consola.error(`Failed to add note: ${error}`)
-          process.exit(1)
+          consola.error(`Failed to add note: ${error}`);
+          process.exit(1);
         })
         .then(Client.unwrap);
 
@@ -503,19 +504,10 @@ yargs(hideBin(process.argv))
     "Launch the interactive diff review TUI",
     () => {},
     async () => {
-      const { spawn } = await import("child_process");
-      const tuiPath = require.resolve("@spall/tui");
-      const child = spawn("bun", ["run", tuiPath], {
-        stdio: "inherit",
-        cwd: process.cwd(),
-      });
-      await new Promise<void>((resolve, reject) => {
-        child.on("close", (code) => {
-          if (code === 0) resolve();
-          else reject(new Error(`TUI exited with code ${code}`));
-        });
-        child.on("error", reject);
-      });
+      // Load the Solid JSX transform plugin before importing TUI
+      await import("@opentui/solid/preload");
+      const { tui } = await import("@spall/tui");
+      await tui({ repoPath: process.cwd() });
     },
   )
   .demandCommand(1, "You must specify a command")

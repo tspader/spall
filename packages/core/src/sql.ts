@@ -138,4 +138,12 @@ export namespace Sql {
   export const GET_PROJECT_BY_ID = `
     SELECT id, name, dir FROM projects WHERE id = ?
   `;
+
+  export const GET_NOTE_BY_PATH = `
+    SELECT id, project_id, path, content, mtime FROM notes WHERE project_id = ? AND path = ?
+  `;
+
+  export const LIST_NOTES = `
+    SELECT id, path FROM notes WHERE project_id = ?
+  `;
 }

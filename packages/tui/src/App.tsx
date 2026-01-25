@@ -25,15 +25,21 @@ const RECORD_FRAMES = process.env.RECORD_FRAMES === "1";
 let frameNumber = 0;
 const decoder = new TextDecoder();
 
-export function main() {
-  render(
+export interface TuiOptions {
+  repoPath?: string;
+}
+
+export async function tui(options: TuiOptions = {}): Promise<void> {
+  const repoPath = options.repoPath ?? process.cwd();
+
+  await render(
     () => (
       <ErrorBoundary
         fallback={(err: Error, reset: () => void) => (
           <ErrorFallback error={err} reset={reset} />
         )}
       >
-        <Review />
+        <Review repoPath={repoPath} />
       </ErrorBoundary>
     ),
     {
@@ -59,5 +65,5 @@ export function main() {
 
 // Run if executed directly
 if (import.meta.main) {
-  main();
+  tui();
 }
