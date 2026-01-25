@@ -101,6 +101,28 @@ export const ProjectRoutes = lazy(() =>
       },
     )
     .get(
+      "/list",
+      describeRoute({
+        summary: "List projects",
+        description: "List all projects.",
+        operationId: "project.list",
+        responses: {
+          200: {
+            description: "List of projects",
+            content: {
+              "application/json": {
+                schema: resolver(Project.Info.array()),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        const result = await Project.list({});
+        return c.json(result);
+      },
+    )
+    .get(
       "/",
       describeRoute({
         summary: "Get project",

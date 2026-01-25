@@ -146,4 +146,12 @@ export namespace Sql {
   export const LIST_NOTES = `
     SELECT id, path FROM notes WHERE project_id = ?
   `;
+
+  export const COUNT_NOTES = `
+    SELECT COUNT(*) as count FROM notes WHERE project_id = ?
+  `;
+
+  export const LIST_PROJECTS = `
+    SELECT id, name, dir FROM projects
+  `;
 }

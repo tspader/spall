@@ -21,6 +21,7 @@ export namespace Project {
     id: Id,
     name: z.string(),
     dir: z.string(),
+    noteCount: z.number(),
   });
   export type Info = z.infer<typeof Info>;
 
@@ -36,6 +37,16 @@ export namespace Project {
   export const DEFAULT_NAME = "default";
 
   type ProjectRow = { id: number; name: string; dir: string };
+
+  function countNotes(
+    db: ReturnType<typeof Store.get>,
+    projectId: number,
+  ): number {
+    const result = db.prepare(Sql.COUNT_NOTES).get(projectId) as {
+      count: number;
+    };
+    return result.count;
+  }
 
   export const get = api(
     z.object({
@@ -69,9 +80,24 @@ export namespace Project {
         id: Id.parse(row.id),
         name: row.name,
         dir: row.dir,
+        noteCount: countNotes(db, row.id),
       };
     },
   );
+
+  export const list = api(z.object({}), async (): Promise<Info[]> => {
+    await Store.ensure();
+    const db = Store.get();
+
+    const rows = db.prepare(Sql.LIST_PROJECTS).all() as ProjectRow[];
+
+    return rows.map((row) => ({
+      id: Id.parse(row.id),
+      name: row.name,
+      dir: row.dir,
+      noteCount: countNotes(db, row.id),
+    }));
+  });
 
   export const create = api(
     z.object({
@@ -93,6 +119,7 @@ export namespace Project {
         id: Id.parse(row.id),
         name,
         dir: input.dir,
+        noteCount: 0,
       };
       await Bus.publish({ tag: "project.created", info: project });
     },
