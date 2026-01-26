@@ -64,17 +64,15 @@ export const ProjectRoutes = lazy(() =>
       async (c) => {
         const id = c.req.param("id");
         const path = c.req.param("path");
-        const result = await Note.get({
-          project: Project.Id.parse(id),
-          path,
-        })
-          .then((result) => {
-            return c.json(result);
-          })
-          .catch((error: any) => {
-            return c.json({ error: error.message }, 404);
+        try {
+          const result = Note.get({
+            project: Project.Id.parse(id),
+            path,
           });
-        return result;
+          return c.json(result);
+        } catch (error: any) {
+          return c.json({ error: error.message }, 404);
+        }
       },
     )
     .post(
@@ -156,10 +154,10 @@ export const ProjectRoutes = lazy(() =>
         operationId: "note.add",
         responses: {
           200: {
-            description: "Note info",
+            description: "Event stream",
             content: {
-              "application/json": {
-                schema: resolver(Note.Info),
+              "text/event-stream": {
+                schema: resolver(EventUnion),
               },
             },
           },
@@ -171,15 +169,7 @@ export const ProjectRoutes = lazy(() =>
       validator("json", Note.add.schema),
       async (context) => {
         const body = context.req.valid("json");
-        try {
-          const result = await Note.add(body);
-          return context.json(result);
-        } catch (e: any) {
-          if (e instanceof Project.NotFoundError) {
-            return context.json({ error: e.message }, 404);
-          }
-          throw e;
-        }
+        return Sse.stream(context, Note.add, body);
       },
     ),
 );

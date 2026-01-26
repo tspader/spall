@@ -31,8 +31,11 @@ import { z } from "zod";
 import { Project } from "./project";
 import { Model } from "./model";
 import { Store } from "./store";
+import { Bus } from "./event";
+import { Note } from "./note";
 
 export const EventUnion = z.discriminatedUnion("tag", [
+  Bus.Event.Connected,
   Project.Event.Created,
   Project.Event.Updated,
   Model.Event.Download,
@@ -47,9 +50,11 @@ export const EventUnion = z.discriminatedUnion("tag", [
   Store.Event.Embed,
   Store.Event.EmbedProgress,
   Store.Event.Embedded,
+  Note.Event.Created,
 ]);
 
 export type EventUnion =
+  | z.infer<typeof Bus.Event.Connected>
   | z.infer<typeof Project.Event.Created>
   | z.infer<typeof Project.Event.Updated>
   | z.infer<typeof Model.Event.Download>
@@ -64,3 +69,4 @@ export type EventUnion =
   | z.infer<typeof Store.Event.Embed>
   | z.infer<typeof Store.Event.EmbedProgress>
   | z.infer<typeof Store.Event.Embedded>
+  | z.infer<typeof Note.Event.Created>;

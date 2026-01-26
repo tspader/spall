@@ -4,7 +4,6 @@ import { api } from "./api";
 import { Store } from "./store";
 import { Bus } from "./event";
 import { Sql } from "./sql";
-import { Model } from "./model";
 
 export namespace Project {
   export const Id = z.coerce.number().brand<"ProjectId">();
@@ -38,7 +37,7 @@ export namespace Project {
 
   export const DEFAULT_NAME = "default";
 
-  type ProjectRow = {
+  type Row = {
     id: number;
     name: string;
     dir: string;
@@ -65,20 +64,16 @@ export namespace Project {
       Store.ensure();
       const db = Store.get();
 
-      let row: ProjectRow | null;
+      let row: Row | null;
 
       if (input.id !== undefined) {
-        row = db
-          .prepare(Sql.GET_PROJECT_BY_ID)
-          .get(input.id) as ProjectRow | null;
+        row = db.prepare(Sql.GET_PROJECT_BY_ID).get(input.id) as Row | null;
         if (!row) {
           throw new NotFoundError(`Project not found: id=${input.id}`);
         }
       } else {
         const name = input.name ?? DEFAULT_NAME;
-        row = db
-          .prepare(Sql.GET_PROJECT_BY_NAME)
-          .get(name) as ProjectRow | null;
+        row = db.prepare(Sql.GET_PROJECT_BY_NAME).get(name) as Row | null;
         if (!row) {
           throw new NotFoundError(`Project not found: ${name}`);
         }
@@ -99,7 +94,7 @@ export namespace Project {
     Store.ensure();
     const db = Store.get();
 
-    const rows = db.prepare(Sql.LIST_PROJECTS).all() as ProjectRow[];
+    const rows = db.prepare(Sql.LIST_PROJECTS).all() as Row[];
 
     return rows.map((row) => ({
       id: Id.parse(row.id),
@@ -138,7 +133,7 @@ export namespace Project {
         createdAt: now,
         updatedAt: now,
       };
-      Bus.publish({ tag: "project.created", info: project });
+      await Bus.publish({ tag: "project.created", info: project });
     },
   );
 }

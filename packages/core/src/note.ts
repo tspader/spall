@@ -4,6 +4,7 @@ import { Store } from "./store";
 import { Model } from "./model";
 import { Sql } from "./sql";
 import { Project } from "./project";
+import { Bus } from "./event";
 
 export namespace Note {
   export const Id = z.coerce.number().brand<"NoteId">();
@@ -17,6 +18,12 @@ export namespace Note {
     contentHash: z.string(),
   });
   export type Info = z.infer<typeof Info>;
+
+  export namespace Event {
+    export const Created = Bus.define("note.created", {
+      info: Info,
+    });
+  }
 
   const Row = z
     .object({
@@ -101,7 +108,7 @@ export namespace Note {
       path: z.string(),
       content: z.string(),
     }),
-    async (input): Promise<Info> => {
+    async (input): Promise<void> => {
       const project = Project.get({ id: input.project });
       const db = Store.get();
 
@@ -112,7 +119,9 @@ export namespace Note {
         .prepare(Sql.GET_NOTE_BY_HASH)
         .get(project.id, contentHash);
       if (existing) {
-        return Row.parse(existing);
+        const info = Row.parse(existing);
+        await Bus.publish({ tag: "note.created", info });
+        return;
       }
 
       const mtime = Date.now();
@@ -142,13 +151,15 @@ export namespace Note {
         }
       }
 
-      return {
+      const info: Info = {
         id: Id.parse(inserted.id),
         project: project.id,
         path: input.path,
         content: input.content,
         contentHash,
       };
+
+      await Bus.publish({ tag: "note.created", info });
     },
   );
 }

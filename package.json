@@ -17,7 +17,7 @@
   },
   "scripts": {
     "typecheck": "tsc --build",
-    "test": "bun test packages/core/src && bun test packages/tui/src",
+    "test": "bun test packages/core packages/sdk && bun test --cwd packages/tui",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "tui": "bun run packages/tui/src/App.tsx"

@@ -4,20 +4,25 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { Store } from "./store";
 import { Io } from "./io";
+import { Config } from "./config";
 
 describe("Store integration", () => {
   let tmpDir: string;
-  let dbPath: string;
 
   beforeEach(() => {
     Io.clear();
+    Config.reset();
     tmpDir = mkdtempSync(join(tmpdir(), "spall-test-"));
-    dbPath = join(tmpDir, "test.db");
+    Config.set({
+      dirs: { cache: tmpDir, data: tmpDir },
+      models: { embedding: "", reranker: "" },
+    });
     Store.ensure();
   });
 
   afterEach(() => {
     Store.close();
+    Config.reset();
     rmSync(tmpDir, { recursive: true });
   });
 
@@ -102,20 +107,24 @@ describe("Store integration", () => {
 
 describe("Store.scan", () => {
   let tmpDir: string;
-  let dbPath: string;
   let notesDir: string;
 
   beforeEach(() => {
     Io.clear();
+    Config.reset();
     tmpDir = mkdtempSync(join(tmpdir(), "spall-scan-test-"));
-    dbPath = join(tmpDir, "test.db");
     notesDir = join(tmpDir, "notes");
     mkdirSync(notesDir, { recursive: true });
+    Config.set({
+      dirs: { cache: tmpDir, data: tmpDir },
+      models: { embedding: "", reranker: "" },
+    });
     Store.ensure();
   });
 
   afterEach(() => {
     Store.close();
+    Config.reset();
     rmSync(tmpDir, { recursive: true });
   });
 

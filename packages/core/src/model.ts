@@ -16,7 +16,6 @@ import { mkdirSync, existsSync } from "fs";
 import { Bus } from "./event";
 import { Config } from "./config";
 
-
 export namespace Model {
   export const Info = z.object({
     id: z.number(),
@@ -74,7 +73,7 @@ export namespace Model {
     const numIter = 50;
     const timePerIter = (totalTime * 1000) / numIter;
 
-    Bus.publish({
+    await Bus.publish({
       tag: "model.download",
       info: {
         id: 0,
@@ -84,7 +83,7 @@ export namespace Model {
     });
 
     for (let i = 0; i < numIter; i++) {
-      Bus.publish({
+      await Bus.publish({
         tag: "model.progress",
         info: {
           id: 0,
@@ -98,7 +97,7 @@ export namespace Model {
       await Bun.sleep(timePerIter);
     }
 
-    Bus.publish({
+    await Bus.publish({
       tag: "model.downloaded",
       info: {
         id: 0,
@@ -180,7 +179,7 @@ export namespace Model {
 
       const needDownload = downloader.downloadedSize < downloader.totalSize;
       if (needDownload) {
-        Bus.publish({
+        await Bus.publish({
           tag: "model.download",
           info: {
             id: 0,
@@ -194,7 +193,7 @@ export namespace Model {
       instance.status = "downloaded";
 
       if (needDownload) {
-        Bus.publish({
+        await Bus.publish({
           tag: "model.downloaded",
           info: {
             id: 0,
@@ -214,7 +213,7 @@ export namespace Model {
     }
 
     if (!embedder.instance.model) {
-      Bus.publish({
+      await Bus.publish({
         tag: "model.load",
         info: {
           id: 0,
