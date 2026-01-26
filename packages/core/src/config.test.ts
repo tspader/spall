@@ -18,20 +18,12 @@ describe("Config", () => {
   });
 
   test("set() overrides specific values", () => {
-    Config.set({
-      dirs: {
-        cache: "/tmp/custom",
-        data: ""
-      },
-      models: {
-        embedding: "",
-        reranker: ""
-      }
-    });
+    Config.set({ dirs: { cache: "/tmp/custom" } });
     const cfg = Config.get();
 
     expect(cfg.dirs.cache).toBe("/tmp/custom");
     // Other values should be defaults
+    expect(cfg.dirs.data).toBe(join(homedir(), ".local", "share", "spall"));
     expect(cfg.models.embedding).toContain("embeddinggemma");
   });
 
@@ -57,12 +49,12 @@ describe("Config", () => {
     Config.set({
       dirs: {
         cache: "/tmp/custom",
-        data: ""
+        data: "",
       },
       models: {
         embedding: "",
-        reranker: ""
-      }
+        reranker: "",
+      },
     });
 
     expect(Config.get().dirs.cache).toBe("/tmp/custom");
