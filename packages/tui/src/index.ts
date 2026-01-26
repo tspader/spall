@@ -113,169 +113,149 @@ namespace Cli {
   export const defaultTheme: Theme = {
     header: pc.dim,
     command: hsv(153, 40, 63), // desaturated zomp/teal
-    arg: hsv(20, 45, 90), // desaturated orange
+    arg: hsv(180, 45, 90), // desaturated cyan
     option: hsv(60, 45, 90), // desaturated yellow
-    type: pc.dim,
-    description: hsv(0, 0, 75), // light gray
-    dim: pc.dim,
-  };
-
-  // Simple ANSI theme for terminals without truecolor
-  export const systemTheme: Theme = {
-    header: pc.dim,
-    command: pc.cyan,
-    arg: pc.yellow,
-    option: pc.yellow,
     type: pc.dim,
     description: (s) => s,
     dim: pc.dim,
   };
 
-  type OptionInfo = {
-    name: string;
+  // CLI definition types
+  export type OptionDef = {
     alias?: string;
-    type: string;
+    type: "string" | "number" | "boolean" | "array";
     description: string;
     required?: boolean;
     default?: unknown;
   };
 
-  type CommandInfo = {
-    name: string;
-    args: string[];
+  export type PositionalDef = {
+    type: "string" | "number";
     description: string;
+    required?: boolean;
+    default?: unknown;
   };
 
-  // Store yargs instance reference for help output
-  let yargsInstance: any = null;
+  export type CommandDef = {
+    description: string;
+    positionals?: Record<string, PositionalDef>;
+    options?: Record<string, OptionDef>;
+    commands?: Record<string, CommandDef>;
+    handler?: (argv: any) => void | Promise<void>;
+  };
 
-  export function setYargs(y: any): void {
-    yargsInstance = y;
-  }
+  export type CliDef = {
+    name: string;
+    description: string;
+    options?: Record<string, OptionDef>;
+    commands: Record<string, CommandDef>;
+  };
 
-  // Check handler for --help/-h interception (use with .check())
-  export function helpCheck(argv: any): boolean {
-    if (argv.help) {
-      const usage = (yargsInstance as any)
-        .getInternalMethods()
-        .getUsageInstance();
-      printHelp(usage);
-      process.exit(0);
+  // Build usage line from command path and positionals
+  function buildUsageLine(
+    name: string,
+    def: CommandDef | CliDef,
+    commandPath: string[],
+  ): string {
+    const parts = [name, ...commandPath];
+
+    if ("positionals" in def && def.positionals) {
+      for (const [posName, pos] of Object.entries(def.positionals)) {
+        parts.push(pos.required ? `<${posName}>` : `[${posName}]`);
+      }
     }
-    return true;
+
+    const hasOptions = def.options && Object.keys(def.options).length > 0;
+    const hasSubcommands =
+      "commands" in def && def.commands && Object.keys(def.commands).length > 0;
+
+    if (hasOptions) {
+      parts.push("[options]");
+    }
+
+    if (hasSubcommands) {
+      parts.push("<command>");
+    }
+
+    return parts.join(" ");
   }
 
-  // Fail handler for missing commands and help fallback
-  export function fail(
-    msg: string | null,
-    _err: Error | undefined,
-    usage: any,
+  // Print help from CLI definition
+  export function printHelp(
+    def: CommandDef | CliDef,
+    name: string,
+    commandPath: string[] = [],
+    theme: Theme = defaultTheme,
   ): void {
-    if (process.argv.includes("--help") || process.argv.includes("-h")) {
-      printHelp(usage);
-      process.exit(0);
-    }
-    if (msg?.includes("You must specify")) {
-      printHelp(usage);
-      process.exit(0);
-    }
-    console.error(pc.red(msg ?? "Unknown error"));
-    process.exit(1);
-  }
-
-  export function printHelp(usage: any, theme: Theme = defaultTheme): void {
-    const descriptions = usage.getDescriptions();
-    const commands: [string, string, boolean, string[], boolean][] =
-      usage.getCommands();
-
-    // Get description from usage if set
-    const usages = usage.getUsage();
-    const desc = usages.length > 0 ? usages[0][1] : "";
-
-    // Track if we've printed anything (for spacing between sections)
     let hasPrevSection = false;
 
-    if (desc) {
-      console.log(theme.description(desc));
-      hasPrevSection = true;
+    const usageLine = buildUsageLine(name, def, commandPath);
+    console.log(`Usage: ${usageLine}`);
+    hasPrevSection = true;
+
+    if (def.description) {
+      console.log(theme.description(def.description));
     }
 
-    // Get options from yargs instance if available
-    const options = yargsInstance?.getOptions() ?? {
-      alias: {},
-      string: [],
-      number: [],
-      boolean: [],
-      array: [],
-      count: [],
-      default: {},
-    };
-    const demandedOptions = yargsInstance?.getDemandedOptions() ?? {};
+    // Positionals section
+    const positionals = "positionals" in def ? def.positionals : undefined;
+    if (positionals && Object.keys(positionals).length > 0) {
+      if (hasPrevSection) console.log("");
+      console.log(theme.header("arguments"));
+      hasPrevSection = true;
 
-    // Collect options
-    const opts: OptionInfo[] = [];
-    const seen = new Set<string>();
+      const nameCol: string[] = [];
+      const typeCol: string[] = [];
+      const descCol: string[] = [];
 
-    // Add explicitly defined options
-    for (const key of Object.keys(descriptions)) {
-      if (seen.has(key) || key === "$0") continue;
-      seen.add(key);
-
-      const aliases = options.alias[key] || [];
-      for (const a of aliases) seen.add(a);
-
-      // Find short alias (single char)
-      const shortAlias = aliases.find((a: string) => a.length === 1);
-
-      let type = "boolean";
-      if (options.string.includes(key)) type = "string";
-      else if (options.number.includes(key)) type = "number";
-      else if (options.array.includes(key)) type = "array";
-      else if (options.count.includes(key)) type = "count";
-
-      // Strip yargs i18n prefix
-      let description = descriptions[key] || "";
-      if (description.startsWith("__yargsString__:")) {
-        description = description.slice("__yargsString__:".length);
+      for (const [posName, pos] of Object.entries(positionals)) {
+        nameCol.push(`  ${posName}`);
+        typeCol.push(pos.type);
+        let desc = pos.description;
+        if (pos.default !== undefined) {
+          desc += ` ${theme.dim(`(default: ${pos.default})`)}`;
+        }
+        if (pos.required) {
+          desc += ` ${theme.dim("(required)")}`;
+        }
+        descCol.push(desc);
       }
 
-      opts.push({
-        name: key,
-        alias: shortAlias,
-        type,
-        description,
-        required: demandedOptions[key] !== undefined,
-        default: options.default[key],
-      });
+      const nameWidth = Math.max(...nameCol.map((s) => s.length));
+      const typeWidth = Math.max(...typeCol.map((s) => s.length));
+
+      for (let i = 0; i < nameCol.length; i++) {
+        console.log(
+          [
+            theme.arg(nameCol[i]!.padEnd(nameWidth)),
+            theme.type(typeCol[i]!.padEnd(typeWidth)),
+            theme.description(descCol[i]!),
+          ].join(" "),
+        );
+      }
     }
 
-    // Collect commands
-    const cmds: CommandInfo[] = [];
-    for (const [cmd, cmdDesc] of commands) {
-      // Parse command string like "create [name]" or "add <path>"
-      const parts = cmd.split(/\s+/);
-      const name = (parts[0] ?? "").replace(/^\$0\s*/, "");
-      const args = parts.slice(1).map((p) => {
-        // Strip < > [ ] and keep the name
-        return p.replace(/^[<\[]/, "").replace(/[>\]]$/, "");
-      });
-      cmds.push({ name, args, description: cmdDesc });
-    }
+    // Options section (always include --help)
+    const opts = def.options ?? {};
+    const helpOpt: OptionDef = {
+      alias: "h",
+      type: "boolean",
+      description: "Show help",
+    };
+    const allOpts: Record<string, OptionDef> = { help: helpOpt, ...opts };
 
-    // Print options section
-    if (opts.length > 0) {
-      if (hasPrevSection) console.log();
+    if (Object.keys(allOpts).length > 0) {
+      if (hasPrevSection) console.log("");
       console.log(theme.header("options"));
       hasPrevSection = true;
 
-      // Calculate column widths
       const optCol: string[] = [];
       const typeCol: string[] = [];
       const descCol: string[] = [];
 
-      for (const opt of opts) {
+      for (const [optName, opt] of Object.entries(allOpts)) {
         const short = opt.alias ? `-${opt.alias} ` : "   ";
-        const long = `--${opt.name}`;
+        const long = `--${optName}`;
         optCol.push(`  ${short}${long}`);
         typeCol.push(opt.type);
 
@@ -289,35 +269,40 @@ namespace Cli {
       const optWidth = Math.max(...optCol.map((s) => s.length));
       const typeWidth = Math.max(...typeCol.map((s) => s.length));
 
-      for (let i = 0; i < opts.length; i++) {
-        const line = [
-          theme.option(optCol[i]!.padEnd(optWidth)),
-          theme.type(typeCol[i]!.padEnd(typeWidth)),
-          theme.description(descCol[i]!),
-        ].join(" ");
-        console.log(line);
+      for (let i = 0; i < optCol.length; i++) {
+        console.log(
+          [
+            theme.option(optCol[i]!.padEnd(optWidth)),
+            theme.type(typeCol[i]!.padEnd(typeWidth)),
+            theme.description(descCol[i]!),
+          ].join(" "),
+        );
       }
     }
 
-    // Print commands section
-    if (cmds.length > 0) {
-      if (hasPrevSection) console.log();
+    // Commands section
+    const commands = "commands" in def ? def.commands : undefined;
+    if (commands && Object.keys(commands).length > 0) {
+      if (hasPrevSection) console.log("");
       console.log(theme.header("commands"));
 
       const nameCol: string[] = [];
       const argsCol: string[] = [];
       const descCol: string[] = [];
 
-      for (const cmd of cmds) {
-        nameCol.push(`  ${cmd.name}`);
-        argsCol.push(cmd.args.join(" "));
+      for (const [cmdName, cmd] of Object.entries(commands)) {
+        nameCol.push(`  ${cmdName}`);
+        const args = cmd.positionals
+          ? Object.keys(cmd.positionals).join(" ")
+          : "";
+        argsCol.push(args);
         descCol.push(cmd.description);
       }
 
       const nameWidth = Math.max(...nameCol.map((s) => s.length));
       const argsWidth = Math.max(...argsCol.map((s) => s.length), 0);
 
-      for (let i = 0; i < cmds.length; i++) {
+      for (let i = 0; i < nameCol.length; i++) {
         const parts = [theme.command(nameCol[i]!.padEnd(nameWidth))];
         if (argsWidth > 0) {
           parts.push(theme.arg(argsCol[i]!.padEnd(argsWidth)));
@@ -326,6 +311,156 @@ namespace Cli {
         console.log(parts.join(" "));
       }
     }
+  }
+
+  // Create fail handler for a command definition
+  function failHandler(
+    def: CommandDef | CliDef,
+    name: string,
+    commandPath: string[] = [],
+  ) {
+    return (msg: string | null, _err: Error | undefined, _usage: any): void => {
+      if (process.argv.includes("--help") || process.argv.includes("-h")) {
+        printHelp(def, name, commandPath);
+        process.exit(0);
+      }
+      if (msg?.includes("You must specify")) {
+        printHelp(def, name, commandPath);
+        process.exit(0);
+      }
+      console.error(pc.red(msg ?? "Unknown error"));
+      process.exit(1);
+    };
+  }
+
+  // Create help check for a command definition
+  function helpChecker(
+    def: CommandDef | CliDef,
+    name: string,
+    commandPath: string[] = [],
+  ) {
+    return (argv: any): boolean => {
+      if (argv.help) {
+        // Only show help if we're at the right command depth
+        // argv._ contains the parsed command path
+        const argvDepth = argv._.length;
+        const expectedDepth = commandPath.length;
+        if (argvDepth === expectedDepth) {
+          printHelp(def, name, commandPath);
+          process.exit(0);
+        }
+      }
+      return true;
+    };
+  }
+
+  // Build yargs command from definition
+  function buildCommand(
+    y: any,
+    name: string,
+    def: CommandDef,
+    rootName: string,
+    commandPath: string[] = [],
+  ): any {
+    const fullPath = [...commandPath, name];
+
+    // Build command string with positionals
+    let cmdStr = name;
+    if (def.positionals) {
+      for (const [posName, pos] of Object.entries(def.positionals)) {
+        cmdStr += pos.required ? ` <${posName}>` : ` [${posName}]`;
+      }
+    }
+
+    return y.command(
+      cmdStr,
+      def.description,
+      (yargs: any) => {
+        // Add positionals
+        if (def.positionals) {
+          for (const [posName, pos] of Object.entries(def.positionals)) {
+            yargs.positional(posName, {
+              type: pos.type,
+              describe: pos.description,
+              demandOption: pos.required,
+              default: pos.default,
+            });
+          }
+        }
+
+        // Add options
+        if (def.options) {
+          for (const [optName, opt] of Object.entries(def.options)) {
+            yargs.option(optName, {
+              alias: opt.alias,
+              type: opt.type,
+              describe: opt.description,
+              demandOption: opt.required,
+              default: opt.default,
+            });
+          }
+        }
+
+        // Add subcommands recursively
+        if (def.commands) {
+          for (const [subName, subDef] of Object.entries(def.commands)) {
+            buildCommand(yargs, subName, subDef, rootName, fullPath);
+          }
+          yargs.demandCommand(1, "You must specify a command");
+        }
+
+        // Add help handling
+        yargs
+          .help(false)
+          .option("help", {
+            alias: "h",
+            type: "boolean",
+            describe: "Show help",
+          })
+          .check(helpChecker(def, rootName, fullPath))
+          .fail(failHandler(def, rootName, fullPath));
+
+        return yargs;
+      },
+      def.handler,
+    );
+  }
+
+  // Build full CLI from definition
+  export function build(def: CliDef): any {
+    const y = yargs(hideBin(process.argv)).scriptName(def.name);
+
+    // Add root options
+    if (def.options) {
+      for (const [optName, opt] of Object.entries(def.options)) {
+        y.option(optName, {
+          alias: opt.alias,
+          type: opt.type,
+          describe: opt.description,
+          demandOption: opt.required,
+          default: opt.default,
+        });
+      }
+    }
+
+    // Add commands
+    for (const [cmdName, cmdDef] of Object.entries(def.commands)) {
+      buildCommand(y, cmdName, cmdDef, def.name);
+    }
+
+    // Root help handling
+    y.demandCommand(1, "You must specify a command")
+      .strict()
+      .help(false)
+      .option("help", {
+        alias: "h",
+        type: "boolean",
+        describe: "Show help",
+      })
+      .check(helpChecker(def, def.name))
+      .fail(failHandler(def, def.name));
+
+    return y;
   }
 }
 
@@ -343,492 +478,463 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
-const cli = yargs(hideBin(process.argv));
-Cli.setYargs(cli);
-
-cli
-  .scriptName("spall")
-  .command("project", "Manage projects", (yargs) => {
-    Cli.setYargs(yargs);
-    return yargs
-      .command(
-        "create [name]",
-        "Create a new project",
-        (yargs) => {
-          return yargs
-            .positional("name", {
-              describe: "Project name (defaults to directory name)",
+// CLI definition - single source of truth
+const cliDef: Cli.CliDef = {
+  name: "spall",
+  description: "Local semantic note store with embeddings",
+  commands: {
+    project: {
+      description: "Manage projects",
+      commands: {
+        create: {
+          description: "Create a new project",
+          positionals: {
+            name: {
               type: "string",
-            })
-            .option("dir", {
+              description: "Project name (defaults to directory name)",
+            },
+          },
+          options: {
+            dir: {
               alias: "d",
               type: "string",
-              describe: "Project directory",
+              description: "Project directory",
               default: process.cwd(),
+            },
+          },
+          handler: async (argv) => {
+            const t0 = Bun.nanoseconds();
+            const client = await Client.connect();
+            const t1 = Bun.nanoseconds();
+            consola.debug(`Client.connect: ${((t1 - t0) / 1e6).toFixed(2)}ms`);
+
+            const { stream } = await client.project.create({
+              dir: argv.dir,
+              name: argv.name,
             });
-        },
-        async (argv) => {
-          const t0 = Bun.nanoseconds();
-          const client = await Client.connect();
-          const t1 = Bun.nanoseconds();
-          consola.debug(`Client.connect: ${((t1 - t0) / 1e6).toFixed(2)}ms`);
+            const t2 = Bun.nanoseconds();
+            consola.debug(
+              `project.create (start stream): ${((t2 - t1) / 1e6).toFixed(2)}ms`,
+            );
 
-          const { stream } = await client.project.create({
-            dir: argv.dir,
-            name: argv.name,
-          });
-          const t2 = Bun.nanoseconds();
-          consola.debug(
-            `project.create (start stream): ${((t2 - t1) / 1e6).toFixed(2)}ms`,
-          );
-
-          for await (const event of stream) {
-            switch (event.tag) {
-              case "store.create":
-                consola.info(
-                  `Creating database at ${pc.cyanBright(event.path)}`,
-                );
-                break;
-              case "store.created":
-                consola.info(
-                  `Created database at ${pc.cyanBright(event.path)}`,
-                );
-                break;
-              case "model.download":
-                consola.info(`Downloading ${pc.cyanBright(event.info.name)}`);
-                break;
-              case "model.progress": {
-                const percent = (event.downloaded / event.total) * 100;
-                const bar = renderProgressBar(percent);
-                const percentStr = percent.toFixed(0).padStart(3);
-                process.stdout.write(
-                  `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
-                );
-                break;
-              }
-              case "model.downloaded": {
-                let sizeStr = "";
-                if (existsSync(event.info.path)) {
-                  const size = statSync(event.info.path).size;
-                  sizeStr = ` ${pc.dim(`(${formatBytes(size)})`)}`;
+            for await (const event of stream) {
+              switch (event.tag) {
+                case "store.create":
+                  consola.info(
+                    `Creating database at ${pc.cyanBright(event.path)}`,
+                  );
+                  break;
+                case "store.created":
+                  consola.info(
+                    `Created database at ${pc.cyanBright(event.path)}`,
+                  );
+                  break;
+                case "model.download":
+                  consola.info(`Downloading ${pc.cyanBright(event.info.name)}`);
+                  break;
+                case "model.progress": {
+                  const percent = (event.downloaded / event.total) * 100;
+                  const bar = renderProgressBar(percent);
+                  const percentStr = percent.toFixed(0).padStart(3);
+                  process.stdout.write(
+                    `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
+                  );
+                  break;
                 }
-                // Overwrite progress bar line
-                process.stdout.write(`\r${Cli.CLEAR}`);
-                consola.success(
-                  `Loaded ${pc.cyanBright(event.info.name)}${sizeStr}`,
-                );
-                break;
+                case "model.downloaded": {
+                  let sizeStr = "";
+                  if (existsSync(event.info.path)) {
+                    const size = statSync(event.info.path).size;
+                    sizeStr = ` ${pc.dim(`(${formatBytes(size)})`)}`;
+                  }
+                  process.stdout.write(`\r${Cli.CLEAR}`);
+                  consola.success(
+                    `Loaded ${pc.cyanBright(event.info.name)}${sizeStr}`,
+                  );
+                  break;
+                }
+                case "model.load":
+                  consola.info(
+                    `Model ready: ${pc.cyanBright(event.info.name)}`,
+                  );
+                  break;
+                case "project.created":
+                  consola.success(
+                    `Created project ${pc.cyanBright(event.info.name)} (id: ${event.info.id})`,
+                  );
+                  break;
               }
-              case "model.load":
-                consola.info(`Model ready: ${pc.cyanBright(event.info.name)}`);
-                break;
-              case "project.created":
-                consola.success(
-                  `Created project ${pc.cyanBright(event.info.name)} (id: ${event.info.id})`,
-                );
-                break;
             }
-          }
-          const t3 = Bun.nanoseconds();
-          consola.debug(
-            `stream consumption: ${((t3 - t2) / 1e6).toFixed(2)}ms`,
-          );
-          consola.debug(`total: ${((t3 - t0) / 1e6).toFixed(2)}ms`);
+            const t3 = Bun.nanoseconds();
+            consola.debug(
+              `stream consumption: ${((t3 - t2) / 1e6).toFixed(2)}ms`,
+            );
+            consola.debug(`total: ${((t3 - t0) / 1e6).toFixed(2)}ms`);
+          },
         },
-      )
-      .command(
-        "list",
-        "List all projects",
-        () => {},
-        async () => {
-          const client = await Client.connect();
-          const result = await client.project.list();
+        list: {
+          description: "List all projects",
+          handler: async () => {
+            const client = await Client.connect();
+            const result = await client.project.list();
 
-          if (result.error || !result.data) {
-            consola.error("Failed to list projects:", result.error);
-            process.exit(1);
-          }
+            if (result.error || !result.data) {
+              consola.error("Failed to list projects:", result.error);
+              process.exit(1);
+            }
 
-          const projects = result.data;
-          if (projects.length === 0) {
-            console.log("No projects found.");
-            return;
-          }
+            const projects = result.data;
+            if (projects.length === 0) {
+              console.log("No projects found.");
+              return;
+            }
 
-          type P = (typeof projects)[number];
-          const formatTime = (ts: number) =>
-            new Date(ts).toISOString().slice(0, 19).replace("T", " ");
+            type P = (typeof projects)[number];
+            const formatTime = (ts: number) =>
+              new Date(ts).toISOString().slice(0, 19).replace("T", " ");
 
-          Cli.table(
-            ["name", "id", "notes", "created", "updated"],
-            [
-              projects.map((p: P) => p.name),
-              projects.map((p: P) => String(p.id)),
-              projects.map((p: P) => String(p.noteCount)),
-              projects.map((p: P) => formatTime(p.createdAt)),
-              projects.map((p: P) => formatTime(p.updatedAt)),
-            ],
-          );
+            Cli.table(
+              ["name", "id", "notes", "created", "updated"],
+              [
+                projects.map((p: P) => p.name),
+                projects.map((p: P) => String(p.id)),
+                projects.map((p: P) => String(p.noteCount)),
+                projects.map((p: P) => formatTime(p.createdAt)),
+                projects.map((p: P) => formatTime(p.updatedAt)),
+              ],
+            );
+          },
         },
-      )
-      .demandCommand(1, "You must specify a subcommand")
-      .fail(Cli.fail);
-  })
-  .command("review", "Manage reviews", (yargs) => {
-    Cli.setYargs(yargs);
-    return yargs
-      .command(
-        "list <project>",
-        "List reviews for a project",
-        (yargs) => {
-          return yargs.positional("project", {
-            describe: "Project ID",
-            type: "number",
-            demandOption: true,
-          });
-        },
-        (argv) => {
-          const reviews = Review.list(argv.project);
-          if (reviews.length === 0) {
-            console.log("No reviews found.");
-            return;
-          }
-          for (const r of reviews) {
-            const date = new Date(r.createdAt).toISOString();
-            const name = r.name ? ` (${r.name})` : "";
-            console.log(`#${r.id} ${r.commit.slice(0, 7)}${name} - ${date}`);
-          }
-        },
-      )
-      .command(
-        "create <project> <commit>",
-        "Create a new review",
-        (yargs) => {
-          return yargs
-            .positional("project", {
-              describe: "Project ID",
+      },
+    },
+    review: {
+      description: "Manage reviews",
+      commands: {
+        list: {
+          description: "List reviews for a project",
+          positionals: {
+            project: {
               type: "number",
-              demandOption: true,
-            })
-            .positional("commit", {
-              describe: "Commit hash",
+              description: "Project ID",
+              required: true,
+            },
+          },
+          handler: (argv) => {
+            const reviews = Review.list(argv.project);
+            if (reviews.length === 0) {
+              console.log("No reviews found.");
+              return;
+            }
+            for (const r of reviews) {
+              const date = new Date(r.createdAt).toISOString();
+              const name = r.name ? ` (${r.name})` : "";
+              console.log(`#${r.id} ${r.commit.slice(0, 7)}${name} - ${date}`);
+            }
+          },
+        },
+        create: {
+          description: "Create a new review",
+          positionals: {
+            project: {
+              type: "number",
+              description: "Project ID",
+              required: true,
+            },
+            commit: {
               type: "string",
-              demandOption: true,
-            })
-            .option("name", {
+              description: "Commit hash",
+              required: true,
+            },
+          },
+          options: {
+            name: {
               alias: "n",
               type: "string",
-              describe: "Optional name for the review",
+              description: "Optional name for the review",
+            },
+          },
+          handler: (argv) => {
+            const review = Review.create({
+              projectId: argv.project,
+              commit: argv.commit,
+              name: argv.name,
             });
+            console.log(`Created review #${review.id}`);
+          },
         },
-        (argv) => {
-          const review = Review.create({
-            projectId: argv.project,
-            commit: argv.commit,
-            name: argv.name,
-          });
-          console.log(`Created review #${review.id}`);
+        get: {
+          description: "Get a review by ID",
+          positionals: {
+            id: { type: "number", description: "Review ID", required: true },
+          },
+          handler: (argv) => {
+            const review = Review.get(argv.id);
+            if (!review) {
+              console.error(`Review #${argv.id} not found.`);
+              process.exit(1);
+            }
+            console.log(JSON.stringify(review, null, 2));
+          },
         },
-      )
-      .command(
-        "get <id>",
-        "Get a review by ID",
-        (yargs) => {
-          return yargs.positional("id", {
-            describe: "Review ID",
-            type: "number",
-            demandOption: true,
-          });
+        latest: {
+          description: "Get the latest review for a project",
+          positionals: {
+            project: {
+              type: "number",
+              description: "Project ID",
+              required: true,
+            },
+          },
+          handler: (argv) => {
+            const review = Review.latest(argv.project);
+            if (!review) {
+              console.error(`No reviews found for project #${argv.project}.`);
+              process.exit(1);
+            }
+            console.log(JSON.stringify(review, null, 2));
+          },
         },
-        (argv) => {
-          const review = Review.get(argv.id);
-          if (!review) {
-            console.error(`Review #${argv.id} not found.`);
-            process.exit(1);
-          }
-          console.log(JSON.stringify(review, null, 2));
+        comments: {
+          description: "List comments for a review",
+          positionals: {
+            review: {
+              type: "number",
+              description: "Review ID",
+              required: true,
+            },
+          },
+          handler: (argv) => {
+            const comments = ReviewComment.list(argv.review);
+            if (comments.length === 0) {
+              console.log("No comments found.");
+              return;
+            }
+            for (const c of comments) {
+              console.log(`#${c.id} -> note:${c.noteId}`);
+            }
+          },
         },
-      )
-      .command(
-        "latest <project>",
-        "Get the latest review for a project",
-        (yargs) => {
-          return yargs.positional("project", {
-            describe: "Project ID",
-            type: "number",
-            demandOption: true,
-          });
-        },
-        (argv) => {
-          const review = Review.latest(argv.project);
-          if (!review) {
-            console.error(`No reviews found for project #${argv.project}.`);
-            process.exit(1);
-          }
-          console.log(JSON.stringify(review, null, 2));
-        },
-      )
-      .command(
-        "comments <review>",
-        "List comments for a review",
-        (yargs) => {
-          return yargs.positional("review", {
-            describe: "Review ID",
-            type: "number",
-            demandOption: true,
-          });
-        },
-        (argv) => {
-          const comments = ReviewComment.list(argv.review);
-          if (comments.length === 0) {
-            console.log("No comments found.");
-            return;
-          }
-          for (const c of comments) {
-            console.log(`#${c.id} -> note:${c.noteId}`);
-          }
-        },
-      )
-      .demandCommand(1, "You must specify a subcommand")
-      .fail(Cli.fail);
-  })
-  .command(
-    "add <path>",
-    "Add a note to the corpus",
-    (yargs) => {
-      return yargs
-        .positional("path", {
-          describe: "Path/name for the note",
+      },
+    },
+    add: {
+      description: "Add a note to the corpus",
+      positionals: {
+        path: {
           type: "string",
-          demandOption: true,
-        })
-        .option("text", {
+          description: "Path/name for the note",
+          required: true,
+        },
+      },
+      options: {
+        text: {
           alias: "t",
           type: "string",
-          describe: "Note content",
-          demandOption: true,
-        })
-        .option("project", {
-          alias: "p",
-          type: "string",
-          describe: "Project name (defaults to 'default')",
+          description: "Note content",
+          required: true,
+        },
+        project: { alias: "p", type: "string", description: "Project name" },
+      },
+      handler: async (argv) => {
+        const client = await Client.connect();
+
+        const project = await client.project
+          .get({ name: argv.project })
+          .catch(() => {
+            consola.error(`Failed to find project: ${pc.bgCyan(argv.project)}`);
+            process.exit(1);
+          })
+          .then(Client.unwrap);
+
+        const { stream } = await client.note.add({
+          path: argv.path,
+          content: argv.text,
+          project: project.id,
         });
-    },
-    async (argv) => {
-      const client = await Client.connect();
 
-      const project = await client.project
-        .get({ name: argv.project })
-        .catch(() => {
-          consola.error(`Failed to find project: ${pc.bgCyan(argv.project)}`);
-          process.exit(1);
-        })
-        .then(Client.unwrap);
-
-      const { stream } = await client.note.add({
-        path: argv.path,
-        content: argv.text,
-        project: project.id,
-      });
-
-      const result = await Client.until(stream, "note.created", (event) => {
-        switch (event.tag) {
-          case "model.load":
-            consola.info(`Loading model ${pc.cyanBright(event.info.name)}`);
-            break;
-          case "model.download":
-            consola.info(`Downloading model ${pc.cyanBright(event.info.name)}`);
-            break;
-          case "model.progress": {
-            const percent = (event.downloaded / event.total) * 100;
-            const bar = renderProgressBar(percent);
-            const percentStr = percent.toFixed(0).padStart(3);
-            process.stdout.write(
-              `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
-            );
-            break;
+        const result = await Client.until(stream, "note.created", (event) => {
+          switch (event.tag) {
+            case "model.load":
+              consola.info(`Loading model ${pc.cyanBright(event.info.name)}`);
+              break;
+            case "model.download":
+              consola.info(
+                `Downloading model ${pc.cyanBright(event.info.name)}`,
+              );
+              break;
+            case "model.progress": {
+              const percent = (event.downloaded / event.total) * 100;
+              const bar = renderProgressBar(percent);
+              const percentStr = percent.toFixed(0).padStart(3);
+              process.stdout.write(
+                `\r${bar} ${pc.bold(percentStr + "%")} ${Cli.CLEAR}`,
+              );
+              break;
+            }
+            case "model.downloaded":
+              process.stdout.write(`\r${Cli.CLEAR}`);
+              consola.success(`Downloaded ${pc.cyanBright(event.info.name)}`);
+              break;
           }
-          case "model.downloaded":
-            process.stdout.write(`\r${Cli.CLEAR}`);
-            consola.success(`Downloaded ${pc.cyanBright(event.info.name)}`);
-            break;
-        }
-      });
+        });
 
-      consola.success(
-        `Added note ${pc.cyanBright(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
-      );
+        consola.success(
+          `Added note ${pc.cyanBright(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
+        );
+      },
     },
-  )
-  .command(
-    "serve",
-    "Start the spall server",
-    (yargs) => {
-      return yargs
-        .option("daemon", {
+    serve: {
+      description: "Start the spall server",
+      options: {
+        daemon: {
           alias: "d",
           type: "boolean",
-          default: false,
-          describe: "Do not stop after last client disconnects",
-        })
-        .option("timeout", {
+          description: "Do not stop after last client disconnects",
+        },
+        timeout: {
           alias: "t",
           type: "number",
+          description: "Seconds to wait after last client disconnects",
           default: 1,
-          describe: "Seconds to wait after last client disconnects",
-        })
-        .option("force", {
+        },
+        force: {
           alias: "f",
           type: "boolean",
-          default: false,
-          describe: "Kill existing server if running",
+          description: "Kill existing server if running",
+        },
+      },
+      handler: async (argv) => {
+        const { Server } = await import("@spall/sdk/server");
+        const { port, stopped } = await Server.start({
+          persist: argv.daemon,
+          idleTimeout: argv.timeout * 1000,
+          force: argv.force,
         });
-    },
-    async (argv) => {
-      const { Server } = await import("@spall/sdk/server");
-      const { port, stopped } = await Server.start({
-        persist: argv.daemon,
-        idleTimeout: argv.timeout * 1000,
-        force: argv.force,
-      });
 
-      await stopped;
+        await stopped;
+      },
     },
-  )
-  .command(
-    "get <path>",
-    "Get the content of a note",
-    (yargs) => {
-      return yargs
-        .positional("path", {
-          describe: "Path to the note",
+    get: {
+      description: "Get the content of a note",
+      positionals: {
+        path: {
           type: "string",
-          demandOption: true,
-        })
-        .option("project", {
+          description: "Path to the note",
+          required: true,
+        },
+      },
+      options: {
+        project: {
           alias: "p",
           type: "string",
-          describe: "Project name (defaults to 'default')",
+          description: "Project name",
           default: "default",
-        });
+        },
+      },
+      handler: async (argv) => {
+        const client = await Client.connect();
+
+        const project = await client.project
+          .get({ name: argv.project })
+          .then(Client.unwrap)
+          .catch(() => {
+            consola.error(`Project not found: ${pc.cyan(argv.project)}`);
+            process.exit(1);
+          });
+
+        const note = await client.note
+          .get({ id: String(project.id), path: argv.path })
+          .then(Client.unwrap)
+          .catch(() => {
+            consola.error(`Note not found: ${pc.cyan(argv.path)}`);
+            process.exit(1);
+          });
+
+        console.log(note.content);
+      },
     },
-    async (argv) => {
-      const client = await Client.connect();
+    list: {
+      description: "List notes in a project",
+      positionals: {
+        project: {
+          type: "string",
+          description: "Project name",
+          default: "default",
+        },
+      },
+      handler: async (argv) => {
+        const client = await Client.connect();
 
-      const project = await client.project
-        .get({ name: argv.project })
-        .then(Client.unwrap)
-        .catch(() => {
-          consola.error(`Project not found: ${pc.cyan(argv.project)}`);
-          process.exit(1);
-        });
+        const project = await client.project
+          .get({ name: argv.project })
+          .then(Client.unwrap)
+          .catch(() => {
+            consola.error(`Project not found: ${pc.cyan(argv.project)}`);
+            process.exit(1);
+          });
 
-      const note = await client.note
-        .get({ id: String(project.id), path: argv.path })
-        .then(Client.unwrap)
-        .catch(() => {
-          consola.error(`Note not found: ${pc.cyan(argv.path)}`);
-          process.exit(1);
-        });
+        const notes = await client.note
+          .list({ id: String(project.id) })
+          .then(Client.unwrap);
 
-      console.log(note.content);
-    },
-  )
-  .command(
-    "list [project]",
-    "List notes in a project",
-    (yargs) => {
-      return yargs.positional("project", {
-        describe: "Project name (defaults to 'default')",
-        type: "string",
-        default: "default",
-      });
-    },
-    async (argv) => {
-      const client = await Client.connect();
-
-      const project = await client.project
-        .get({ name: argv.project })
-        .then(Client.unwrap)
-        .catch(() => {
-          consola.error(`Project not found: ${pc.cyan(argv.project)}`);
-          process.exit(1);
-        });
-
-      const notes = await client.note
-        .list({ id: String(project.id) })
-        .then(Client.unwrap);
-
-      if (notes.length === 0) {
-        console.log(pc.dim("(no notes)"));
-        return;
-      }
-
-      // Build tree
-      type TreeNode = {
-        name: string;
-        isDir: boolean;
-        children: Map<string, TreeNode>;
-      };
-      const root: TreeNode = { name: "", isDir: true, children: new Map() };
-
-      for (const note of notes) {
-        const parts = note.path.split("/");
-        let current = root;
-        for (let i = 0; i < parts.length; i++) {
-          const part = parts[i]!;
-          const isLast = i === parts.length - 1;
-          if (!current.children.has(part)) {
-            current.children.set(part, {
-              name: part,
-              isDir: !isLast,
-              children: new Map(),
-            });
-          }
-          current = current.children.get(part)!;
+        if (notes.length === 0) {
+          console.log(pc.dim("(no notes)"));
+          return;
         }
-      }
 
-      // Print tree
-      function printTree(node: TreeNode, indent: string = ""): void {
-        const sorted = Array.from(node.children.entries()).sort((a, b) => {
-          if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
-          return a[0].localeCompare(b[0]);
-        });
+        // Build tree
+        type TreeNode = {
+          name: string;
+          isDir: boolean;
+          children: Map<string, TreeNode>;
+        };
+        const root: TreeNode = { name: "", isDir: true, children: new Map() };
 
-        for (const [name, child] of sorted) {
-          if (child.isDir) {
-            console.log(`${indent}${pc.cyan(name + "/")}`);
-            printTree(child, indent + "  ");
-          } else {
-            console.log(`${indent}${name}`);
+        for (const note of notes) {
+          const parts = note.path.split("/");
+          let current = root;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i]!;
+            const isLast = i === parts.length - 1;
+            if (!current.children.has(part)) {
+              current.children.set(part, {
+                name: part,
+                isDir: !isLast,
+                children: new Map(),
+              });
+            }
+            current = current.children.get(part)!;
           }
         }
-      }
 
-      printTree(root);
+        // Print tree
+        function printTree(node: TreeNode, indent: string = ""): void {
+          const sorted = Array.from(node.children.entries()).sort((a, b) => {
+            if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
+            return a[0].localeCompare(b[0]);
+          });
+
+          for (const [name, child] of sorted) {
+            if (child.isDir) {
+              console.log(`${indent}${pc.cyan(name + "/")}`);
+              printTree(child, indent + "  ");
+            } else {
+              console.log(`${indent}${name}`);
+            }
+          }
+        }
+
+        printTree(root);
+      },
     },
-  )
-  .command(
-    "tui",
-    "Launch the interactive TUI",
-    () => {},
-    async () => {
-      // Load the Solid JSX transform plugin before importing TUI
-      await import("@opentui/solid/preload");
-      const { tui } = await import("./App");
-      await tui({ repoPath: process.cwd() });
+    tui: {
+      description: "Launch the interactive TUI",
+      handler: async () => {
+        await import("@opentui/solid/preload");
+        const { tui } = await import("./App");
+        await tui({ repoPath: process.cwd() });
+      },
     },
-  )
-  .demandCommand(1, "You must specify a command")
-  .strict()
-  .help(false)
-  .option("help", {
-    alias: "h",
-    type: "boolean",
-    describe: "Show help",
-    global: true,
-  })
-  .check(Cli.helpCheck)
-  .fail(Cli.fail)
-  .parse();
+  },
+};
+
+Cli.build(cliDef).parse();
