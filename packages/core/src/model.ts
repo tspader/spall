@@ -74,7 +74,7 @@ export namespace Model {
     const numIter = 50;
     const timePerIter = (totalTime * 1000) / numIter;
 
-    await Bus.publish({
+    Bus.publish({
       tag: "model.download",
       info: {
         id: 0,
@@ -84,7 +84,7 @@ export namespace Model {
     });
 
     for (let i = 0; i < numIter; i++) {
-      await Bus.publish({
+      Bus.publish({
         tag: "model.progress",
         info: {
           id: 0,
@@ -98,7 +98,7 @@ export namespace Model {
       await Bun.sleep(timePerIter);
     }
 
-    await Bus.publish({
+    Bus.publish({
       tag: "model.downloaded",
       info: {
         id: 0,
@@ -134,7 +134,6 @@ export namespace Model {
       };
     }
 
-    // Already downloaded
     if (embedder.instance.path) return;
 
     ensureCacheDir();
@@ -181,7 +180,7 @@ export namespace Model {
 
       const needDownload = downloader.downloadedSize < downloader.totalSize;
       if (needDownload) {
-        await Bus.publish({
+        Bus.publish({
           tag: "model.download",
           info: {
             id: 0,
@@ -195,7 +194,7 @@ export namespace Model {
       instance.status = "downloaded";
 
       if (needDownload) {
-        await Bus.publish({
+        Bus.publish({
           tag: "model.downloaded",
           info: {
             id: 0,
@@ -215,7 +214,7 @@ export namespace Model {
     }
 
     if (!embedder.instance.model) {
-      await Bus.publish({
+      Bus.publish({
         tag: "model.load",
         info: {
           id: 0,

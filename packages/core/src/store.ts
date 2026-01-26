@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Database } from "bun:sqlite";
-import { mkdirSync, existsSync, unlinkSync } from "fs";
-import { dirname, join } from "path";
+import { mkdirSync, existsSync } from "fs";
+import { join } from "path";
 import { Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
 import { Bus } from "./event";
@@ -71,7 +71,7 @@ export namespace Store {
     }),
   };
 
-  let instance: Database | null = null;
+  let db: Database | null = null;
 
   const CHUNK_TOKENS = 512;
   const CHUNK_OVERLAP_TOKENS = 64;
@@ -82,13 +82,13 @@ export namespace Store {
   }
 
   export function get(): Database {
-    if (!instance) {
-      throw new Error("Store not initialized. Call Store.create() first.");
+    if (!db) {
+      throw new Error("Store not initialized.");
     }
-    return instance;
+    return db;
   }
 
-  export async function ensure(): Promise<Database> {
+  export function ensure(): Database {
     const dir = Config.get().dirs.data;
     const path = join(dir, DB_NAME);
 
@@ -99,52 +99,47 @@ export namespace Store {
     const dbExists = existsSync(path);
 
     if (dbExists) {
-      // Open existing database
-      instance = new Database(path);
-      sqliteVec.load(instance);
-      return instance;
+      db = new Database(path);
+      sqliteVec.load(db);
+      return db;
     }
 
-    // Create new database
-    await Bus.publish({ tag: "store.create", path: path });
-    instance = new Database(path);
+    Bus.publish({ tag: "store.create", path: path });
+    db = new Database(path);
 
-    // Load sqlite-vec extension
-    sqliteVec.load(instance);
+    sqliteVec.load(db);
 
-    // Create all tables
-    instance.run(Sql.CREATE_FILES_TABLE);
-    instance.run(Sql.CREATE_META_TABLE);
-    instance.run(Sql.CREATE_EMBEDDINGS_TABLE);
-    instance.run(Sql.CREATE_VECTORS_TABLE);
-    instance.run(Sql.CREATE_PROJECT_TABLE);
-    instance.run(Sql.CREATE_NOTES_TABLE);
+    db.run(Sql.CREATE_FILES_TABLE);
+    db.run(Sql.CREATE_META_TABLE);
+    db.run(Sql.CREATE_EMBEDDINGS_TABLE);
+    db.run(Sql.CREATE_VECTORS_TABLE);
+    db.run(Sql.CREATE_PROJECT_TABLE);
+    db.run(Sql.CREATE_NOTES_TABLE);
 
-    // Store metadata
-    instance.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
+    db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
 
-    // Create default project
-    instance.run(Sql.INSERT_DEFAULT_PROJECT);
+    db.run(Sql.INSERT_DEFAULT_PROJECT);
 
-    await Bus.publish({ tag: "store.created", path: path });
+    Bus.publish({ tag: "store.created", path: path });
 
-    return instance;
+    return db;
   }
 
   export function open(dbPath?: string): Database {
     const p = dbPath ?? Store.path();
     if (!existsSync(p)) {
-      throw new Error(`Database not found at ${p}. Run 'spall init' first.`);
+      throw new Error(`Database not found at ${p}.`);
     }
-    instance = new Database(p);
-    sqliteVec.load(instance);
-    return instance;
+
+    db = new Database(p);
+    sqliteVec.load(db);
+    return db;
   }
 
   export function close(): void {
-    if (instance) {
-      instance.close();
-      instance = null;
+    if (db) {
+      db.close();
+      db = null;
     }
   }
 
@@ -335,7 +330,7 @@ export namespace Store {
       files.push(file);
     }
 
-    await Bus.publish({ tag: "scan.start", numFiles: files.length });
+    Bus.publish({ tag: "scan.start", numFiles: files.length });
 
     const diskFiles = new Set<string>();
     const added: string[] = [];
@@ -363,7 +358,7 @@ export namespace Store {
         status = "ok";
       }
 
-      await Bus.publish({ tag: "scan.progress", path: file, status: status });
+      Bus.publish({ tag: "scan.progress", path: file, status: status });
     }
 
     // Check for deleted files
@@ -372,7 +367,7 @@ export namespace Store {
       if (!diskFiles.has(file)) {
         removeFile(file);
         removed.push(file);
-        await Bus.publish({
+        Bus.publish({
           tag: "scan.progress",
           path: file,
           status: "removed",
@@ -380,7 +375,7 @@ export namespace Store {
       }
     }
 
-    await Bus.publish({ tag: "scan.done", numFiles: files.length });
+    Bus.publish({ tag: "scan.done", numFiles: files.length });
 
     const unembedded = listUnembeddedFiles();
     return { added, modified, removed, unembedded };
@@ -419,7 +414,7 @@ export namespace Store {
     const numFiles = work.length;
     const numBytes = work.reduce((sum, file) => sum + file.size, 0);
     const numChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
-    await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes });
+    Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes });
 
     // prepare statements up front
     const db = get();
@@ -472,7 +467,7 @@ export namespace Store {
         numFilesProcessed += pendingFiles.length;
       })();
 
-      await Bus.publish({
+      Bus.publish({
         tag: "embed.progress",
         numFiles,
         numChunks,
@@ -496,6 +491,6 @@ export namespace Store {
 
     await flushBatch();
 
-    await Bus.publish({ tag: "embed.done", numFiles });
+    Bus.publish({ tag: "embed.done", numFiles });
   }
 }

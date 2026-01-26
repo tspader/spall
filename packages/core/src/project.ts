@@ -61,8 +61,8 @@ export namespace Project {
       name: z.string().optional(),
       id: z.coerce.number().optional(),
     }),
-    async (input): Promise<Info> => {
-      await Store.ensure();
+    (input): Info => {
+      Store.ensure();
       const db = Store.get();
 
       let row: ProjectRow | null;
@@ -96,7 +96,7 @@ export namespace Project {
   );
 
   export const list = api(z.object({}), async (): Promise<Info[]> => {
-    await Store.ensure();
+    Store.ensure();
     const db = Store.get();
 
     const rows = db.prepare(Sql.LIST_PROJECTS).all() as ProjectRow[];
@@ -117,7 +117,7 @@ export namespace Project {
       name: z.string().optional(),
     }),
     async (input) => {
-      await Store.ensure();
+      Store.ensure();
       const db = Store.get();
 
       const name = input.name ?? basename(input.dir);
@@ -138,7 +138,7 @@ export namespace Project {
         createdAt: now,
         updatedAt: now,
       };
-      await Bus.publish({ tag: "project.created", info: project });
+      Bus.publish({ tag: "project.created", info: project });
     },
   );
 }

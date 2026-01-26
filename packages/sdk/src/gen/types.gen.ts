@@ -58,6 +58,7 @@ export type NoteGetResponses = {
     project: number;
     path: string;
     content: string;
+    contentHash: string;
   };
 };
 
@@ -248,6 +249,7 @@ export type NoteAddResponses = {
     project: number;
     path: string;
     content: string;
+    contentHash: string;
   };
 };
 

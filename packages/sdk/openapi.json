@@ -77,13 +77,17 @@
                     },
                     "content": {
                       "type": "string"
+                    },
+                    "contentHash": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "id",
                     "project",
                     "path",
-                    "content"
+                    "content",
+                    "contentHash"
                   ]
                 }
               }
@@ -646,13 +650,17 @@
                     },
                     "content": {
                       "type": "string"
+                    },
+                    "contentHash": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "id",
                     "project",
                     "path",
-                    "content"
+                    "content",
+                    "contentHash"
                   ]
                 }
               }

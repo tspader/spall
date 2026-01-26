@@ -6,14 +6,35 @@ import { Sql } from "./sql";
 import { Project } from "./project";
 
 export namespace Note {
+  export const Id = z.coerce.number().brand<"NoteId">();
+  export type Id = z.infer<typeof Id>;
+
   export const Info = z.object({
-    id: z.number(),
+    id: Id,
     project: Project.Id,
     path: z.string(),
     content: z.string(),
     contentHash: z.string(),
   });
   export type Info = z.infer<typeof Info>;
+
+  const Row = z
+    .object({
+      id: z.number(),
+      project_id: z.number(),
+      path: z.string(),
+      content: z.string(),
+      content_hash: z.string(),
+    })
+    .transform(
+      (r): Info => ({
+        id: Id.parse(r.id),
+        project: Project.Id.parse(r.project_id),
+        path: r.path,
+        content: r.content,
+        contentHash: r.content_hash,
+      }),
+    );
 
   export class NotFoundError extends Error {
     constructor(message: string) {
@@ -22,15 +43,7 @@ export namespace Note {
     }
   }
 
-  export type Row = {
-    id: number;
-    project_id: number;
-    path: string;
-    content: string;
-    content_hash: string;
-  } | null;
-
-  export function hash(content: string): string {
+  function hash(content: string): string {
     return Bun.hash(content).toString(16);
   }
 
@@ -39,46 +52,46 @@ export namespace Note {
       project: Project.Id,
       path: z.string(),
     }),
-    async (input): Promise<Info> => {
-      await Project.get({ id: input.project });
+    (input): Info => {
       const db = Store.get();
 
       const row = db
         .prepare(Sql.GET_NOTE_BY_PATH)
-        .get(input.project, input.path) as Row;
-
+        .get(input.project, input.path);
       if (!row) throw new NotFoundError(`Note not found: ${input.path}`);
 
-      return {
-        id: row.id,
-        project: Project.Id.parse(row.project_id),
-        path: row.path,
-        content: row.content,
-        contentHash: row.content_hash,
-      };
+      return Row.parse(row);
     },
   );
 
   export const ListItem = z.object({
-    id: z.number(),
+    id: Id,
     path: z.string(),
   });
   export type ListItem = z.infer<typeof ListItem>;
+
+  const ListItemRow = z
+    .object({
+      id: z.number(),
+      path: z.string(),
+    })
+    .transform(
+      (r): ListItem => ({
+        id: Id.parse(r.id),
+        path: r.path,
+      }),
+    );
 
   export const list = api(
     z.object({
       project: Project.Id,
     }),
     async (input): Promise<ListItem[]> => {
-      await Project.get({ id: input.project });
+      Project.get({ id: input.project });
       const db = Store.get();
 
-      const rows = db.prepare(Sql.LIST_NOTES).all(input.project) as {
-        id: number;
-        path: string;
-      }[];
-
-      return rows;
+      const rows = db.prepare(Sql.LIST_NOTES).all(input.project) as unknown[];
+      return rows.map((r) => ListItemRow.parse(r));
     },
   );
 
@@ -89,25 +102,17 @@ export namespace Note {
       content: z.string(),
     }),
     async (input): Promise<Info> => {
-      const project = await Project.get({ id: input.project });
+      const project = Project.get({ id: input.project });
       const db = Store.get();
 
-      // Compute content hash
       const contentHash = hash(input.content);
 
       // Check for existing note with same hash in this project
       const existing = db
         .prepare(Sql.GET_NOTE_BY_HASH)
-        .get(project.id, contentHash) as Row;
-
+        .get(project.id, contentHash);
       if (existing) {
-        return {
-          id: existing.id,
-          project: Project.Id.parse(existing.project_id),
-          path: existing.path,
-          content: existing.content,
-          contentHash: existing.content_hash,
-        };
+        return Row.parse(existing);
       }
 
       const mtime = Date.now();
@@ -118,31 +123,27 @@ export namespace Note {
       const chunks = await Store.chunk(input.content);
 
       // Insert note record
-      const row = db
+      const inserted = db
         .prepare(Sql.INSERT_NOTE)
         .get(project.id, input.path, input.content, contentHash, mtime) as {
         id: number;
       };
 
       if (chunks.length > 0) {
-        // Use note id as the key for embeddings
-        const noteKey = `note:${row.id}`;
+        const noteKey = `note:${inserted.id}`;
 
-        // Clear any existing embeddings for this note
         Store.clearEmbeddings(noteKey);
 
-        // Embed all chunks
         const texts = chunks.map((c) => c.text);
         const embeddings = await Model.embedBatch(texts);
 
-        // Store embeddings
         for (let i = 0; i < chunks.length; i++) {
           Store.embed(noteKey, i, chunks[i]!.pos, embeddings[i]!);
         }
       }
 
       return {
-        id: row.id,
+        id: Id.parse(inserted.id),
         project: project.id,
         path: input.path,
         content: input.content,
