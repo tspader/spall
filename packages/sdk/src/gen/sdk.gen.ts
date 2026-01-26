@@ -9,13 +9,15 @@ import {
 import { client } from "./client.gen";
 import type {
   HealthResponses,
-  IndexResponses,
-  InitResponses,
   NoteAddErrors,
   NoteAddResponses,
+  NoteGetErrors,
+  NoteGetResponses,
+  NoteListErrors,
+  NoteListResponses,
   ProjectCreateResponses,
   ProjectGetResponses,
-  SearchResponses,
+  ProjectListResponses,
 } from "./types.gen";
 
 export type Options<
@@ -60,6 +62,109 @@ class HeyApiRegistry<T> {
 
   set(value: T, key?: string): void {
     this.instances.set(key ?? this.defaultKey, value);
+  }
+}
+
+export class Note extends HeyApiClient {
+  /**
+   * List notes
+   *
+   * List all note paths in a project.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "path", key: "id" }] }],
+    );
+    return (options?.client ?? this.client).get<
+      NoteListResponses,
+      NoteListErrors,
+      ThrowOnError
+    >({
+      url: "/project/{id}/list",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Get a note
+   *
+   * Get a note by path within a project.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      path: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "path", key: "path" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      NoteGetResponses,
+      NoteGetErrors,
+      ThrowOnError
+    >({
+      url: "/project/{id}/note/{path}",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Add a note
+   *
+   * Add a note to a project and embed it. Requires project ID.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters?: {
+      project?: number;
+      path?: string;
+      content?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "project" },
+            { in: "body", key: "path" },
+            { in: "body", key: "content" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).post<
+      NoteAddResponses,
+      NoteAddErrors,
+      ThrowOnError
+    >({
+      url: "/project/note",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
   }
 }
 
@@ -136,48 +241,20 @@ export class Project extends HeyApiClient {
       },
     });
   }
-}
 
-export class Note extends HeyApiClient {
   /**
-   * Add a note
+   * List projects
    *
-   * Add a note to a project and embed it. Requires project ID.
+   * List all projects.
    */
-  public add<ThrowOnError extends boolean = false>(
-    parameters?: {
-      project?: number;
-      path?: string;
-      content?: string;
-    },
+  public list<ThrowOnError extends boolean = false>(
     options?: Options<never, ThrowOnError>,
   ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "project" },
-            { in: "body", key: "path" },
-            { in: "body", key: "content" },
-          ],
-        },
-      ],
-    );
-    return (options?.client ?? this.client).post<
-      NoteAddResponses,
-      NoteAddErrors,
+    return (options?.client ?? this.client).get<
+      ProjectListResponses,
+      unknown,
       ThrowOnError
-    >({
-      url: "/project/note",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    });
+    >({ url: "/project/list", ...options });
   }
 }
 
@@ -187,109 +264,6 @@ export class SpallClient extends HeyApiClient {
   constructor(args?: { client?: Client; key?: string }) {
     super(args);
     SpallClient.__registry.set(this, args?.key);
-  }
-
-  /**
-   * Initialize project
-   *
-   * Initialize a spall project in a directory, creating the database and downloading models. Emits progress events via SSE.
-   */
-  public init<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string;
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [{ args: [{ in: "body", key: "directory" }] }],
-    );
-    return (options?.client ?? this.client).sse.post<
-      InitResponses,
-      unknown,
-      ThrowOnError
-    >({
-      url: "/init",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    });
-  }
-
-  /**
-   * Index files
-   *
-   * Index files in a project directory, emitting progress events via SSE
-   */
-  public index<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string;
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [{ args: [{ in: "body", key: "directory" }] }],
-    );
-    return (options?.client ?? this.client).sse.post<
-      IndexResponses,
-      unknown,
-      ThrowOnError
-    >({
-      url: "/index",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    });
-  }
-
-  /**
-   * Search
-   *
-   * Search for similar content using embeddings
-   */
-  public search<ThrowOnError extends boolean = false>(
-    parameters?: {
-      directory?: string;
-      query?: string;
-      limit?: number;
-    },
-    options?: Options<never, ThrowOnError>,
-  ) {
-    const params = buildClientParams(
-      [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "directory" },
-            { in: "body", key: "query" },
-            { in: "body", key: "limit" },
-          ],
-        },
-      ],
-    );
-    return (options?.client ?? this.client).post<
-      SearchResponses,
-      unknown,
-      ThrowOnError
-    >({
-      url: "/search",
-      ...options,
-      ...params,
-      headers: {
-        "Content-Type": "application/json",
-        ...options?.headers,
-        ...params.headers,
-      },
-    });
   }
 
   /**
@@ -307,13 +281,13 @@ export class SpallClient extends HeyApiClient {
     >({ url: "/health", ...options });
   }
 
-  private _project?: Project;
-  get project(): Project {
-    return (this._project ??= new Project({ client: this.client }));
-  }
-
   private _note?: Note;
   get note(): Note {
     return (this._note ??= new Note({ client: this.client }));
+  }
+
+  private _project?: Project;
+  get project(): Project {
+    return (this._project ??= new Project({ client: this.client }));
   }
 }

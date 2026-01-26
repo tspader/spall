@@ -5,9 +5,10 @@ import {
   type Llama,
   type LlamaModel,
   type LlamaEmbeddingContext,
-  type ModelDownloader,
   type Token,
 } from "node-llama-cpp";
+
+import z from "zod";
 
 export type { Token };
 import { join } from "path";
@@ -15,10 +16,6 @@ import { mkdirSync, existsSync } from "fs";
 import { Bus } from "./event";
 import { Config } from "./config";
 
-import z from "zod";
-import { Uuid } from "./uuid";
-import { api } from "./api";
-import { Store } from "./store";
 
 export namespace Model {
   export const Info = z.object({
@@ -168,12 +165,15 @@ export namespace Model {
         dirPath: modelCacheDir(),
         onProgress: ({ totalSize, downloadedSize }) => {
           if (totalSize != downloadedSize) {
-            Bus.emit({
-              tag: "model",
-              action: "progress",
-              model: instance.name,
-              total: totalSize,
+            Bus.publish({
+              tag: "model.progress",
+              info: {
+                id: 0,
+                name: instance.name,
+                path: instance.path!,
+              },
               downloaded: downloadedSize,
+              total: totalSize,
             });
           }
         },
@@ -181,10 +181,13 @@ export namespace Model {
 
       const needDownload = downloader.downloadedSize < downloader.totalSize;
       if (needDownload) {
-        await Bus.emit({
-          tag: "model",
-          action: "download",
-          model: instance.name,
+        await Bus.publish({
+          tag: "model.download",
+          info: {
+            id: 0,
+            name: instance.name,
+            path: instance.path!,
+          },
         });
       }
 
@@ -192,7 +195,14 @@ export namespace Model {
       instance.status = "downloaded";
 
       if (needDownload) {
-        await Bus.emit({ tag: "model", action: "ready", model: instance.name });
+        await Bus.publish({
+          tag: "model.downloaded",
+          info: {
+            id: 0,
+            name: instance.name,
+            path: instance.path!,
+          },
+        });
       }
     }
   }
@@ -205,12 +215,15 @@ export namespace Model {
     }
 
     if (!embedder.instance.model) {
-      await Bus.emit({
-        tag: "model",
-        action: "load",
-        model: embedder.instance.name,
-        path: embedder.instance.path,
+      await Bus.publish({
+        tag: "model.load",
+        info: {
+          id: 0,
+          name: embedder.instance.name,
+          path: embedder.instance.path!,
+        },
       });
+
       const llama = await ensureLlama();
       embedder.instance.model = await llama.loadModel({
         modelPath: embedder.instance.path,

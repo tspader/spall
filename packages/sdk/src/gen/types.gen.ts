@@ -4,16 +4,64 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {});
 };
 
-export type SearchResult = {
-  /**
-   * Unique identifier for the result
-   */
-  key: string;
-  /**
-   * Distance/similarity score
-   */
-  distance: number;
+export type NoteListData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/project/{id}/list";
 };
+
+export type NoteListErrors = {
+  /**
+   * Project not found
+   */
+  404: unknown;
+};
+
+export type NoteListResponses = {
+  /**
+   * List of notes
+   */
+  200: Array<{
+    id: number;
+    path: string;
+  }>;
+};
+
+export type NoteListResponse = NoteListResponses[keyof NoteListResponses];
+
+export type NoteGetData = {
+  body?: never;
+  path: {
+    id: string;
+    path: string;
+  };
+  query?: never;
+  url: "/project/{id}/note/{path}";
+};
+
+export type NoteGetErrors = {
+  /**
+   * Project or note not found
+   */
+  404: unknown;
+};
+
+export type NoteGetResponses = {
+  /**
+   * Note with content
+   */
+  200: {
+    id: number;
+    project: number;
+    path: string;
+    content: string;
+  };
+};
+
+export type NoteGetResponse = NoteGetResponses[keyof NoteGetResponses];
 
 export type ProjectGetData = {
   body?: never;
@@ -33,6 +81,7 @@ export type ProjectGetResponses = {
     id: number;
     name: string;
     dir: string;
+    noteCount: number;
   };
 };
 
@@ -59,6 +108,7 @@ export type ProjectCreateResponses = {
           id: number;
           name: string;
           dir: string;
+          noteCount: number;
         };
       }
     | {
@@ -106,11 +156,64 @@ export type ProjectCreateResponses = {
     | {
         tag: "store.created";
         path: string;
+      }
+    | {
+        tag: "scan.start";
+        numFiles: number;
+      }
+    | {
+        tag: "scan.progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan.done";
+        numFiles: number;
+      }
+    | {
+        tag: "embed.start";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+      }
+    | {
+        tag: "embed.progress";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
+        tag: "embed.done";
+        numFiles: number;
       };
 };
 
 export type ProjectCreateResponse =
   ProjectCreateResponses[keyof ProjectCreateResponses];
+
+export type ProjectListData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/project/list";
+};
+
+export type ProjectListResponses = {
+  /**
+   * List of projects
+   */
+  200: Array<{
+    id: number;
+    name: string;
+    dir: string;
+    noteCount: number;
+  }>;
+};
+
+export type ProjectListResponse =
+  ProjectListResponses[keyof ProjectListResponses];
 
 export type NoteAddData = {
   body?: {
@@ -138,169 +241,11 @@ export type NoteAddResponses = {
     id: number;
     project: number;
     path: string;
+    content: string;
   };
 };
 
 export type NoteAddResponse = NoteAddResponses[keyof NoteAddResponses];
-
-export type InitData = {
-  body?: {
-    /**
-     * Project root directory
-     */
-    directory: string;
-  };
-  path?: never;
-  query?: never;
-  url: "/init";
-};
-
-export type InitResponses = {
-  /**
-   * Initialization events stream
-   */
-  200:
-    | {
-        tag: "project.created";
-        info: {
-          id: number;
-          name: string;
-          dir: string;
-        };
-      }
-    | {
-        tag: "project.updated";
-        foo: number;
-      }
-    | {
-        tag: "model.download";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.progress";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-        downloaded: number;
-        total: number;
-      }
-    | {
-        tag: "model.downloaded";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.load";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "store.create";
-        path: string;
-      }
-    | {
-        tag: "store.created";
-        path: string;
-      };
-};
-
-export type InitResponse = InitResponses[keyof InitResponses];
-
-export type IndexData = {
-  body?: {
-    /**
-     * Project root directory
-     */
-    directory: string;
-  };
-  path?: never;
-  query?: never;
-  url: "/index";
-};
-
-export type IndexResponses = {
-  /**
-   * Indexing events stream
-   */
-  200:
-    | {
-        tag: "scan";
-        action: "start";
-        total: number;
-      }
-    | {
-        tag: "scan";
-        action: "progress";
-        path: string;
-        status: "added" | "modified" | "removed" | "ok";
-      }
-    | {
-        tag: "scan";
-        action: "done";
-      }
-    | {
-        tag: "embed";
-        action: "start";
-        totalDocs: number;
-        totalChunks: number;
-        totalBytes: number;
-      }
-    | {
-        tag: "embed";
-        action: "progress";
-        filesProcessed: number;
-        totalFiles: number;
-        bytesProcessed: number;
-        totalBytes: number;
-      }
-    | {
-        tag: "embed";
-        action: "done";
-      };
-};
-
-export type IndexResponse = IndexResponses[keyof IndexResponses];
-
-export type SearchData = {
-  body?: {
-    /**
-     * Project root directory
-     */
-    directory: string;
-    /**
-     * Search query text
-     */
-    query: string;
-    /**
-     * Maximum number of results
-     */
-    limit?: number;
-  };
-  path?: never;
-  query?: never;
-  url: "/search";
-};
-
-export type SearchResponses = {
-  /**
-   * Search results
-   */
-  200: Array<SearchResult>;
-};
-
-export type SearchResponse = SearchResponses[keyof SearchResponses];
 
 export type HealthData = {
   body?: never;

@@ -23,7 +23,6 @@ export {
   FileStatus,
 } from "./schema";
 export { Config, type ConfigSchema } from "./config";
-export { init, index, search } from "./api";
 
 export { Project } from "./project";
 export { Note } from "./note";
@@ -42,6 +41,12 @@ export const EventUnion = z.discriminatedUnion("tag", [
   Model.Event.Load,
   Store.Event.Create,
   Store.Event.Created,
+  Store.Event.Scan,
+  Store.Event.ScanProgress,
+  Store.Event.Scanned,
+  Store.Event.Embed,
+  Store.Event.EmbedProgress,
+  Store.Event.Embedded,
 ]);
 
 export type EventUnion =
@@ -52,4 +57,11 @@ export type EventUnion =
   | z.infer<typeof Model.Event.Downloaded>
   | z.infer<typeof Model.Event.Load>
   | z.infer<typeof Store.Event.Create>
-  | z.infer<typeof Store.Event.Created>;
+  | z.infer<typeof Store.Event.Created>
+  | z.infer<typeof Store.Event.Scan>
+  | z.infer<typeof Store.Event.ScanProgress>
+  | z.infer<typeof Store.Event.Scanned>
+  | z.infer<typeof Store.Event.Embed>
+  | z.infer<typeof Store.Event.EmbedProgress>
+  | z.infer<typeof Store.Event.Embedded>
+

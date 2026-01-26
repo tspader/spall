@@ -6,8 +6,8 @@ import { join, dirname } from "path";
 import { mkdirSync } from "fs";
 import { Glob } from "bun";
 import pc from "picocolors";
-import { Io } from "@spall/core";
-import { Client, Server, type IndexResponse } from "@spall/sdk";
+import { EventUnion, Io } from "@spall/core";
+import { Client, Server } from "@spall/sdk";
 import consola from "consola";
 
 const SPALL_DIR = ".spall";
@@ -212,77 +212,77 @@ yargs(hideBin(process.argv))
     "Index all notes in .spall/notes",
     () => {},
     async () => {
-      const directory = getDirectory();
-      const tag = pc.gray("index".padEnd(TAG_WIDTH));
-      const clear = "\x1b[K";
-
-      // Set up index event handler
-      let startTimeNs = 0;
-      let totalFiles = 0;
-      let totalBytes = 0;
-
-      const handleEvent = (event: IndexResponse) => {
-        if (event.tag === "scan") {
-          switch (event.action) {
-            case "start":
-              console.log(`${tag} Scanning ${event.total} files`);
-              break;
-            case "progress":
-              // Could show per-file progress here if desired
-              break;
-            case "done":
-              console.log(`${tag} Scan complete`);
-              break;
-          }
-        } else if (event.tag === "embed") {
-          switch (event.action) {
-            case "start":
-              startTimeNs = Bun.nanoseconds();
-              totalFiles = event.totalDocs;
-              totalBytes = event.totalBytes;
-              console.log(
-                `${tag} Embedding ${event.totalDocs} files (${event.totalChunks} chunks, ${formatBytes(event.totalBytes)})`,
-              );
-              break;
-            case "progress": {
-              const percent = (event.bytesProcessed / totalBytes) * 100;
-              const bar = renderProgressBar(percent);
-              const percentStr = percent.toFixed(0).padStart(3);
-
-              const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-              const bytesPerSec = event.bytesProcessed / elapsedSec;
-              const remainingBytes = totalBytes - event.bytesProcessed;
-              const etaSec = remainingBytes / bytesPerSec;
-
-              const throughput = `${formatBytes(bytesPerSec)}/s`;
-              const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
-              const fileProgress = `${event.filesProcessed}/${totalFiles}`;
-
-              process.stdout.write(
-                `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(fileProgress)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
-              );
-              break;
-            }
-            case "done": {
-              const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-              console.log(`\r${renderProgressBar(100)} 100%${clear}`);
-              console.log(
-                `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s`,
-              );
-              break;
-            }
-          }
-        }
-      };
-
-      const client = await Client.connect();
-
-      // Call index endpoint and consume SSE stream
-      const { stream } = await client.index({ directory });
-
-      for await (const event of stream) {
-        handleEvent(event);
-      }
+      // const directory = getDirectory();
+      // const tag = pc.gray("index".padEnd(TAG_WIDTH));
+      // const clear = "\x1b[K";
+      //
+      // // Set up index event handler
+      // let startTimeNs = 0;
+      // let totalFiles = 0;
+      // let totalBytes = 0;
+      //
+      // const handleEvent = (event: EventUnion) => {
+      //   if (event.tag === "scan") {
+      //     switch (event.action) {
+      //       case "start":
+      //         console.log(`${tag} Scanning ${event.total} files`);
+      //         break;
+      //       case "progress":
+      //         // Could show per-file progress here if desired
+      //         break;
+      //       case "done":
+      //         console.log(`${tag} Scan complete`);
+      //         break;
+      //     }
+      //   } else if (event.tag === "embed") {
+      //     switch (event.action) {
+      //       case "start":
+      //         startTimeNs = Bun.nanoseconds();
+      //         totalFiles = event.totalDocs;
+      //         totalBytes = event.totalBytes;
+      //         console.log(
+      //           `${tag} Embedding ${event.totalDocs} files (${event.totalChunks} chunks, ${formatBytes(event.totalBytes)})`,
+      //         );
+      //         break;
+      //       case "progress": {
+      //         const percent = (event.bytesProcessed / totalBytes) * 100;
+      //         const bar = renderProgressBar(percent);
+      //         const percentStr = percent.toFixed(0).padStart(3);
+      //
+      //         const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
+      //         const bytesPerSec = event.bytesProcessed / elapsedSec;
+      //         const remainingBytes = totalBytes - event.bytesProcessed;
+      //         const etaSec = remainingBytes / bytesPerSec;
+      //
+      //         const throughput = `${formatBytes(bytesPerSec)}/s`;
+      //         const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
+      //         const fileProgress = `${event.filesProcessed}/${totalFiles}`;
+      //
+      //         process.stdout.write(
+      //           `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(fileProgress)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
+      //         );
+      //         break;
+      //       }
+      //       case "done": {
+      //         const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
+      //         console.log(`\r${renderProgressBar(100)} 100%${clear}`);
+      //         console.log(
+      //           `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s`,
+      //         );
+      //         break;
+      //       }
+      //     }
+      //   }
+      // };
+      //
+      // const client = await Client.connect();
+      //
+      // // Call index endpoint and consume SSE stream
+      // const { stream } = await client.index({ directory });
+      //
+      // for await (const event of stream) {
+      //   handleEvent(event);
+      // }
     },
   )
   .command(
@@ -362,45 +362,45 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv) => {
-      const directory = getDirectory();
-
-      // Connect to server (auto-start if needed)
-      const client = await Client.connect();
-
-      const result = await client.search({
-        directory,
-        query: argv.query,
-        limit: argv.limit,
-      });
-
-      if (result.error || !result.data) {
-        console.error("Search failed:", result.error);
-        process.exit(1);
-      }
-
-      const results = result.data;
-
-      if (results.length === 0) {
-        console.log("No results found.");
-      } else {
-        // Dedupe by key (multiple chunks may match)
-        const seen = new Set<string>();
-        for (const r of results) {
-          if (seen.has(r.key)) continue;
-          seen.add(r.key);
-
-          const similarity = (1 - r.distance).toFixed(3);
-          const content = Io.read(getNotesDir(), r.key);
-          const preview = content
-            ? content.slice(0, 80).replace(/\n/g, " ") +
-              (content.length > 80 ? "..." : "")
-            : "(no content)";
-
-          console.log(
-            `${pc.green(similarity)} ${pc.cyan(r.key)} ${pc.gray(preview)}`,
-          );
-        }
-      }
+      // const directory = getDirectory();
+      //
+      // // Connect to server (auto-start if needed)
+      // const client = await Client.connect();
+      //
+      // const result = await client.search({
+      //   directory,
+      //   query: argv.query,
+      //   limit: argv.limit,
+      // });
+      //
+      // if (result.error || !result.data) {
+      //   console.error("Search failed:", result.error);
+      //   process.exit(1);
+      // }
+      //
+      // const results = result.data;
+      //
+      // if (results.length === 0) {
+      //   console.log("No results found.");
+      // } else {
+      //   // Dedupe by key (multiple chunks may match)
+      //   const seen = new Set<string>();
+      //   for (const r of results) {
+      //     if (seen.has(r.key)) continue;
+      //     seen.add(r.key);
+      //
+      //     const similarity = (1 - r.distance).toFixed(3);
+      //     const content = Io.read(getNotesDir(), r.key);
+      //     const preview = content
+      //       ? content.slice(0, 80).replace(/\n/g, " ") +
+      //         (content.length > 80 ? "..." : "")
+      //       : "(no content)";
+      //
+      //     console.log(
+      //       `${pc.green(similarity)} ${pc.cyan(r.key)} ${pc.gray(preview)}`,
+      //     );
+      //   }
+      // }
     },
   )
   .command(
@@ -500,8 +500,8 @@ yargs(hideBin(process.argv))
     },
   )
   .command(
-    "review",
-    "Launch the interactive diff review TUI",
+    "tui",
+    "Launch the interactive TUI",
     () => {},
     async () => {
       // Load the Solid JSX transform plugin before importing TUI

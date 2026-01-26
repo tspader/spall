@@ -6,6 +6,113 @@
     "version": "0.0.1"
   },
   "paths": {
+    "/project/{id}/list": {
+      "get": {
+        "operationId": "note.list",
+        "summary": "List notes",
+        "description": "List all note paths in a project.",
+        "responses": {
+          "200": {
+            "description": "List of notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "number"
+                      },
+                      "path": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "path"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
+      }
+    },
+    "/project/{id}/note/{path}": {
+      "get": {
+        "operationId": "note.get",
+        "summary": "Get a note",
+        "description": "Get a note by path within a project.",
+        "responses": {
+          "200": {
+            "description": "Note with content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "project": {
+                      "type": "number"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "project",
+                    "path",
+                    "content"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project or note not found"
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "path",
+            "required": true
+          }
+        ]
+      }
+    },
     "/project": {
       "post": {
         "operationId": "project.create",
@@ -36,12 +143,16 @@
                             },
                             "dir": {
                               "type": "string"
+                            },
+                            "noteCount": {
+                              "type": "number"
                             }
                           },
                           "required": [
                             "id",
                             "name",
-                            "dir"
+                            "dir",
+                            "noteCount"
                           ]
                         }
                       },
@@ -232,6 +343,136 @@
                       "required": [
                         "tag",
                         "path"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "scan.start"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "scan.progress"
+                        },
+                        "path": {
+                          "type": "string"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "added",
+                            "modified",
+                            "removed",
+                            "ok"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "path",
+                        "status"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "scan.done"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.start"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.progress"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        },
+                        "numFilesProcessed": {
+                          "type": "number"
+                        },
+                        "numBytesProcessed": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes",
+                        "numFilesProcessed",
+                        "numBytesProcessed"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.done"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles"
                       ]
                     }
                   ]
@@ -281,12 +522,16 @@
                     },
                     "dir": {
                       "type": "string"
+                    },
+                    "noteCount": {
+                      "type": "number"
                     }
                   },
                   "required": [
                     "id",
                     "name",
-                    "dir"
+                    "dir",
+                    "noteCount"
                   ]
                 }
               }
@@ -311,6 +556,48 @@
         ]
       }
     },
+    "/project/list": {
+      "get": {
+        "operationId": "project.list",
+        "summary": "List projects",
+        "description": "List all projects.",
+        "responses": {
+          "200": {
+            "description": "List of projects",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "number"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "dir": {
+                        "type": "string"
+                      },
+                      "noteCount": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "id",
+                      "name",
+                      "dir",
+                      "noteCount"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/project/note": {
       "post": {
         "operationId": "note.add",
@@ -332,12 +619,16 @@
                     },
                     "path": {
                       "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
                     }
                   },
                   "required": [
                     "id",
                     "project",
-                    "path"
+                    "path",
+                    "content"
                   ]
                 }
               }
@@ -374,503 +665,6 @@
         }
       }
     },
-    "/init": {
-      "post": {
-        "operationId": "init",
-        "summary": "Initialize project",
-        "description": "Initialize a spall project in a directory, creating the database and downloading models. Emits progress events via SSE.",
-        "responses": {
-          "200": {
-            "description": "Initialization events stream",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "project.created"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "dir": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "dir"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "project.updated"
-                        },
-                        "foo": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "foo"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.download"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.progress"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        },
-                        "downloaded": {
-                          "type": "number"
-                        },
-                        "total": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info",
-                        "downloaded",
-                        "total"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.downloaded"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.load"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "store.create"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "path"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "store.created"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "path"
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "directory": {
-                    "type": "string",
-                    "description": "Project root directory"
-                  }
-                },
-                "required": [
-                  "directory"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/index": {
-      "post": {
-        "operationId": "index",
-        "summary": "Index files",
-        "description": "Index files in a project directory, emitting progress events via SSE",
-        "responses": {
-          "200": {
-            "description": "Indexing events stream",
-            "content": {
-              "text/event-stream": {
-                "schema": {
-                  "anyOf": [
-                    {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "scan"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "start"
-                            },
-                            "total": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "total"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "scan"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "progress"
-                            },
-                            "path": {
-                              "type": "string"
-                            },
-                            "status": {
-                              "type": "string",
-                              "enum": [
-                                "added",
-                                "modified",
-                                "removed",
-                                "ok"
-                              ]
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "path",
-                            "status"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "scan"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "done"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action"
-                          ]
-                        }
-                      ]
-                    },
-                    {
-                      "oneOf": [
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "embed"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "start"
-                            },
-                            "totalDocs": {
-                              "type": "number"
-                            },
-                            "totalChunks": {
-                              "type": "number"
-                            },
-                            "totalBytes": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "totalDocs",
-                            "totalChunks",
-                            "totalBytes"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "embed"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "progress"
-                            },
-                            "filesProcessed": {
-                              "type": "number"
-                            },
-                            "totalFiles": {
-                              "type": "number"
-                            },
-                            "bytesProcessed": {
-                              "type": "number"
-                            },
-                            "totalBytes": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action",
-                            "filesProcessed",
-                            "totalFiles",
-                            "bytesProcessed",
-                            "totalBytes"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "properties": {
-                            "tag": {
-                              "type": "string",
-                              "const": "embed"
-                            },
-                            "action": {
-                              "type": "string",
-                              "const": "done"
-                            }
-                          },
-                          "required": [
-                            "tag",
-                            "action"
-                          ]
-                        }
-                      ]
-                    }
-                  ]
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "directory": {
-                    "type": "string",
-                    "description": "Project root directory"
-                  }
-                },
-                "required": [
-                  "directory"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
-    "/search": {
-      "post": {
-        "operationId": "search",
-        "summary": "Search",
-        "description": "Search for similar content using embeddings",
-        "responses": {
-          "200": {
-            "description": "Search results",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/SearchResult"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "directory": {
-                    "type": "string",
-                    "description": "Project root directory"
-                  },
-                  "query": {
-                    "type": "string",
-                    "description": "Search query text"
-                  },
-                  "limit": {
-                    "description": "Maximum number of results",
-                    "type": "number"
-                  }
-                },
-                "required": [
-                  "directory",
-                  "query"
-                ]
-              }
-            }
-          }
-        }
-      }
-    },
     "/health": {
       "get": {
         "operationId": "health",
@@ -891,25 +685,5 @@
       }
     }
   },
-  "components": {
-    "schemas": {
-      "SearchResult": {
-        "type": "object",
-        "properties": {
-          "key": {
-            "type": "string",
-            "description": "Unique identifier for the result"
-          },
-          "distance": {
-            "type": "number",
-            "description": "Distance/similarity score"
-          }
-        },
-        "required": [
-          "key",
-          "distance"
-        ]
-      }
-    }
-  }
+  "components": {}
 }

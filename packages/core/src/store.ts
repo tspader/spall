@@ -44,6 +44,37 @@ export namespace Store {
     Created: Bus.define("store.created", {
       path: z.string(),
     }),
+    Scan: Bus.define("scan.start", {
+      numFiles: z.number()
+    }),
+    ScanProgress: Bus.define("scan.progress", {
+      path: z.string(),
+      status: z.enum([
+        "added",
+        "modified",
+        "removed",
+        "ok",
+      ])
+    }),
+    Scanned: Bus.define("scan.done", {
+      numFiles: z.number()
+    }),
+    Embed: Bus.define("embed.start", {
+      numFiles: z.number(),
+      numChunks: z.number(),
+      numBytes: z.number(),
+    }),
+    EmbedProgress: Bus.define("embed.progress", {
+      numFiles: z.number(),
+      numChunks: z.number(),
+      numBytes: z.number(),
+      numFilesProcessed: z.number(),
+      numBytesProcessed: z.number(),
+    }),
+    Embedded: Bus.define("embed.done", {
+      numFiles: z.number()
+    }),
+
   };
 
   let instance: Database | null = null;
@@ -305,13 +336,12 @@ export namespace Store {
   export async function scan(dir: string): Promise<ScanResult> {
     const glob = new Glob("**/*.md");
 
-    // First pass: count total files
-    const allFiles: string[] = [];
+    const files: string[] = [];
     for await (const file of glob.scan({ cwd: dir, absolute: false })) {
-      allFiles.push(file);
+      files.push(file);
     }
 
-    await Bus.emit({ tag: "scan", action: "start", total: allFiles.length });
+    await Bus.publish({ tag: "scan.start", numFiles: files.length })
 
     const diskFiles = new Set<string>();
     const added: string[] = [];
@@ -319,7 +349,7 @@ export namespace Store {
     const removed: string[] = [];
 
     // Second pass: check each file's status
-    for (const file of allFiles) {
+    for (const file of files) {
       diskFiles.add(file);
       const meta = Io.get(dir, file);
       const existing = getFile(file);
@@ -339,7 +369,7 @@ export namespace Store {
         status = "ok";
       }
 
-      await Bus.emit({ tag: "scan", action: "progress", path: file, status });
+      await Bus.publish({ tag: "scan.progress", path: file, status: status })
     }
 
     // Check for deleted files
@@ -348,16 +378,11 @@ export namespace Store {
       if (!diskFiles.has(file)) {
         removeFile(file);
         removed.push(file);
-        await Bus.emit({
-          tag: "scan",
-          action: "progress",
-          path: file,
-          status: "removed",
-        });
+        await Bus.publish({ tag: "scan.progress", path: file, status: "removed" })
       }
     }
 
-    await Bus.emit({ tag: "scan", action: "done" });
+    await Bus.publish({ tag: "scan.done", numFiles: files.length })
 
     const unembedded = listUnembeddedFiles();
     return { added, modified, removed, unembedded };
@@ -393,15 +418,10 @@ export namespace Store {
       });
     }
 
-    const totalBytes = work.reduce((sum, file) => sum + file.size, 0);
-    const totalChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
-    await Bus.emit({
-      tag: "embed",
-      action: "start",
-      totalDocs: work.length,
-      totalChunks,
-      totalBytes,
-    });
+    const numFiles = work.length
+    const numBytes = work.reduce((sum, file) => sum + file.size, 0);
+    const numChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
+    await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes })
 
     // prepare statements up front
     const db = get();
@@ -419,8 +439,8 @@ export namespace Store {
       },
     };
 
-    let filesProcessed = 0;
-    let bytesProcessed = 0;
+    let numFilesProcessed = 0;
+    let numBytesProcessed = 0;
     let pendingChunks: ChunkWork[] = [];
     let pendingFiles: FileWork[] = [];
 
@@ -448,20 +468,13 @@ export namespace Store {
 
         for (const file of pendingFiles) {
           statements.file.markEmbedded.run(file.key);
-          bytesProcessed += file.size;
+          numBytesProcessed += file.size;
         }
 
-        filesProcessed += pendingFiles.length;
+        numFilesProcessed += pendingFiles.length;
       })();
 
-      await Bus.emit({
-        tag: "embed",
-        action: "progress",
-        filesProcessed: filesProcessed,
-        totalFiles: work.length,
-        bytesProcessed,
-        totalBytes,
-      });
+      await Bus.publish({ tag: "embed.progress", numFiles, numChunks, numBytes, numFilesProcessed, numBytesProcessed })
 
       pendingChunks = [];
       pendingFiles = [];
@@ -478,6 +491,6 @@ export namespace Store {
 
     await flushBatch();
 
-    await Bus.emit({ tag: "embed", action: "done" });
+    await Bus.publish({ tag: "embed.done", numFiles })
   }
 }

@@ -10,7 +10,7 @@ import { consola } from "consola";
 import pc from "picocolors";
 
 
-import { Event, type EventUnion } from "@spall/core";
+import { type EventUnion } from "@spall/core";
 import { Bus } from "@spall/core/src/event";
 import { Config } from "@spall/core/src/config";
 import { App } from "./app";

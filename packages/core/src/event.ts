@@ -5,25 +5,6 @@ import { type EventUnion } from "./index";
 import pc from "picocolors";
 
 export namespace Bus {
-  export type Handler = (event: Event) => void | Promise<void>;
-
-  const handlers: Set<Handler> = new Set();
-
-  export function listen(handler: Handler): () => void {
-    handlers.add(handler);
-    return () => handlers.delete(handler);
-  }
-
-  export async function emit(event: Event): Promise<void> {
-    for (const handler of handlers) {
-      await handler(event);
-    }
-  }
-
-  export function clear(): void {
-    handlers.clear();
-  }
-
   export type Definition = ReturnType<typeof define>;
 
   export function define<TTag extends string, TFields extends z.ZodRawShape>(
