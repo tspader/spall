@@ -1,23 +1,23 @@
-import type { DiffEntry } from "../lib/git"
+import type { DiffEntry } from "../lib/git";
 
 /**
  * A node in the file tree - either a directory or a file
  */
 export interface FileTreeNode {
-  name: string // Just the segment name ("cli", "index.ts")
-  path: string // Full path ("packages/cli/src/index.ts")
-  type: "file" | "dir"
-  status?: "M" | "A" // Only for files
-  children: FileTreeNode[] // Empty for files
-  entryIndex?: number // Only for files - index into original DiffEntry[] array
+  name: string; // Just the segment name ("cli", "index.ts")
+  path: string; // Full path ("packages/cli/src/index.ts")
+  type: "file" | "dir";
+  status?: "M" | "A" | "D"; // Only for files
+  children: FileTreeNode[]; // Empty for files
+  entryIndex?: number; // Only for files - index into original DiffEntry[] array
 }
 
 /**
  * A flattened item for display/rendering
  */
 export interface DisplayItem {
-  node: FileTreeNode
-  depth: number // Indentation level
+  node: FileTreeNode;
+  depth: number; // Indentation level
 }
 
 /**
@@ -25,18 +25,18 @@ export interface DisplayItem {
  * Directories are sorted before files, then alphabetically within each group.
  */
 export function buildFileTree(entries: DiffEntry[]): FileTreeNode[] {
-  const root: FileTreeNode[] = []
+  const root: FileTreeNode[] = [];
 
   for (let i = 0; i < entries.length; i++) {
-    const entry = entries[i]!
-    const parts = entry.file.split("/")
-    insertPath(root, parts, 0, entry, i)
+    const entry = entries[i]!;
+    const parts = entry.file.split("/");
+    insertPath(root, parts, 0, entry, i);
   }
 
   // Sort the tree recursively
-  sortTree(root)
+  sortTree(root);
 
-  return root
+  return root;
 }
 
 /**
@@ -47,16 +47,16 @@ function insertPath(
   parts: string[],
   partIndex: number,
   entry: DiffEntry,
-  entryIndex: number
+  entryIndex: number,
 ): void {
-  if (partIndex >= parts.length) return
+  if (partIndex >= parts.length) return;
 
-  const name = parts[partIndex]!
-  const isLastPart = partIndex === parts.length - 1
-  const fullPath = parts.slice(0, partIndex + 1).join("/")
+  const name = parts[partIndex]!;
+  const isLastPart = partIndex === parts.length - 1;
+  const fullPath = parts.slice(0, partIndex + 1).join("/");
 
   // Find existing node with this name
-  let node = nodes.find((n) => n.name === name)
+  let node = nodes.find((n) => n.name === name);
 
   if (!node) {
     // Create new node
@@ -65,20 +65,20 @@ function insertPath(
       path: fullPath,
       type: isLastPart ? "file" : "dir",
       children: [],
-    }
+    };
 
     if (isLastPart) {
       // It's a file
-      node.status = entry.isNew ? "A" : "M"
-      node.entryIndex = entryIndex
+      node.status = entry.isDeleted ? "D" : entry.isNew ? "A" : "M";
+      node.entryIndex = entryIndex;
     }
 
-    nodes.push(node)
+    nodes.push(node);
   }
 
   // If not the last part, recurse into children
   if (!isLastPart && node) {
-    insertPath(node.children, parts, partIndex + 1, entry, entryIndex)
+    insertPath(node.children, parts, partIndex + 1, entry, entryIndex);
   }
 }
 
@@ -89,16 +89,16 @@ function sortTree(nodes: FileTreeNode[]): void {
   nodes.sort((a, b) => {
     // Directories before files
     if (a.type !== b.type) {
-      return a.type === "dir" ? -1 : 1
+      return a.type === "dir" ? -1 : 1;
     }
     // Alphabetical within same type
-    return a.name.localeCompare(b.name)
-  })
+    return a.name.localeCompare(b.name);
+  });
 
   // Recursively sort children
   for (const node of nodes) {
     if (node.children.length > 0) {
-      sortTree(node.children)
+      sortTree(node.children);
     }
   }
 }
@@ -108,20 +108,24 @@ function sortTree(nodes: FileTreeNode[]): void {
  * Collapses single-child directory chains (e.g., "packages/cli/src" instead of nested).
  */
 export function flattenTree(nodes: FileTreeNode[]): DisplayItem[] {
-  const items: DisplayItem[] = []
-  flattenNodes(nodes, 0, items)
-  return items
+  const items: DisplayItem[] = [];
+  flattenNodes(nodes, 0, items);
+  return items;
 }
 
-function flattenNodes(nodes: FileTreeNode[], depth: number, items: DisplayItem[]): void {
+function flattenNodes(
+  nodes: FileTreeNode[],
+  depth: number,
+  items: DisplayItem[],
+): void {
   for (const node of nodes) {
     if (node.type === "dir") {
       // Collapse single-child directory chains
-      const collapsed = collapseDir(node)
-      items.push({ node: collapsed, depth })
-      flattenNodes(collapsed.children, depth + 1, items)
+      const collapsed = collapseDir(node);
+      items.push({ node: collapsed, depth });
+      flattenNodes(collapsed.children, depth + 1, items);
     } else {
-      items.push({ node, depth })
+      items.push({ node, depth });
     }
   }
 }
@@ -131,18 +135,18 @@ function flattenNodes(nodes: FileTreeNode[], depth: number, items: DisplayItem[]
  * e.g., packages -> cli -> src with one file becomes "packages/cli/src"
  */
 function collapseDir(node: FileTreeNode): FileTreeNode {
-  let current = node
-  const nameParts = [current.name]
+  let current = node;
+  const nameParts = [current.name];
 
   // Keep collapsing while we have exactly one child that is a directory
   while (current.children.length === 1 && current.children[0]!.type === "dir") {
-    current = current.children[0]!
-    nameParts.push(current.name)
+    current = current.children[0]!;
+    nameParts.push(current.name);
   }
 
   if (nameParts.length === 1) {
     // No collapsing needed
-    return node
+    return node;
   }
 
   // Return a new node with the collapsed name
@@ -151,7 +155,7 @@ function collapseDir(node: FileTreeNode): FileTreeNode {
     path: current.path,
     type: "dir",
     children: current.children,
-  }
+  };
 }
 
 /**
@@ -159,18 +163,23 @@ function collapseDir(node: FileTreeNode): FileTreeNode {
  * Returns indices in display order.
  */
 export function getFileIndices(items: DisplayItem[]): number[] {
-  const indices: number[] = []
+  const indices: number[] = [];
   for (const item of items) {
     if (item.node.type === "file" && item.node.entryIndex !== undefined) {
-      indices.push(item.node.entryIndex)
+      indices.push(item.node.entryIndex);
     }
   }
-  return indices
+  return indices;
 }
 
 /**
  * Find the display index for a given file entry index
  */
-export function findDisplayIndex(items: DisplayItem[], entryIndex: number): number {
-  return items.findIndex((item) => item.node.type === "file" && item.node.entryIndex === entryIndex)
+export function findDisplayIndex(
+  items: DisplayItem[],
+  entryIndex: number,
+): number {
+  return items.findIndex(
+    (item) => item.node.type === "file" && item.node.entryIndex === entryIndex,
+  );
 }

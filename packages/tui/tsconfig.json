@@ -11,5 +11,5 @@
   },
   "include": ["src", "parsers"],
   "exclude": ["src/test", "**/*.test.ts", "**/*.test.tsx"],
-  "references": [{ "path": "../core" }]
+  "references": [{ "path": "../core" }, { "path": "../sdk" }]
 }

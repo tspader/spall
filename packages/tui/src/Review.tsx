@@ -15,7 +15,12 @@ import {
   onMount,
   onCleanup,
 } from "solid-js";
-import { getDiffEntries, parseChangeBlocks, type DiffEntry } from "./lib/git";
+import {
+  getDiffEntries,
+  getDiffHash,
+  parseChangeBlocks,
+  type DiffEntry,
+} from "./lib/git";
 import {
   FileList,
   DiffPanel,
@@ -206,6 +211,18 @@ function App(props: AppProps) {
     const diffEntries = await getDiffEntries(props.repoPath);
     setEntries(diffEntries);
     setLoading(false);
+
+    // Poll for git changes every second
+    let lastHash = await getDiffHash(props.repoPath);
+    const pollInterval = setInterval(async () => {
+      const hash = await getDiffHash(props.repoPath);
+      if (hash !== lastHash) {
+        lastHash = hash;
+        const newEntries = await getDiffEntries(props.repoPath);
+        setEntries(newEntries);
+      }
+    }, 1000);
+    onCleanup(() => clearInterval(pollInterval));
 
     // Connect to server
     try {
@@ -497,7 +514,13 @@ function App(props: AppProps) {
       padding={1}
     >
       <box flexGrow={1} flexDirection="row" gap={1}>
-        <box width={35} flexDirection="column" gap={1} padding={1} backgroundColor={theme.backgroundPanel}>
+        <box
+          width={35}
+          flexDirection="column"
+          gap={1}
+          padding={1}
+          backgroundColor={theme.backgroundPanel}
+        >
           <ServerStatus url={serverUrl} connected={serverConnected} />
           <FileList
             displayItems={displayItems}

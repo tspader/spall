@@ -2,7 +2,10 @@
   "name": "@spall/tui",
   "version": "0.0.1",
   "type": "module",
-  "main": "src/App.tsx",
+  "main": "src/index.ts",
+  "bin": {
+    "spall": "src/index.ts"
+  },
   "scripts": {
     "tui": "bun src/App.tsx",
     "typecheck": "tsc --noEmit"
@@ -10,15 +13,19 @@
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
     "@types/bun": "catalog:",
+    "@types/yargs": "^17.0.33",
     "typescript": "catalog:"
   },
   "dependencies": {
-    "@opentui/core": "catalog:",
-    "@opentui/solid": "catalog:",
+    "@opentui/core": "0.1.75",
+    "@opentui/solid": "0.1.75",
     "@spall/core": "workspace:*",
     "@spall/sdk": "workspace:*",
-    "solid-js": "catalog:",
-    "tree-sitter-wasms": "catalog:",
-    "diff": "^8.0.3"
+    "consola": "catalog:",
+    "diff": "^8.0.3",
+    "picocolors": "catalog:",
+    "solid-js": "1.9.11",
+    "tree-sitter-wasms": "^0.1.13",
+    "yargs": "^18.0.0"
   }
 }

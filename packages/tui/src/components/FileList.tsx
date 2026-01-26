@@ -3,7 +3,6 @@ import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { DisplayItem } from "../lib/tree";
 import { useTheme } from "../context/theme";
-import { HalfLineShadow } from "./HalfLineShadow";
 import { Section } from "./Section";
 
 export interface FileListProps {
