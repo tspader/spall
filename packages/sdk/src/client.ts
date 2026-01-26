@@ -4,6 +4,8 @@ import { ensure } from "./lock";
 
 export * from "./gen/types.gen";
 
+type TaggedEvent = { tag: string };
+
 export namespace Client {
   export function unwrap<T>(
     result: { data?: T; error?: unknown } | undefined,
@@ -22,5 +24,22 @@ export namespace Client {
   export function attach(url: string): SpallClient {
     const client = createClient({ baseUrl: url });
     return new SpallClient({ client });
+  }
+
+  // consume an SSE stream until you see the event you want; useful for
+  // endpoints that return a stream for progress but for which you just want
+  // to get the final resulg
+  export async function until<TEvent extends TaggedEvent, TTag extends string>(
+    stream: AsyncGenerator<TEvent, unknown, unknown>,
+    tag: TTag,
+    handler?: (event: TEvent) => void,
+  ): Promise<Extract<TEvent, { tag: TTag }>> {
+    for await (const event of stream) {
+      handler?.(event);
+      if (event.tag === tag) {
+        return event as Extract<TEvent, { tag: TTag }>;
+      }
+    }
+    throw new Error(`Stream ended without receiving '${tag}' event`);
   }
 }

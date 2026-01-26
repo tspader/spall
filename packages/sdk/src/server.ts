@@ -21,6 +21,7 @@ export namespace Server {
   export type StartOptions = {
     persist?: boolean;
     idleTimeout?: number;
+    force?: boolean;
   };
 
   export function increment(): void {
@@ -85,6 +86,7 @@ export namespace Server {
   export async function start(options?: StartOptions): Promise<ServerResult> {
     persist = options?.persist ?? false;
     idleTimeoutMs = options?.idleTimeout ?? 1000;
+    const force = options?.force ?? false;
 
     // sanity check; this function should only be called when you have the
     // process lock, so we *can* unconditionally write our pid and port to
@@ -98,12 +100,28 @@ export namespace Server {
       existing.port !== null &&
       (await checkHealth(existing.port))
     ) {
-      throw new Error(`Server is already running at port ${existing.port}`);
+      if (force) {
+        consola.info(
+          `Killing existing server (${pc.gray("pid")} ${pc.yellow(existing.pid)}, ${pc.gray("port")} ${pc.cyan(existing.port)})`,
+        );
+        try {
+          process.kill(existing.pid, "SIGTERM");
+          // Wait for it to die
+          await new Promise((resolve) => setTimeout(resolve, 500));
+          Lock.remove();
+        } catch {
+          // Process may have already died
+          Lock.remove();
+        }
+      } else {
+        throw new Error(`Server is already running at port ${existing.port}`);
+      }
     }
 
     server = Bun.serve({
       port: 0,
       fetch: App.get().fetch,
+      idleTimeout: 0,
     });
 
     const port = server.port;
@@ -112,12 +130,16 @@ export namespace Server {
       throw new Error("Failed to start server");
     }
 
+    consola.log(`Listening on port ${pc.cyanBright(String(port))}`);
+
     Lock.setPort(port);
 
     process.once("SIGINT", () => {
+      consola.info(`Received ${pc.gray("SIGINT")}`)
       stop();
     });
     process.once("SIGTERM", () => {
+      consola.info(`Received ${pc.gray("SIGTERM")}`)
       stop();
     });
 
@@ -135,7 +157,7 @@ export namespace Server {
   }
 
   export function stop(): void {
-    consola.info("Killing server");
+    consola.info("Stopping server");
     server.stop();
     Lock.remove();
     resolved();

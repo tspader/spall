@@ -106,6 +106,9 @@ export type ProjectCreateResponses = {
    */
   200:
     | {
+        tag: "sse.connected";
+      }
+    | {
         tag: "project.created";
         info: {
           id: number;
@@ -192,6 +195,16 @@ export type ProjectCreateResponses = {
     | {
         tag: "embed.done";
         numFiles: number;
+      }
+    | {
+        tag: "note.created";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
       };
 };
 
@@ -242,15 +255,110 @@ export type NoteAddErrors = {
 
 export type NoteAddResponses = {
   /**
-   * Note info
+   * Event stream
    */
-  200: {
-    id: number;
-    project: number;
-    path: string;
-    content: string;
-    contentHash: string;
-  };
+  200:
+    | {
+        tag: "sse.connected";
+      }
+    | {
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "project.updated";
+        foo: number;
+      }
+    | {
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+        downloaded: number;
+        total: number;
+      }
+    | {
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "store.create";
+        path: string;
+      }
+    | {
+        tag: "store.created";
+        path: string;
+      }
+    | {
+        tag: "scan.start";
+        numFiles: number;
+      }
+    | {
+        tag: "scan.progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan.done";
+        numFiles: number;
+      }
+    | {
+        tag: "embed.start";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+      }
+    | {
+        tag: "embed.progress";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
+        tag: "embed.done";
+        numFiles: number;
+      }
+    | {
+        tag: "note.created";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      };
 };
 
 export type NoteAddResponse = NoteAddResponses[keyof NoteAddResponses];
@@ -270,3 +378,120 @@ export type HealthResponses = {
 };
 
 export type HealthResponse = HealthResponses[keyof HealthResponses];
+
+export type EventsData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/events";
+};
+
+export type EventsResponses = {
+  /**
+   * Event stream
+   */
+  200:
+    | {
+        tag: "sse.connected";
+      }
+    | {
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "project.updated";
+        foo: number;
+      }
+    | {
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+        downloaded: number;
+        total: number;
+      }
+    | {
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "store.create";
+        path: string;
+      }
+    | {
+        tag: "store.created";
+        path: string;
+      }
+    | {
+        tag: "scan.start";
+        numFiles: number;
+      }
+    | {
+        tag: "scan.progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan.done";
+        numFiles: number;
+      }
+    | {
+        tag: "embed.start";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+      }
+    | {
+        tag: "embed.progress";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
+        tag: "embed.done";
+        numFiles: number;
+      }
+    | {
+        tag: "note.created";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      };
+};
+
+export type EventsResponse = EventsResponses[keyof EventsResponses];

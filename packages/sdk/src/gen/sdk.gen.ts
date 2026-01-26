@@ -8,6 +8,7 @@ import {
 } from "./client";
 import { client } from "./client.gen";
 import type {
+  EventsResponses,
   HealthResponses,
   NoteAddErrors,
   NoteAddResponses,
@@ -151,7 +152,7 @@ export class Note extends HeyApiClient {
         },
       ],
     );
-    return (options?.client ?? this.client).post<
+    return (options?.client ?? this.client).sse.post<
       NoteAddResponses,
       NoteAddErrors,
       ThrowOnError
@@ -279,6 +280,21 @@ export class SpallClient extends HeyApiClient {
       unknown,
       ThrowOnError
     >({ url: "/health", ...options });
+  }
+
+  /**
+   * Event stream
+   *
+   * Subscribe to all server events via SSE
+   */
+  public events<ThrowOnError extends boolean = false>(
+    options?: Options<never, ThrowOnError>,
+  ) {
+    return (options?.client ?? this.client).sse.get<
+      EventsResponses,
+      unknown,
+      ThrowOnError
+    >({ url: "/events", ...options });
   }
 
   private _note?: Note;

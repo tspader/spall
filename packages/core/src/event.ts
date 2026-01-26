@@ -17,7 +17,11 @@ export namespace Bus {
     });
   }
 
-  export type Subscription = (event: EventUnion) => void;
+  export namespace Event {
+    export const Connected = define("sse.connected", {});
+  }
+
+  export type Subscription = (event: EventUnion) => void | Promise<void>;
   const subscriptions: Set<Subscription> = new Set();
 
   export function subscribe(subscription: Subscription) {
@@ -25,9 +29,9 @@ export namespace Bus {
     return () => subscriptions.delete(subscription);
   }
 
-  export function publish(event: EventUnion) {
+  export async function publish(event: EventUnion) {
     for (const subscription of subscriptions) {
-      subscription(event);
+      await subscription(event);
     }
   }
 

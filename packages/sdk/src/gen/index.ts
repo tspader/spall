@@ -3,6 +3,9 @@
 export { Note, type Options, Project, SpallClient } from "./sdk.gen";
 export type {
   ClientOptions,
+  EventsData,
+  EventsResponse,
+  EventsResponses,
   HealthData,
   HealthResponse,
   HealthResponses,

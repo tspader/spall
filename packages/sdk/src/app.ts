@@ -1,14 +1,12 @@
 import { Hono } from "hono";
 import { logger } from "hono/logger";
-import {
-  describeRoute,
-  generateSpecs,
-  resolver,
-} from "hono-openapi";
+import { describeRoute, generateSpecs, resolver } from "hono-openapi";
 import { z } from "zod";
 
 import { Server } from "./server";
 import { ProjectRoutes } from "./routes/project";
+import { Sse } from "./sse";
+import { EventUnion } from "@spall/core";
 
 export namespace App {
   const app = new Hono();
@@ -27,10 +25,7 @@ export namespace App {
         }
       })
       .use(logger())
-      .route(
-        "/project",
-        ProjectRoutes()
-      )
+      .route("/project", ProjectRoutes())
       .get(
         "/health",
         describeRoute({
@@ -50,6 +45,27 @@ export namespace App {
         }),
         (c) => {
           return c.text("ok");
+        },
+      )
+      .get(
+        "/events",
+        describeRoute({
+          summary: "Event stream",
+          description: "Subscribe to all server events via SSE",
+          operationId: "events",
+          responses: {
+            200: {
+              description: "Event stream",
+              content: {
+                "text/event-stream": {
+                  schema: resolver(EventUnion),
+                },
+              },
+            },
+          },
+        }),
+        (c) => {
+          return Sse.subscribe(c);
         },
       );
     return app;
