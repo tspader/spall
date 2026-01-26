@@ -48,70 +48,15 @@ namespace Cli {
     return (s: string) => `\x1b[38;2;${r};${g};${b}m${s}\x1b[39m`;
   }
 
-  function hsv(h: number, s: number, v: number): (s: string) => string {
-    const hNorm = h / 360;
-    const sNorm = s / 100;
-    const vNorm = v / 100;
-
-    let r = vNorm,
-      g = vNorm,
-      b = vNorm;
-
-    if (sNorm > 1e-6) {
-      let h6 = hNorm * 6;
-      if (h6 >= 6) h6 = 0;
-      const sector = Math.floor(h6);
-      const f = h6 - sector;
-
-      const p = vNorm * (1 - sNorm);
-      const q = vNorm * (1 - sNorm * f);
-      const t = vNorm * (1 - sNorm * (1 - f));
-
-      switch (sector) {
-        case 0:
-          r = vNorm;
-          g = t;
-          b = p;
-          break;
-        case 1:
-          r = q;
-          g = vNorm;
-          b = p;
-          break;
-        case 2:
-          r = p;
-          g = vNorm;
-          b = t;
-          break;
-        case 3:
-          r = p;
-          g = q;
-          b = vNorm;
-          break;
-        case 4:
-          r = t;
-          g = p;
-          b = vNorm;
-          break;
-        case 5:
-          r = vNorm;
-          g = p;          b = q;
-          break;
-      }
-    }
-
-    return rgb(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
-  }
-
   function dim(s: string): string {
     return `\x1b[2m${s}\x1b[22m`;
   }
 
   export const defaultTheme: Theme = {
     header: dim,
-    command: hsv(153, 40, 63),
-    arg: hsv(180, 45, 90),
-    option: hsv(60, 45, 90),
+    command: rgb(96, 161, 127),
+    arg: rgb(126, 230, 230),
+    option: rgb(230, 230, 126),
     type: dim,
     description: (s) => s,
     dim,
@@ -147,25 +92,36 @@ namespace Cli {
     commands: Record<string, CommandDef>;
   };
 
-  function usage(
-    def: CommandDef | CliDef,
-    commandPath: string[],
-    theme: Theme,
-  ): string {
-    const parts: string[] = [];
+  function cols(rows: string[][], colorFns?: ((s: string) => string)[]): void {
+    if (rows.length === 0) return;
+    const widths = rows[0]!.map((_, i) =>
+      Math.max(...rows.map((r) => r[i]!.length)),
+    );
+    for (const row of rows) {
+      const line = row.map((c, i) => {
+        const padded = c.padEnd(widths[i]!);
+        return colorFns?.[i] ? colorFns[i]!(padded) : padded;
+      });
+      console.log(line.join(" "));
+    }
+  }
 
-    for (const part of commandPath) {
-      parts.push(theme.command(part));
+  function usage(def: CommandDef | CliDef, path: string[], t: Theme): string {
+    const parts: string[] = [];
+    const last = path.length - 1;
+    for (let i = 0; i < path.length; i++) {
+      parts.push(i === last ? t.command(path[i]!) : path[i]!);
     }
 
     if ("positionals" in def && def.positionals) {
-      for (const [posName, pos] of Object.entries(def.positionals)) {
-        parts.push(pos.required ? `$${posName}` : `[$${posName}]`);
+      for (const [k, v] of Object.entries(def.positionals)) {
+        const name = t.arg(`$${k}`);
+        parts.push(v.required ? name : `[${name}]`);
       }
     }
 
     if (def.options && Object.keys(def.options).length > 0) {
-      parts.push(theme.dim("[options]"));
+      parts.push(t.dim("[options]"));
     }
 
     if (
@@ -173,7 +129,7 @@ namespace Cli {
       def.commands &&
       Object.keys(def.commands).length > 0
     ) {
-      parts.push(theme.dim("$command"));
+      parts.push(t.dim("$command"));
     }
 
     return parts.join(" ");
@@ -182,154 +138,85 @@ namespace Cli {
   export function help(
     def: CommandDef | CliDef,
     name: string,
-    commandPath: string[] = [],
-    theme: Theme = defaultTheme,
+    path: string[] = [],
+    t: Theme = defaultTheme,
   ): void {
-    let hasPrevSection = false;
+    let prev = false;
 
     if (def.description) {
-      console.log(theme.description(def.description));
-      hasPrevSection = true;
+      console.log(t.description(def.description));
+      prev = true;
     }
 
-    if (hasPrevSection) console.log("");
-    const usageLine = usage(def, [name, ...commandPath], theme);
-    console.log(`${theme.header("usage:")}`)
-    console.log(`  ${usageLine}`);
-    hasPrevSection = true;
+    if (prev) console.log("");
+    console.log(t.header("usage:"));
+    console.log(`  ${usage(def, [name, ...path], t)}`);
+    prev = true;
 
-    // Positionals section
-    const positionals = "positionals" in def ? def.positionals : undefined;
-    if (positionals && Object.keys(positionals).length > 0) {
-      if (hasPrevSection) console.log("");
-      console.log(theme.header("arguments"));
-      hasPrevSection = true;
+    const pos = "positionals" in def ? def.positionals : undefined;
+    if (pos && Object.keys(pos).length > 0) {
+      if (prev) console.log("");
+      console.log(t.header("arguments"));
+      prev = true;
 
-      const nameCol: string[] = [];
-      const typeCol: string[] = [];
-      const descCol: string[] = [];
-
-      for (const [posName, pos] of Object.entries(positionals)) {
-        nameCol.push(`  ${posName}`);
-        typeCol.push(pos.type);
-        let desc = pos.description;
-        if (pos.default !== undefined) {
-          desc += ` ${theme.dim(`(default: ${pos.default})`)}`;
-        }
-        if (pos.required) {
-          desc += ` ${theme.dim("(required)")}`;
-        }
-        descCol.push(desc);
+      const rows: string[][] = [];
+      for (const [k, v] of Object.entries(pos)) {
+        let desc = v.description;
+        if (v.default !== undefined)
+          desc += ` ${t.dim(`(default: ${v.default})`)}`;
+        if (v.required) desc += ` ${t.dim("(required)")}`;
+        rows.push([`  ${k}`, v.type, desc]);
       }
-
-      const nameWidth = Math.max(...nameCol.map((s) => s.length));
-      const typeWidth = Math.max(...typeCol.map((s) => s.length));
-
-      for (let i = 0; i < nameCol.length; i++) {
-        console.log(
-          [
-            theme.arg(nameCol[i]!.padEnd(nameWidth)),
-            theme.type(typeCol[i]!.padEnd(typeWidth)),
-            theme.description(descCol[i]!),
-          ].join(" "),
-        );
-      }
+      cols(rows, [t.arg, t.type, t.description]);
     }
 
-    const opts = def.options ?? {};
-    const helpOpt: OptionDef = {
-      alias: "h",
-      type: "boolean",
-      description: "Show help",
+    const opts: Record<string, OptionDef> = {
+      help: { alias: "h", type: "boolean", description: "Show help" },
+      ...(def.options ?? {}),
     };
-    const allOpts: Record<string, OptionDef> = { help: helpOpt, ...opts };
 
-    if (Object.keys(allOpts).length > 0) {
-      if (hasPrevSection) console.log("");
-      console.log(theme.header("options"));
-      hasPrevSection = true;
+    if (Object.keys(opts).length > 0) {
+      if (prev) console.log("");
+      console.log(t.header("options"));
+      prev = true;
 
-      const optCol: string[] = [];
-      const typeCol: string[] = [];
-      const descCol: string[] = [];
-
-      for (const [optName, opt] of Object.entries(allOpts)) {
-        const short = opt.alias ? `-${opt.alias} ` : "   ";
-        const long = `--${optName}`;
-        optCol.push(`  ${short}${long}`);
-        typeCol.push(opt.type);
-
-        let desc = opt.description;
-        if (opt.default !== undefined && opt.type !== "boolean") {
-          desc += ` ${theme.dim(`(default: ${opt.default})`)}`;
+      const rows: string[][] = [];
+      for (const [k, v] of Object.entries(opts)) {
+        const short = v.alias ? `-${v.alias} ` : "   ";
+        let desc = v.description;
+        if (v.default !== undefined && v.type !== "boolean") {
+          desc += ` ${t.dim(`(default: ${v.default})`)}`;
         }
-        descCol.push(desc);
+        rows.push([`  ${short}--${k}`, v.type, desc]);
       }
-
-      const optWidth = Math.max(...optCol.map((s) => s.length));
-      const typeWidth = Math.max(...typeCol.map((s) => s.length));
-
-      for (let i = 0; i < optCol.length; i++) {
-        console.log(
-          [
-            theme.option(optCol[i]!.padEnd(optWidth)),
-            theme.type(typeCol[i]!.padEnd(typeWidth)),
-            theme.description(descCol[i]!),
-          ].join(" "),
-        );
-      }
+      cols(rows, [t.option, t.type, t.description]);
     }
 
-    // Commands section
-    const commands = "commands" in def ? def.commands : undefined;
-    if (commands && Object.keys(commands).length > 0) {
-      if (hasPrevSection) console.log("");
-      console.log(theme.header("commands"));
+    const cmds = "commands" in def ? def.commands : undefined;
+    if (cmds && Object.keys(cmds).length > 0) {
+      if (prev) console.log("");
+      console.log(t.header("commands"));
 
-      const nameCol: string[] = [];
-      const argsCol: string[] = [];
-      const descCol: string[] = [];
-
-      for (const [cmdName, cmd] of Object.entries(commands)) {
-        nameCol.push(`  ${cmdName}`);
-        const args = cmd.positionals
-          ? Object.keys(cmd.positionals).join(" ")
-          : "";
-        argsCol.push(args);
-        descCol.push(cmd.description);
+      const rows: string[][] = [];
+      for (const [k, v] of Object.entries(cmds)) {
+        const args = v.positionals ? Object.keys(v.positionals).join(" ") : "";
+        rows.push([`  ${k}`, args, v.description]);
       }
-
-      const nameWidth = Math.max(...nameCol.map((s) => s.length));
-      const argsWidth = Math.max(...argsCol.map((s) => s.length), 0);
-
-      for (let i = 0; i < nameCol.length; i++) {
-        const parts = [theme.command(nameCol[i]!.padEnd(nameWidth))];
-        if (argsWidth > 0) {
-          parts.push(theme.arg(argsCol[i]!.padEnd(argsWidth)));
-        }
-        parts.push(theme.description(descCol[i]!));
-        console.log(parts.join(" "));
-      }
+      cols(rows, [t.command, t.arg, t.description]);
     }
   }
 
-  function fail(
-    def: CommandDef | CliDef,
-    name: string,
-    commandPath: string[] = [],
-  ) {
-    return (msg: string | null, _err: Error | undefined, _usage: any): void => {
-      // Show help for --help flag
+  function fail(def: CommandDef | CliDef, name: string, path: string[] = []) {
+    return (msg: string | null): void => {
       if (process.argv.includes("--help") || process.argv.includes("-h")) {
-        help(def, name, commandPath);
+        help(def, name, path);
         process.exit(0);
       }
-      // Show help for missing command/arguments
       if (
         msg?.includes("You must specify") ||
         msg?.includes("Not enough non-option arguments")
       ) {
-        help(def, name, commandPath);
+        help(def, name, path);
         process.exit(1);
       }
       console.error(pc.red(msg ?? "Unknown error"));
@@ -337,21 +224,11 @@ namespace Cli {
     };
   }
 
-  function check(
-    def: CommandDef | CliDef,
-    name: string,
-    commandPath: string[] = [],
-  ) {
+  function check(def: CommandDef | CliDef, name: string, path: string[] = []) {
     return (argv: any): boolean => {
-      if (argv.help) {
-        // Only show help if we're at the right command depth
-        // argv._ contains the parsed command path
-        const argvDepth = argv._.length;
-        const expectedDepth = commandPath.length;
-        if (argvDepth === expectedDepth) {
-          help(def, name, commandPath);
-          process.exit(0);
-        }
+      if (argv.help && argv._.length === path.length) {
+        help(def, name, path);
+        process.exit(0);
       }
       return true;
     };
@@ -360,65 +237,62 @@ namespace Cli {
   function configure(
     y: any,
     def: CommandDef | CliDef,
-    rootName: string,
+    root: string,
     path: string[],
   ): void {
     if ("positionals" in def && def.positionals) {
-      for (const [name, pos] of Object.entries(def.positionals)) {
-        y.positional(name, {
-          type: pos.type,
-          describe: pos.description,
-          demandOption: pos.required,
-          default: pos.default,
+      for (const [k, v] of Object.entries(def.positionals)) {
+        y.positional(k, {
+          type: v.type,
+          describe: v.description,
+          demandOption: v.required,
+          default: v.default,
         });
       }
     }
 
     if (def.options) {
-      for (const [name, opt] of Object.entries(def.options)) {
-        y.option(name, {
-          alias: opt.alias,
-          type: opt.type,
-          describe: opt.description,
-          demandOption: opt.required,
-          default: opt.default,
+      for (const [k, v] of Object.entries(def.options)) {
+        y.option(k, {
+          alias: v.alias,
+          type: v.type,
+          describe: v.description,
+          demandOption: v.required,
+          default: v.default,
         });
       }
     }
 
     if ("commands" in def && def.commands) {
-      for (const [name, sub] of Object.entries(def.commands)) {
-        command(y, name, sub, rootName, path);
+      for (const [k, v] of Object.entries(def.commands)) {
+        command(y, k, v, root, path);
       }
       y.demandCommand(1, "You must specify a command");
     }
 
     y.help(false)
       .option("help", { alias: "h", type: "boolean", describe: "Show help" })
-      .check(check(def, rootName, path))
-      .fail(fail(def, rootName, path));
+      .check(check(def, root, path))
+      .fail(fail(def, root, path));
   }
 
   function command(
     y: any,
     name: string,
     def: CommandDef,
-    rootName: string,
+    root: string,
     path: string[],
   ): void {
-    const fullPath = [...path, name];
-
-    let cmdStr = name;
+    let cmd = name;
     if (def.positionals) {
-      for (const [posName, pos] of Object.entries(def.positionals)) {
-        cmdStr += pos.required ? ` <${posName}>` : ` [${posName}]`;
+      for (const [k, v] of Object.entries(def.positionals)) {
+        cmd += v.required ? ` <${k}>` : ` [${k}]`;
       }
     }
-
     y.command(
-      cmdStr,
+      cmd,
       def.description,
-      (yargs: any) => configure(yargs, def, rootName, fullPath),
+      (yargs: any) => configure(yargs, def, root, [...path, name]),
       def.handler,
     );
   }
