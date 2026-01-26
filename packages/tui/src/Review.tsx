@@ -27,7 +27,6 @@ import {
   EditorPanel,
   CommandPalette,
   ServerStatus,
-  HalfLineShadow,
 } from "./components";
 import { Client } from "@spall/sdk";
 import {
@@ -146,6 +145,8 @@ function App(props: AppProps) {
   const [editorInitialContent, setEditorInitialContent] = createSignal("");
   const [editorFilename, setEditorFilename] = createSignal("");
 
+  const [event, setEvent] = createSignal("");
+
   // Refs
   let diffScrollbox: ScrollBoxRenderable | null = null;
   let editorTextarea: TextareaRenderable | null = null;
@@ -225,11 +226,16 @@ function App(props: AppProps) {
     // Poll for git changes every second
     let lastHash = await getDiffHash(props.repoPath);
     const pollInterval = setInterval(async () => {
-      const hash = await getDiffHash(props.repoPath);
-      if (hash !== lastHash) {
-        lastHash = hash;
-        const newEntries = await getDiffEntries(props.repoPath);
-        setEntries(newEntries);
+      try {
+        const hash = await getDiffHash(props.repoPath);
+        if (hash !== lastHash) {
+          lastHash = hash;
+          const newEntries = await getDiffEntries(props.repoPath);
+          setEntries(newEntries);
+        }
+      } catch {
+        // Repo probably gone (deleted/moved) - stop polling
+        clearInterval(pollInterval);
       }
     }, 1000);
     onCleanup(() => clearInterval(pollInterval));
@@ -238,6 +244,19 @@ function App(props: AppProps) {
     try {
       const client = await Client.connect();
       const result = await client.health();
+      const { stream } = await client.events();
+
+      // @spader: not sure how to actually get events
+      (async () => {
+        for await (const e of stream) {
+          if (e.tag.length == 0) {
+            setEvent("nothing");
+          } else {
+            setEvent(e.tag);
+          }
+        }
+      })();
+
       if (result.response.ok) {
         setServerUrl(result.response.url.replace("/health", ""));
         setServerConnected(true);
@@ -467,9 +486,7 @@ function App(props: AppProps) {
   // Register commands for palette
   command.register(commands);
 
-  // Single keyboard handler
   useKeyboard((key) => {
-    // Command palette with Ctrl+P (always available)
     if (key.ctrl && key.name === "p") {
       dialog.show(() => <CommandPalette />);
       return;
@@ -532,7 +549,11 @@ function App(props: AppProps) {
           padding={1}
           backgroundColor={theme.backgroundPanel}
         >
-          <ServerStatus url={serverUrl} connected={serverConnected} />
+          <ServerStatus
+            url={serverUrl}
+            connected={serverConnected}
+            event={event}
+          />
           <FileList
             displayItems={displayItems}
             selectedFileIndex={selectedFileIndex}

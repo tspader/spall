@@ -19,7 +19,7 @@ export function Section(props: { title: string, children: JSXElement }) {
   const { theme } = useTheme();
 
   return (
-    <box flexDirection="column" backgroundColor={theme.backgroundPanel}>
+    <box flexDirection="column" backgroundColor={theme.backgroundPanel} flexGrow={1}>
       <Title title={props.title} />
       {props.children}
     </box>
