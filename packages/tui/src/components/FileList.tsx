@@ -13,8 +13,8 @@ export interface FileListProps {
   fileIndices: Accessor<number[]>;
   loading: Accessor<boolean>;
   focused: Accessor<boolean>;
-  /** Check if a file (by entry index) has any selected hunks */
-  hasSelectedHunks: (fileIndex: number) => boolean;
+  /** Check if a file (by path) has any selected hunks */
+  hasSelectedHunks: (filePath: string) => boolean;
 }
 
 /** Number of items to keep visible below the cursor */
@@ -93,11 +93,10 @@ export function FileList(props: FileListProps) {
                 );
               }
 
-              const textColor = () => isSelected(item) ? theme.primary : undefined;
+              const textColor = () =>
+                isSelected(item) ? theme.primary : undefined;
               const statusColor = () => {
-                const entryIdx = item.node.entryIndex;
-                return entryIdx !== undefined &&
-                  props.hasSelectedHunks(entryIdx)
+                return props.hasSelectedHunks(item.node.path)
                   ? theme.added
                   : theme.textMuted;
               };

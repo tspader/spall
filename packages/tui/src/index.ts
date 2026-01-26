@@ -1,12 +1,9 @@
 #!/usr/bin/env bun
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import { writeFileSync, existsSync, statSync } from "fs";
-import { join, dirname } from "path";
-import { mkdirSync } from "fs";
+import { existsSync, statSync } from "fs";
 
 import pc from "picocolors";
-import { Io } from "@spall/core/io";
 import { Client } from "@spall/sdk/client";
 import { Store, Review, ReviewComment } from "./lib/store";
 import consola from "consola";
@@ -14,10 +11,6 @@ import consola from "consola";
 // Initialize review store
 Store.init();
 
-const SPALL_DIR = ".spall";
-const NOTES_DIR = "notes";
-
-const TAG_WIDTH = 8;
 const BAR_WIDTH = 20;
 
 namespace Cli {
@@ -51,27 +44,12 @@ function renderProgressBar(percent: number): string {
   return pc.cyan("\u2588".repeat(filled) + "\u2591".repeat(empty));
 }
 
-function formatETA(seconds: number): string {
-  if (seconds < 60) return `${Math.round(seconds)}s`;
-  if (seconds < 3600)
-    return `${Math.floor(seconds / 60)}m ${Math.round(seconds % 60)}s`;
-  return `${Math.floor(seconds / 3600)}h ${Math.floor((seconds % 3600) / 60)}m`;
-}
-
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   if (bytes < 1024 * 1024 * 1024)
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
-}
-
-function getDirectory(): string {
-  return process.cwd();
-}
-
-function getNotesDir(): string {
-  return join(process.cwd(), SPALL_DIR, NOTES_DIR);
 }
 
 yargs(hideBin(process.argv))
@@ -385,212 +363,55 @@ yargs(hideBin(process.argv))
         });
     },
     async (argv) => {
-      const tag = pc.gray("server".padEnd(TAG_WIDTH));
-
       const { Server } = await import("@spall/sdk/server");
       const { port, stopped } = await Server.start({
         persist: argv.daemon,
         idleTimeout: argv.timeout * 1000,
       });
-      console.log(`${tag} Listening on port ${pc.cyanBright(String(port))}`);
+      console.log(
+        `${pc.gray("server")}  Listening on port ${pc.cyanBright(String(port))}`,
+      );
 
       await stopped;
-    },
-  )
-  .command(
-    "index",
-    "Index all notes in .spall/notes",
-    () => {},
-    async () => {
-      // const directory = getDirectory();
-      // const tag = pc.gray("index".padEnd(TAG_WIDTH));
-      // const clear = "\x1b[K";
-      //
-      // // Set up index event handler
-      // let startTimeNs = 0;
-      // let totalFiles = 0;
-      // let totalBytes = 0;
-      //
-      // const handleEvent = (event: EventUnion) => {
-      //   if (event.tag === "scan") {
-      //     switch (event.action) {
-      //       case "start":
-      //         console.log(`${tag} Scanning ${event.total} files`);
-      //         break;
-      //       case "progress":
-      //         // Could show per-file progress here if desired
-      //         break;
-      //       case "done":
-      //         console.log(`${tag} Scan complete`);
-      //         break;
-      //     }
-      //   } else if (event.tag === "embed") {
-      //     switch (event.action) {
-      //       case "start":
-      //         startTimeNs = Bun.nanoseconds();
-      //         totalFiles = event.totalDocs;
-      //         totalBytes = event.totalBytes;
-      //         console.log(
-      //           `${tag} Embedding ${event.totalDocs} files (${event.totalChunks} chunks, ${formatBytes(event.totalBytes)})`,
-      //         );
-      //         break;
-      //       case "progress": {
-      //         const percent = (event.bytesProcessed / totalBytes) * 100;
-      //         const bar = renderProgressBar(percent);
-      //         const percentStr = percent.toFixed(0).padStart(3);
-      //
-      //         const elapsedSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-      //         const bytesPerSec = event.bytesProcessed / elapsedSec;
-      //         const remainingBytes = totalBytes - event.bytesProcessed;
-      //         const etaSec = remainingBytes / bytesPerSec;
-      //
-      //         const throughput = `${formatBytes(bytesPerSec)}/s`;
-      //         const eta = elapsedSec > 2 ? formatETA(etaSec) : "...";
-      //         const fileProgress = `${event.filesProcessed}/${totalFiles}`;
-      //
-      //         process.stdout.write(
-      //           `\r${bar} ${pc.bold(percentStr + "%")} ${pc.dim(fileProgress)} ${pc.dim(throughput)} ${pc.dim("ETA " + eta)}${clear}`,
-      //         );
-      //         break;
-      //       }
-      //       case "done": {
-      //         const totalTimeSec = (Bun.nanoseconds() - startTimeNs) / 1e9;
-      //         console.log(`\r${renderProgressBar(100)} 100%${clear}`);
-      //         console.log(
-      //           `Finished in ${pc.bold(totalTimeSec.toPrecision(3))}s`,
-      //         );
-      //         break;
-      //       }
-      //     }
-      //   }
-      // };
-      //
-      // const client = await Client.connect();
-      //
-      // // Call index endpoint and consume SSE stream
-      // const { stream } = await client.index({ directory });
-      //
-      // for await (const event of stream) {
-      //   handleEvent(event);
-      // }
     },
   )
   .command(
     "get <path>",
     "Get the content of a note",
     (yargs) => {
-      return yargs.positional("path", {
-        describe: "Path to the note",
-        type: "string",
-        demandOption: true,
-      });
-    },
-    (argv) => {
-      const content = Io.read(getNotesDir(), argv.path);
-      console.log(content);
-    },
-  )
-  .command(
-    "new <path>",
-    "Create a new note",
-    (yargs) => {
       return yargs
         .positional("path", {
-          describe: "Path for the note (e.g. style/indentation.md)",
+          describe: "Path to the note",
           type: "string",
           demandOption: true,
         })
-        .option("content", {
-          alias: "c",
+        .option("project", {
+          alias: "p",
           type: "string",
-          describe: "Content for the note",
-          default: "",
-        });
-    },
-    (argv) => {
-      const notesDir = getNotesDir();
-      let notePath = argv.path;
-      if (!notePath.endsWith(".md")) {
-        notePath += ".md";
-      }
-      const filepath = join(notesDir, notePath);
-      const dir = dirname(filepath);
-
-      if (!existsSync(dir)) {
-        mkdirSync(dir, { recursive: true });
-      }
-
-      if (existsSync(filepath)) {
-        console.log(
-          `${pc.gray("new".padEnd(TAG_WIDTH))} ${pc.red("exists")} ${notePath}`,
-        );
-        return;
-      }
-
-      writeFileSync(filepath, argv.content);
-      console.log(`${pc.gray("new".padEnd(TAG_WIDTH))} created ${notePath}`);
-      console.log(
-        `${pc.gray("".padEnd(TAG_WIDTH))} run 'spall index' to index`,
-      );
-    },
-  )
-  .command(
-    "search <query>",
-    "Search for similar notes",
-    (yargs) => {
-      return yargs
-        .positional("query", {
-          describe: "Search query text",
-          type: "string",
-          demandOption: true,
-        })
-        .option("limit", {
-          alias: "n",
-          type: "number",
-          describe: "Maximum number of results",
-          default: 10,
+          describe: "Project name (defaults to 'default')",
+          default: "default",
         });
     },
     async (argv) => {
-      // const directory = getDirectory();
-      //
-      // // Connect to server (auto-start if needed)
-      // const client = await Client.connect();
-      //
-      // const result = await client.search({
-      //   directory,
-      //   query: argv.query,
-      //   limit: argv.limit,
-      // });
-      //
-      // if (result.error || !result.data) {
-      //   console.error("Search failed:", result.error);
-      //   process.exit(1);
-      // }
-      //
-      // const results = result.data;
-      //
-      // if (results.length === 0) {
-      //   console.log("No results found.");
-      // } else {
-      //   // Dedupe by key (multiple chunks may match)
-      //   const seen = new Set<string>();
-      //   for (const r of results) {
-      //     if (seen.has(r.key)) continue;
-      //     seen.add(r.key);
-      //
-      //     const similarity = (1 - r.distance).toFixed(3);
-      //     const content = Io.read(getNotesDir(), r.key);
-      //     const preview = content
-      //       ? content.slice(0, 80).replace(/\n/g, " ") +
-      //         (content.length > 80 ? "..." : "")
-      //       : "(no content)";
-      //
-      //     console.log(
-      //       `${pc.green(similarity)} ${pc.cyan(r.key)} ${pc.gray(preview)}`,
-      //     );
-      //   }
-      // }
+      const client = await Client.connect();
+
+      const project = await client.project
+        .get({ name: argv.project })
+        .then(Client.unwrap)
+        .catch(() => {
+          consola.error(`Project not found: ${pc.cyan(argv.project)}`);
+          process.exit(1);
+        });
+
+      const note = await client.note
+        .get({ id: String(project.id), path: argv.path })
+        .then(Client.unwrap)
+        .catch(() => {
+          consola.error(`Note not found: ${pc.cyan(argv.path)}`);
+          process.exit(1);
+        });
+
+      console.log(note.content);
     },
   )
   .command(
@@ -623,9 +444,49 @@ yargs(hideBin(process.argv))
         return;
       }
 
+      // Build tree
+      type TreeNode = {
+        name: string;
+        isDir: boolean;
+        children: Map<string, TreeNode>;
+      };
+      const root: TreeNode = { name: "", isDir: true, children: new Map() };
+
       for (const note of notes) {
-        console.log(`${pc.dim(String(note.id).padStart(4))}  ${note.path}`);
+        const parts = note.path.split("/");
+        let current = root;
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i]!;
+          const isLast = i === parts.length - 1;
+          if (!current.children.has(part)) {
+            current.children.set(part, {
+              name: part,
+              isDir: !isLast,
+              children: new Map(),
+            });
+          }
+          current = current.children.get(part)!;
+        }
       }
+
+      // Print tree
+      function printTree(node: TreeNode, indent: string = ""): void {
+        const sorted = Array.from(node.children.entries()).sort((a, b) => {
+          if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
+          return a[0].localeCompare(b[0]);
+        });
+
+        for (const [name, child] of sorted) {
+          if (child.isDir) {
+            console.log(`${indent}${pc.cyan(name + "/")}`);
+            printTree(child, indent + "  ");
+          } else {
+            console.log(`${indent}${name}`);
+          }
+        }
+      }
+
+      printTree(root);
     },
   )
   .command(

@@ -37,17 +37,23 @@ import {
   moveUp,
 } from "./lib/selection";
 import {
-  type SelectedHunk,
+  type HunkSelections,
+  createHunkSelections,
   toggleHunkSelection,
-  clearSelection as clearHunkSelection,
-  getFileSelectionCount,
+  clearHunkSelections,
+  getFileHunkSelectionCount,
+  getHunkSelectionCount,
+  hasSelectedHunks,
 } from "./lib/hunk-selection";
 import {
-  type LineSelection,
+  type LineSelections,
+  createLineSelections,
   addLineSelection,
   clearLineSelections,
   getLineSelectionsForFile,
   getFileLineSelectionCount,
+  getLineSelectionCount,
+  hasLineSelections,
 } from "./lib/line-selection";
 import {
   buildFileTree,
@@ -127,10 +133,14 @@ function App(props: AppProps) {
   });
 
   // Hunk selection state (for multi-hunk comments)
-  const [selectedHunks, setSelectedHunks] = createSignal<SelectedHunk[]>([]);
+  const [selectedHunks, setSelectedHunks] = createSignal<HunkSelections>(
+    createHunkSelections(),
+  );
 
   // Line selection state (for line-by-line mode)
-  const [lineSelections, setLineSelections] = createSignal<LineSelection[]>([]);
+  const [lineSelections, setLineSelections] = createSignal<LineSelections>(
+    createLineSelections(),
+  );
 
   // Editor state
   const [editorInitialContent, setEditorInitialContent] = createSignal("");
@@ -415,11 +425,11 @@ function App(props: AppProps) {
       isActive: () =>
         focusPanel() === "diff" && !lineMode() && blocks().length > 0,
       onExecute: () => {
-        const fileIdx = fileIndices()[selectedFileIndex()];
+        const entry = selectedEntry();
         const blockIdx = selectedBlockIndex();
-        if (fileIdx !== undefined) {
+        if (entry) {
           setSelectedHunks(
-            toggleHunkSelection(selectedHunks(), fileIdx, blockIdx),
+            toggleHunkSelection(selectedHunks(), entry.file, blockIdx),
           );
         }
       },
@@ -431,11 +441,11 @@ function App(props: AppProps) {
       keybinds: [{ name: "space" }],
       isActive: () => focusPanel() === "diff" && lineMode(),
       onExecute: () => {
-        const fileIdx = fileIndices()[selectedFileIndex()];
-        if (fileIdx !== undefined) {
+        const entry = selectedEntry();
+        if (entry) {
           const sel = selection();
           setLineSelections(
-            addLineSelection(lineSelections(), fileIdx, sel.start, sel.end),
+            addLineSelection(lineSelections(), entry.file, sel.start, sel.end),
           );
         }
       },
@@ -448,7 +458,8 @@ function App(props: AppProps) {
       keybinds: [{ name: "c" }],
       isActive: () =>
         focusPanel() !== "editor" &&
-        (selectedHunks().length > 0 || lineSelections().length > 0),
+        (getHunkSelectionCount(selectedHunks()) > 0 ||
+          getLineSelectionCount(lineSelections()) > 0),
       onExecute: openCommentEditor,
     },
   ];
@@ -488,7 +499,7 @@ function App(props: AppProps) {
           <text fg="brightBlack">select</text>
         </box>
       </Show>
-      <Show when={selectedHunks().length > 0}>
+      <Show when={getHunkSelectionCount(selectedHunks()) > 0}>
         <box flexDirection="row">
           <text>c </text>
           <text fg="brightBlack">comment</text>
@@ -528,9 +539,9 @@ function App(props: AppProps) {
             fileIndices={fileIndices}
             loading={loading}
             focused={() => focusPanel() === "sidebar"}
-            hasSelectedHunks={(fileIndex) =>
-              getFileSelectionCount(selectedHunks(), fileIndex) > 0 ||
-              getFileLineSelectionCount(lineSelections(), fileIndex) > 0
+            hasSelectedHunks={(filePath) =>
+              hasSelectedHunks(selectedHunks(), filePath) ||
+              hasLineSelections(lineSelections(), filePath)
             }
           />
         </box>
@@ -546,7 +557,7 @@ function App(props: AppProps) {
             lineMode={lineMode}
             selectedHunks={selectedHunks}
             lineSelections={lineSelections}
-            currentFileIndex={() => fileIndices()[selectedFileIndex()]}
+            currentFilePath={() => selectedEntry()?.file}
             onScrollboxRef={(ref) => (diffScrollbox = ref)}
           />
 
@@ -559,7 +570,7 @@ function App(props: AppProps) {
               onSubmit={(content) => {
                 console.log("Saved annotation:", content);
                 console.log("Selected hunks:", selectedHunks());
-                setSelectedHunks(clearHunkSelection());
+                setSelectedHunks(clearHunkSelections());
                 setLineSelections(clearLineSelections());
                 setFocusPanel("diff");
               }}

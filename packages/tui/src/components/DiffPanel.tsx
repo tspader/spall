@@ -3,9 +3,9 @@ import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { type DiffEntry, type ChangeBlock, countDiffLines } from "../lib/git";
 import type { Selection } from "../lib/selection";
-import { type SelectedHunk, isHunkSelected } from "../lib/hunk-selection";
+import { type HunkSelections, isHunkSelected } from "../lib/hunk-selection";
 import {
-  type LineSelection,
+  type LineSelections,
   getLineSelectionsForFile,
 } from "../lib/line-selection";
 import { useTheme } from "../context/theme";
@@ -94,9 +94,9 @@ export interface DiffPanelProps {
   showBlockIndicator: Accessor<boolean>;
   selection: Accessor<Selection>;
   lineMode: Accessor<boolean>;
-  selectedHunks: Accessor<SelectedHunk[]>;
-  lineSelections: Accessor<LineSelection[]>;
-  currentFileIndex: Accessor<number | undefined>;
+  selectedHunks: Accessor<HunkSelections>;
+  lineSelections: Accessor<LineSelections>;
+  currentFilePath: Accessor<string | undefined>;
   onScrollboxRef: (ref: ScrollBoxRenderable) => void;
 }
 
@@ -106,9 +106,9 @@ interface DiffIndicatorProps {
   blocks: Accessor<ChangeBlock[]>;
   selectedBlockIndex: Accessor<number>;
   selection: Accessor<Selection>;
-  selectedHunks: Accessor<SelectedHunk[]>;
-  lineSelections: Accessor<LineSelection[]>;
-  currentFileIndex: Accessor<number | undefined>;
+  selectedHunks: Accessor<HunkSelections>;
+  lineSelections: Accessor<LineSelections>;
+  currentFilePath: Accessor<string | undefined>;
   focused: Accessor<boolean>;
   totalLines: Accessor<number>;
 }
@@ -119,14 +119,14 @@ function DiffIndicator(props: DiffIndicatorProps) {
   // Build a map of line number -> color
   const lineColors = createMemo(() => {
     const colors = new Map<number, string>();
-    const fileIdx = props.currentFileIndex();
-    if (fileIdx === undefined) return colors;
+    const filePath = props.currentFilePath();
+    if (filePath === undefined) return colors;
 
     if (props.lineMode()) {
       // Line mode: stored line selections (lower priority)
       const fileLineSelections = getLineSelectionsForFile(
         props.lineSelections(),
-        fileIdx,
+        filePath,
       );
       for (const lineSel of fileLineSelections) {
         for (let i = lineSel.startLine; i <= lineSel.endLine; i++) {
@@ -148,7 +148,7 @@ function DiffIndicator(props: DiffIndicatorProps) {
         const block = blocks[blockIndex]!;
         const isSelected = isHunkSelected(
           props.selectedHunks(),
-          fileIdx,
+          filePath,
           blockIndex,
         );
         const isFocused =
@@ -252,7 +252,7 @@ export function DiffPanel(props: DiffPanelProps) {
               selection={props.selection}
               selectedHunks={props.selectedHunks}
               lineSelections={props.lineSelections}
-              currentFileIndex={props.currentFileIndex}
+              currentFilePath={props.currentFilePath}
               focused={props.focused}
               totalLines={totalLines}
             />
@@ -282,7 +282,6 @@ export function DiffPanel(props: DiffPanelProps) {
           <text>Select a file to view diff</text>
         </box>
       </Show>
-
     </box>
   );
 }
