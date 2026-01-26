@@ -8,9 +8,6 @@ import { Client } from "@spall/sdk/client";
 import { Store, Review, ReviewComment } from "./lib/store";
 import consola from "consola";
 
-// Initialize review store
-Store.init();
-
 const BAR_WIDTH = 20;
 
 namespace Cli {
@@ -47,12 +44,10 @@ namespace Cli {
     dim: (s: string) => string;
   };
 
-  // Generate truecolor ANSI escape for RGB
   function rgb(r: number, g: number, b: number): (s: string) => string {
     return (s: string) => `\x1b[38;2;${r};${g};${b}m${s}\x1b[39m`;
   }
 
-  // Convert HSV to RGB (h: 0-360, s: 0-100, v: 0-100)
   function hsv(h: number, s: number, v: number): (s: string) => string {
     const hNorm = h / 360;
     const sNorm = s / 100;
@@ -100,8 +95,7 @@ namespace Cli {
           break;
         case 5:
           r = vNorm;
-          g = p;
-          b = q;
+          g = p;          b = q;
           break;
       }
     }
@@ -109,18 +103,20 @@ namespace Cli {
     return rgb(Math.round(r * 255), Math.round(g * 255), Math.round(b * 255));
   }
 
-  // Theme matching TUI colors with desaturated palette
+  function dim(s: string): string {
+    return `\x1b[2m${s}\x1b[22m`;
+  }
+
   export const defaultTheme: Theme = {
-    header: pc.dim,
-    command: hsv(153, 40, 63), // desaturated zomp/teal
-    arg: hsv(180, 45, 90), // desaturated cyan
-    option: hsv(60, 45, 90), // desaturated yellow
-    type: pc.dim,
+    header: dim,
+    command: hsv(153, 40, 63),
+    arg: hsv(180, 45, 90),
+    option: hsv(60, 45, 90),
+    type: dim,
     description: (s) => s,
-    dim: pc.dim,
+    dim,
   };
 
-  // CLI definition types
   export type OptionDef = {
     alias?: string;
     type: "string" | "number" | "boolean" | "array";
@@ -151,37 +147,39 @@ namespace Cli {
     commands: Record<string, CommandDef>;
   };
 
-  // Build usage line from command path and positionals
-  function buildUsageLine(
-    name: string,
+  function usage(
     def: CommandDef | CliDef,
     commandPath: string[],
+    theme: Theme,
   ): string {
-    const parts = [name, ...commandPath];
+    const parts: string[] = [];
+
+    for (const part of commandPath) {
+      parts.push(theme.command(part));
+    }
 
     if ("positionals" in def && def.positionals) {
       for (const [posName, pos] of Object.entries(def.positionals)) {
-        parts.push(pos.required ? `<${posName}>` : `[${posName}]`);
+        parts.push(pos.required ? `$${posName}` : `[$${posName}]`);
       }
     }
 
-    const hasOptions = def.options && Object.keys(def.options).length > 0;
-    const hasSubcommands =
-      "commands" in def && def.commands && Object.keys(def.commands).length > 0;
-
-    if (hasOptions) {
-      parts.push("[options]");
+    if (def.options && Object.keys(def.options).length > 0) {
+      parts.push(theme.dim("[options]"));
     }
 
-    if (hasSubcommands) {
-      parts.push("<command>");
+    if (
+      "commands" in def &&
+      def.commands &&
+      Object.keys(def.commands).length > 0
+    ) {
+      parts.push(theme.dim("$command"));
     }
 
     return parts.join(" ");
   }
 
-  // Print help from CLI definition
-  export function printHelp(
+  export function help(
     def: CommandDef | CliDef,
     name: string,
     commandPath: string[] = [],
@@ -189,13 +187,16 @@ namespace Cli {
   ): void {
     let hasPrevSection = false;
 
-    const usageLine = buildUsageLine(name, def, commandPath);
-    console.log(`Usage: ${usageLine}`);
-    hasPrevSection = true;
-
     if (def.description) {
       console.log(theme.description(def.description));
+      hasPrevSection = true;
     }
+
+    if (hasPrevSection) console.log("");
+    const usageLine = usage(def, [name, ...commandPath], theme);
+    console.log(`${theme.header("usage:")}`)
+    console.log(`  ${usageLine}`);
+    hasPrevSection = true;
 
     // Positionals section
     const positionals = "positionals" in def ? def.positionals : undefined;
@@ -235,7 +236,6 @@ namespace Cli {
       }
     }
 
-    // Options section (always include --help)
     const opts = def.options ?? {};
     const helpOpt: OptionDef = {
       alias: "h",
@@ -313,28 +313,31 @@ namespace Cli {
     }
   }
 
-  // Create fail handler for a command definition
-  function failHandler(
+  function fail(
     def: CommandDef | CliDef,
     name: string,
     commandPath: string[] = [],
   ) {
     return (msg: string | null, _err: Error | undefined, _usage: any): void => {
+      // Show help for --help flag
       if (process.argv.includes("--help") || process.argv.includes("-h")) {
-        printHelp(def, name, commandPath);
+        help(def, name, commandPath);
         process.exit(0);
       }
-      if (msg?.includes("You must specify")) {
-        printHelp(def, name, commandPath);
-        process.exit(0);
+      // Show help for missing command/arguments
+      if (
+        msg?.includes("You must specify") ||
+        msg?.includes("Not enough non-option arguments")
+      ) {
+        help(def, name, commandPath);
+        process.exit(1);
       }
       console.error(pc.red(msg ?? "Unknown error"));
       process.exit(1);
     };
   }
 
-  // Create help check for a command definition
-  function helpChecker(
+  function check(
     def: CommandDef | CliDef,
     name: string,
     commandPath: string[] = [],
@@ -346,7 +349,7 @@ namespace Cli {
         const argvDepth = argv._.length;
         const expectedDepth = commandPath.length;
         if (argvDepth === expectedDepth) {
-          printHelp(def, name, commandPath);
+          help(def, name, commandPath);
           process.exit(0);
         }
       }
@@ -354,86 +357,26 @@ namespace Cli {
     };
   }
 
-  // Build yargs command from definition
-  function buildCommand(
+  function configure(
     y: any,
-    name: string,
-    def: CommandDef,
+    def: CommandDef | CliDef,
     rootName: string,
-    commandPath: string[] = [],
-  ): any {
-    const fullPath = [...commandPath, name];
-
-    // Build command string with positionals
-    let cmdStr = name;
-    if (def.positionals) {
-      for (const [posName, pos] of Object.entries(def.positionals)) {
-        cmdStr += pos.required ? ` <${posName}>` : ` [${posName}]`;
+    path: string[],
+  ): void {
+    if ("positionals" in def && def.positionals) {
+      for (const [name, pos] of Object.entries(def.positionals)) {
+        y.positional(name, {
+          type: pos.type,
+          describe: pos.description,
+          demandOption: pos.required,
+          default: pos.default,
+        });
       }
     }
 
-    return y.command(
-      cmdStr,
-      def.description,
-      (yargs: any) => {
-        // Add positionals
-        if (def.positionals) {
-          for (const [posName, pos] of Object.entries(def.positionals)) {
-            yargs.positional(posName, {
-              type: pos.type,
-              describe: pos.description,
-              demandOption: pos.required,
-              default: pos.default,
-            });
-          }
-        }
-
-        // Add options
-        if (def.options) {
-          for (const [optName, opt] of Object.entries(def.options)) {
-            yargs.option(optName, {
-              alias: opt.alias,
-              type: opt.type,
-              describe: opt.description,
-              demandOption: opt.required,
-              default: opt.default,
-            });
-          }
-        }
-
-        // Add subcommands recursively
-        if (def.commands) {
-          for (const [subName, subDef] of Object.entries(def.commands)) {
-            buildCommand(yargs, subName, subDef, rootName, fullPath);
-          }
-          yargs.demandCommand(1, "You must specify a command");
-        }
-
-        // Add help handling
-        yargs
-          .help(false)
-          .option("help", {
-            alias: "h",
-            type: "boolean",
-            describe: "Show help",
-          })
-          .check(helpChecker(def, rootName, fullPath))
-          .fail(failHandler(def, rootName, fullPath));
-
-        return yargs;
-      },
-      def.handler,
-    );
-  }
-
-  // Build full CLI from definition
-  export function build(def: CliDef): any {
-    const y = yargs(hideBin(process.argv)).scriptName(def.name);
-
-    // Add root options
     if (def.options) {
-      for (const [optName, opt] of Object.entries(def.options)) {
-        y.option(optName, {
+      for (const [name, opt] of Object.entries(def.options)) {
+        y.option(name, {
           alias: opt.alias,
           type: opt.type,
           describe: opt.description,
@@ -443,23 +386,47 @@ namespace Cli {
       }
     }
 
-    // Add commands
-    for (const [cmdName, cmdDef] of Object.entries(def.commands)) {
-      buildCommand(y, cmdName, cmdDef, def.name);
+    if ("commands" in def && def.commands) {
+      for (const [name, sub] of Object.entries(def.commands)) {
+        command(y, name, sub, rootName, path);
+      }
+      y.demandCommand(1, "You must specify a command");
     }
 
-    // Root help handling
-    y.demandCommand(1, "You must specify a command")
-      .strict()
-      .help(false)
-      .option("help", {
-        alias: "h",
-        type: "boolean",
-        describe: "Show help",
-      })
-      .check(helpChecker(def, def.name))
-      .fail(failHandler(def, def.name));
+    y.help(false)
+      .option("help", { alias: "h", type: "boolean", describe: "Show help" })
+      .check(check(def, rootName, path))
+      .fail(fail(def, rootName, path));
+  }
 
+  function command(
+    y: any,
+    name: string,
+    def: CommandDef,
+    rootName: string,
+    path: string[],
+  ): void {
+    const fullPath = [...path, name];
+
+    let cmdStr = name;
+    if (def.positionals) {
+      for (const [posName, pos] of Object.entries(def.positionals)) {
+        cmdStr += pos.required ? ` <${posName}>` : ` [${posName}]`;
+      }
+    }
+
+    y.command(
+      cmdStr,
+      def.description,
+      (yargs: any) => configure(yargs, def, rootName, fullPath),
+      def.handler,
+    );
+  }
+
+  export function build(def: CliDef): any {
+    const y = yargs(hideBin(process.argv)).scriptName(def.name);
+    configure(y, def, def.name, []);
+    y.strict();
     return y;
   }
 }
@@ -929,6 +896,8 @@ const cliDef: Cli.CliDef = {
     tui: {
       description: "Launch the interactive TUI",
       handler: async () => {
+        Store.init();
+
         await import("@opentui/solid/preload");
         const { tui } = await import("./App");
         await tui({ repoPath: process.cwd() });
