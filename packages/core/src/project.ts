@@ -22,6 +22,8 @@ export namespace Project {
     name: z.string(),
     dir: z.string(),
     noteCount: z.number(),
+    createdAt: z.number(),
+    updatedAt: z.number(),
   });
   export type Info = z.infer<typeof Info>;
 
@@ -36,7 +38,13 @@ export namespace Project {
 
   export const DEFAULT_NAME = "default";
 
-  type ProjectRow = { id: number; name: string; dir: string };
+  type ProjectRow = {
+    id: number;
+    name: string;
+    dir: string;
+    created_at: number;
+    updated_at: number;
+  };
 
   function countNotes(
     db: ReturnType<typeof Store.get>,
@@ -81,6 +89,8 @@ export namespace Project {
         name: row.name,
         dir: row.dir,
         noteCount: countNotes(db, row.id),
+        createdAt: row.created_at,
+        updatedAt: row.updated_at,
       };
     },
   );
@@ -96,6 +106,8 @@ export namespace Project {
       name: row.name,
       dir: row.dir,
       noteCount: countNotes(db, row.id),
+      createdAt: row.created_at,
+      updatedAt: row.updated_at,
     }));
   });
 
@@ -109,17 +121,22 @@ export namespace Project {
       const db = Store.get();
 
       const name = input.name ?? basename(input.dir);
-      const row = db.prepare(Sql.INSERT_PROJECT).get(name, input.dir) as {
+      const now = Date.now();
+      const row = db
+        .prepare(Sql.INSERT_PROJECT)
+        .get(name, input.dir, now, now) as {
         id: number;
       };
 
-      await Model.fakeDownload();
+      //await Model.fakeDownload();
 
       const project: Info = {
         id: Id.parse(row.id),
         name,
         dir: input.dir,
         noteCount: 0,
+        createdAt: now,
+        updatedAt: now,
       };
       await Bus.publish({ tag: "project.created", info: project });
     },

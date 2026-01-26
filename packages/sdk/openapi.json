@@ -146,13 +146,21 @@
                             },
                             "noteCount": {
                               "type": "number"
+                            },
+                            "createdAt": {
+                              "type": "number"
+                            },
+                            "updatedAt": {
+                              "type": "number"
                             }
                           },
                           "required": [
                             "id",
                             "name",
                             "dir",
-                            "noteCount"
+                            "noteCount",
+                            "createdAt",
+                            "updatedAt"
                           ]
                         }
                       },
@@ -525,13 +533,21 @@
                     },
                     "noteCount": {
                       "type": "number"
+                    },
+                    "createdAt": {
+                      "type": "number"
+                    },
+                    "updatedAt": {
+                      "type": "number"
                     }
                   },
                   "required": [
                     "id",
                     "name",
                     "dir",
-                    "noteCount"
+                    "noteCount",
+                    "createdAt",
+                    "updatedAt"
                   ]
                 }
               }
@@ -582,13 +598,21 @@
                       },
                       "noteCount": {
                         "type": "number"
+                      },
+                      "createdAt": {
+                        "type": "number"
+                      },
+                      "updatedAt": {
+                        "type": "number"
                       }
                     },
                     "required": [
                       "id",
                       "name",
                       "dir",
-                      "noteCount"
+                      "noteCount",
+                      "createdAt",
+                      "updatedAt"
                     ]
                   }
                 }

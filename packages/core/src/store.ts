@@ -45,19 +45,14 @@ export namespace Store {
       path: z.string(),
     }),
     Scan: Bus.define("scan.start", {
-      numFiles: z.number()
+      numFiles: z.number(),
     }),
     ScanProgress: Bus.define("scan.progress", {
       path: z.string(),
-      status: z.enum([
-        "added",
-        "modified",
-        "removed",
-        "ok",
-      ])
+      status: z.enum(["added", "modified", "removed", "ok"]),
     }),
     Scanned: Bus.define("scan.done", {
-      numFiles: z.number()
+      numFiles: z.number(),
     }),
     Embed: Bus.define("embed.start", {
       numFiles: z.number(),
@@ -72,9 +67,8 @@ export namespace Store {
       numBytesProcessed: z.number(),
     }),
     Embedded: Bus.define("embed.done", {
-      numFiles: z.number()
+      numFiles: z.number(),
     }),
-
   };
 
   let instance: Database | null = null;
@@ -341,7 +335,7 @@ export namespace Store {
       files.push(file);
     }
 
-    await Bus.publish({ tag: "scan.start", numFiles: files.length })
+    await Bus.publish({ tag: "scan.start", numFiles: files.length });
 
     const diskFiles = new Set<string>();
     const added: string[] = [];
@@ -369,7 +363,7 @@ export namespace Store {
         status = "ok";
       }
 
-      await Bus.publish({ tag: "scan.progress", path: file, status: status })
+      await Bus.publish({ tag: "scan.progress", path: file, status: status });
     }
 
     // Check for deleted files
@@ -378,11 +372,15 @@ export namespace Store {
       if (!diskFiles.has(file)) {
         removeFile(file);
         removed.push(file);
-        await Bus.publish({ tag: "scan.progress", path: file, status: "removed" })
+        await Bus.publish({
+          tag: "scan.progress",
+          path: file,
+          status: "removed",
+        });
       }
     }
 
-    await Bus.publish({ tag: "scan.done", numFiles: files.length })
+    await Bus.publish({ tag: "scan.done", numFiles: files.length });
 
     const unembedded = listUnembeddedFiles();
     return { added, modified, removed, unembedded };
@@ -418,10 +416,10 @@ export namespace Store {
       });
     }
 
-    const numFiles = work.length
+    const numFiles = work.length;
     const numBytes = work.reduce((sum, file) => sum + file.size, 0);
     const numChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
-    await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes })
+    await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes });
 
     // prepare statements up front
     const db = get();
@@ -474,7 +472,14 @@ export namespace Store {
         numFilesProcessed += pendingFiles.length;
       })();
 
-      await Bus.publish({ tag: "embed.progress", numFiles, numChunks, numBytes, numFilesProcessed, numBytesProcessed })
+      await Bus.publish({
+        tag: "embed.progress",
+        numFiles,
+        numChunks,
+        numBytes,
+        numFilesProcessed,
+        numBytesProcessed,
+      });
 
       pendingChunks = [];
       pendingFiles = [];
@@ -491,6 +496,6 @@ export namespace Store {
 
     await flushBatch();
 
-    await Bus.publish({ tag: "embed.done", numFiles })
+    await Bus.publish({ tag: "embed.done", numFiles });
   }
 }

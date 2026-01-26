@@ -64,4 +64,3 @@ export type EventUnion =
   | z.infer<typeof Store.Event.Embed>
   | z.infer<typeof Store.Event.EmbedProgress>
   | z.infer<typeof Store.Event.Embedded>
-

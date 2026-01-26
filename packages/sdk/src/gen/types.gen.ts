@@ -82,6 +82,8 @@ export type ProjectGetResponses = {
     name: string;
     dir: string;
     noteCount: number;
+    createdAt: number;
+    updatedAt: number;
   };
 };
 
@@ -109,6 +111,8 @@ export type ProjectCreateResponses = {
           name: string;
           dir: string;
           noteCount: number;
+          createdAt: number;
+          updatedAt: number;
         };
       }
     | {
@@ -209,6 +213,8 @@ export type ProjectListResponses = {
     name: string;
     dir: string;
     noteCount: number;
+    createdAt: number;
+    updatedAt: number;
   }>;
 };
 

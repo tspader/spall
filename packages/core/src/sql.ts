@@ -30,7 +30,9 @@ export namespace Sql {
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL,
-      dir TEXT NOT NULL
+      dir TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL DEFAULT 0
     )
   `;
 
@@ -101,7 +103,7 @@ export namespace Sql {
   `;
 
   export const INSERT_PROJECT = `
-    INSERT INTO projects (name, dir) VALUES (?, ?) RETURNING id
+    INSERT INTO projects (name, dir, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING id
   `;
 
   export const GET_DEFAULT_PROJECT = `
@@ -109,7 +111,7 @@ export namespace Sql {
   `;
 
   export const INSERT_DEFAULT_PROJECT = `
-    INSERT OR IGNORE INTO projects (id, name, dir) VALUES (1, 'default', '')
+    INSERT OR IGNORE INTO projects (id, name, dir, created_at, updated_at) VALUES (1, 'default', '', strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000)
   `;
 
   export const CREATE_NOTES_TABLE = `
@@ -118,29 +120,34 @@ export namespace Sql {
       project_id INTEGER NOT NULL,
       path TEXT NOT NULL,
       content TEXT NOT NULL,
+      content_hash TEXT NOT NULL,
       mtime INTEGER NOT NULL,
       FOREIGN KEY (project_id) REFERENCES projects(id)
     )
   `;
 
   export const INSERT_NOTE = `
-    INSERT INTO notes (project_id, path, content, mtime) VALUES (?, ?, ?, ?) RETURNING id
+    INSERT INTO notes (project_id, path, content, content_hash, mtime) VALUES (?, ?, ?, ?, ?) RETURNING id
+  `;
+
+  export const GET_NOTE_BY_HASH = `
+    SELECT id, project_id, path, content, content_hash, mtime FROM notes WHERE project_id = ? AND content_hash = ?
   `;
 
   export const GET_NOTE = `
-    SELECT id, project_id, path, content, mtime FROM notes WHERE id = ?
+    SELECT id, project_id, path, content, content_hash, mtime FROM notes WHERE id = ?
   `;
 
   export const GET_PROJECT_BY_NAME = `
-    SELECT id, name, dir FROM projects WHERE name = ?
+    SELECT id, name, dir, created_at, updated_at FROM projects WHERE name = ?
   `;
 
   export const GET_PROJECT_BY_ID = `
-    SELECT id, name, dir FROM projects WHERE id = ?
+    SELECT id, name, dir, created_at, updated_at FROM projects WHERE id = ?
   `;
 
   export const GET_NOTE_BY_PATH = `
-    SELECT id, project_id, path, content, mtime FROM notes WHERE project_id = ? AND path = ?
+    SELECT id, project_id, path, content, content_hash, mtime FROM notes WHERE project_id = ? AND path = ?
   `;
 
   export const LIST_NOTES = `
@@ -152,6 +159,6 @@ export namespace Sql {
   `;
 
   export const LIST_PROJECTS = `
-    SELECT id, name, dir FROM projects
+    SELECT id, name, dir, created_at, updated_at FROM projects
   `;
 }

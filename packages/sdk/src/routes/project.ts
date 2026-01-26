@@ -35,7 +35,7 @@ export const ProjectRoutes = lazy(() =>
           .then((result) => {
             return c.json(result);
           })
-          .catch((error) => {
+          .catch((error: any) => {
             return c.json({ error: error.message }, 404);
           });
         return result;
@@ -71,7 +71,7 @@ export const ProjectRoutes = lazy(() =>
           .then((result) => {
             return c.json(result);
           })
-          .catch((error) => {
+          .catch((error: any) => {
             return c.json({ error: error.message }, 404);
           });
         return result;
@@ -174,7 +174,7 @@ export const ProjectRoutes = lazy(() =>
         try {
           const result = await Note.add(body);
           return context.json(result);
-        } catch (e) {
+        } catch (e: any) {
           if (e instanceof Project.NotFoundError) {
             return context.json({ error: e.message }, 404);
           }

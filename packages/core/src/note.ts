@@ -11,6 +11,7 @@ export namespace Note {
     project: Project.Id,
     path: z.string(),
     content: z.string(),
+    contentHash: z.string(),
   });
   export type Info = z.infer<typeof Info>;
 
@@ -26,7 +27,12 @@ export namespace Note {
     project_id: number;
     path: string;
     content: string;
+    content_hash: string;
   } | null;
+
+  export function hash(content: string): string {
+    return Bun.hash(content).toString(16);
+  }
 
   export const get = api(
     z.object({
@@ -48,6 +54,7 @@ export namespace Note {
         project: Project.Id.parse(row.project_id),
         path: row.path,
         content: row.content,
+        contentHash: row.content_hash,
       };
     },
   );
@@ -85,6 +92,24 @@ export namespace Note {
       const project = await Project.get({ id: input.project });
       const db = Store.get();
 
+      // Compute content hash
+      const contentHash = hash(input.content);
+
+      // Check for existing note with same hash in this project
+      const existing = db
+        .prepare(Sql.GET_NOTE_BY_HASH)
+        .get(project.id, contentHash) as Row;
+
+      if (existing) {
+        return {
+          id: existing.id,
+          project: Project.Id.parse(existing.project_id),
+          path: existing.path,
+          content: existing.content,
+          contentHash: existing.content_hash,
+        };
+      }
+
       const mtime = Date.now();
 
       await Model.load();
@@ -95,7 +120,9 @@ export namespace Note {
       // Insert note record
       const row = db
         .prepare(Sql.INSERT_NOTE)
-        .get(project.id, input.path, input.content, mtime) as { id: number };
+        .get(project.id, input.path, input.content, contentHash, mtime) as {
+        id: number;
+      };
 
       if (chunks.length > 0) {
         // Use note id as the key for embeddings
@@ -119,6 +146,7 @@ export namespace Note {
         project: project.id,
         path: input.path,
         content: input.content,
+        contentHash,
       };
     },
   );
