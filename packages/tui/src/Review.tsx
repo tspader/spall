@@ -82,11 +82,13 @@ export function Review(props: ReviewProps = {}) {
   const repoPath = props.repoPath ?? process.argv[2] ?? ".";
   return (
     <ThemeProvider>
-      <DialogProvider>
-        <CommandProvider>
-          <App repoPath={repoPath} />
-        </CommandProvider>
-      </DialogProvider>
+      <ExitProvider>
+        <DialogProvider>
+          <CommandProvider>
+            <App repoPath={repoPath} />
+          </CommandProvider>
+        </DialogProvider>
+      </ExitProvider>
     </ThemeProvider>
   );
 }
@@ -101,6 +103,7 @@ function App(props: AppProps) {
   const dialog = useDialog();
   const command = useCommand();
   const { theme, themeName, setTheme } = useTheme();
+  const { exit, registerCleanup } = useExit();
 
   // Server state
   const [serverUrl, setServerUrl] = createSignal<string | null>(null);
@@ -151,7 +154,13 @@ function App(props: AppProps) {
   // Refs
   let diffScrollbox: ScrollBoxRenderable | null = null;
   let editorTextarea: TextareaRenderable | null = null;
-  let unsubscribe: () => void;
+  const clientAbort = new AbortController() as {
+    signal: AbortSignal;
+    abort: () => void;
+  };
+
+  // Register cleanup for client abort
+  registerCleanup(() => clientAbort.abort());
 
   // Derived state - map navigation index to actual entry
   const selectedEntry = () => {
@@ -244,16 +253,21 @@ function App(props: AppProps) {
 
     // Connect to server
     try {
-      const client = await Client.connect();
+      const client = await Client.connect(clientAbort.signal);
       const result = await client.health();
+      const { stream } = await client.events();
 
-      unsubscribe = Client.subscribe(client, (e) => {
-        if (e.tag.length == 0) {
-          setEvent("nothing");
-        } else {
-          setEvent(e.tag);
+      // Subscribe to server events
+      (async () => {
+        const { stream } = await client.events();
+        for await (const e of stream) {
+          if (e.tag.length == 0) {
+            setEvent("nothing");
+          } else {
+            setEvent(e.tag);
+          }
         }
-      });
+      })();
 
       if (result.response.ok) {
         setServerUrl(result.response.url.replace("/health", ""));
@@ -381,10 +395,7 @@ function App(props: AppProps) {
         { name: "q" },
       ],
       isActive: () => focusPanel() !== "editor",
-      onExecute: () => {
-        unsubscribe()
-        renderer.destroy();
-      },
+      onExecute: () => exit(),
     },
     // Selection
     {
