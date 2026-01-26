@@ -6,6 +6,8 @@ export * from "./gen/types.gen";
 
 type TaggedEvent = { tag: string };
 
+type EventHandler = (event: TaggedEvent) => void;
+
 export namespace Client {
   export function unwrap<T>(
     result: { data?: T; error?: unknown } | undefined,
@@ -26,9 +28,32 @@ export namespace Client {
     return new SpallClient({ client });
   }
 
+  // subscribe to server events; returns subscription with unsubscribe and abort controller
+  export function subscribe(
+    client: SpallClient,
+    handler: EventHandler,
+  ): () => void {
+    const controller = new AbortController();
+
+    (async () => {
+      const { stream } = await client.events({ signal: controller.signal });
+      try {
+        for await (const event of stream) {
+          handler(event);
+        }
+      } catch (e) {
+        // AbortError is expected on close, ignore it
+        if (e instanceof Error && e.name === "AbortError") return;
+        throw e;
+      }
+    })();
+
+    return () => controller.abort();
+  }
+
   // consume an SSE stream until you see the event you want; useful for
   // endpoints that return a stream for progress but for which you just want
-  // to get the final resulg
+  // to get the final result
   export async function until<TEvent extends TaggedEvent, TTag extends string>(
     stream: AsyncGenerator<TEvent, unknown, unknown>,
     tag: TTag,

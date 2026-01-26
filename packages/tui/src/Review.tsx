@@ -63,6 +63,7 @@ import {
 import { DialogProvider, useDialog } from "./context/dialog";
 import { CommandProvider, useCommand } from "./context/command";
 import { ThemeProvider, useTheme } from "./context/theme";
+import { ExitProvider, useExit } from "./context/exit";
 import { type Command, matchAny } from "./lib/keybind";
 
 // Generate random string for filename
@@ -150,6 +151,7 @@ function App(props: AppProps) {
   // Refs
   let diffScrollbox: ScrollBoxRenderable | null = null;
   let editorTextarea: TextareaRenderable | null = null;
+  let unsubscribe: () => void;
 
   // Derived state - map navigation index to actual entry
   const selectedEntry = () => {
@@ -244,18 +246,14 @@ function App(props: AppProps) {
     try {
       const client = await Client.connect();
       const result = await client.health();
-      const { stream } = await client.events();
 
-      // @spader: not sure how to actually get events
-      (async () => {
-        for await (const e of stream) {
-          if (e.tag.length == 0) {
-            setEvent("nothing");
-          } else {
-            setEvent(e.tag);
-          }
+      unsubscribe = Client.subscribe(client, (e) => {
+        if (e.tag.length == 0) {
+          setEvent("nothing");
+        } else {
+          setEvent(e.tag);
         }
-      })();
+      });
 
       if (result.response.ok) {
         setServerUrl(result.response.url.replace("/health", ""));
@@ -383,7 +381,10 @@ function App(props: AppProps) {
         { name: "q" },
       ],
       isActive: () => focusPanel() !== "editor",
-      onExecute: () => renderer.destroy(),
+      onExecute: () => {
+        unsubscribe()
+        renderer.destroy();
+      },
     },
     // Selection
     {

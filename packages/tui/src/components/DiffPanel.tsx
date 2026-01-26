@@ -244,7 +244,6 @@ export function DiffPanel(props: DiffPanelProps) {
           flexGrow={1}
         >
           <box flexDirection="row">
-            <text>{totalLines()}</text>
             <DiffIndicator
               lineMode={props.lineMode}
               blocks={props.blocks}
