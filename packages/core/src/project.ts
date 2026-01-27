@@ -116,6 +116,16 @@ export namespace Project {
       const db = Store.get();
 
       const name = input.name ?? basename(input.dir);
+
+      // Check if project already exists
+      const existing = db
+        .prepare(Sql.GET_PROJECT_BY_NAME)
+        .get(name) as Row | null;
+      if (existing) {
+        return get({ id: existing.id });
+      }
+
+      // Create new project
       const now = Date.now();
       const row = db
         .prepare(Sql.UPSERT_PROJECT)

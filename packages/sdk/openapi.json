@@ -53,6 +53,105 @@
         ]
       }
     },
+    "/project/{id}/notes": {
+      "get": {
+        "operationId": "note.listByPath",
+        "summary": "List notes by path",
+        "description": "List notes under a path prefix with keyset pagination. Returns full note content.",
+        "responses": {
+          "200": {
+            "description": "Paginated notes",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "notes": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "number"
+                          },
+                          "project": {
+                            "type": "number"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "content": {
+                            "type": "string"
+                          },
+                          "contentHash": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "project",
+                          "path",
+                          "content",
+                          "contentHash"
+                        ]
+                      }
+                    },
+                    "nextCursor": {
+                      "anyOf": [
+                        {
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "notes",
+                    "nextCursor"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Project not found"
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
+      }
+    },
     "/project/{id}/note/{path}": {
       "get": {
         "operationId": "note.get",
@@ -643,480 +742,41 @@
       "post": {
         "operationId": "project.create",
         "summary": "Create a project",
-        "description": "Create a project",
+        "description": "Get or create a project. Returns existing project if name matches, creates new one otherwise.",
         "responses": {
           "200": {
-            "description": "Event stream",
+            "description": "Project info",
             "content": {
-              "text/event-stream": {
+              "application/json": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "sse.connected"
-                        }
-                      },
-                      "required": [
-                        "tag"
-                      ]
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "project.created"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "dir": {
-                              "type": "string"
-                            },
-                            "noteCount": {
-                              "type": "number"
-                            },
-                            "createdAt": {
-                              "type": "number"
-                            },
-                            "updatedAt": {
-                              "type": "number"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "dir",
-                            "noteCount",
-                            "createdAt",
-                            "updatedAt"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
+                    "name": {
+                      "type": "string"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "project.updated"
-                        },
-                        "foo": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "foo"
-                      ]
+                    "dir": {
+                      "type": "string"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.download"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
+                    "noteCount": {
+                      "type": "number"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.progress"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        },
-                        "downloaded": {
-                          "type": "number"
-                        },
-                        "total": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info",
-                        "downloaded",
-                        "total"
-                      ]
+                    "createdAt": {
+                      "type": "number"
                     },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.downloaded"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.load"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "name": {
-                              "type": "string"
-                            },
-                            "path": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "name",
-                            "path"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "model.failed"
-                        },
-                        "error": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "error"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "store.create"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "path"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "store.created"
-                        },
-                        "path": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "path"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "scan.start"
-                        },
-                        "numFiles": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "numFiles"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "scan.progress"
-                        },
-                        "path": {
-                          "type": "string"
-                        },
-                        "status": {
-                          "type": "string",
-                          "enum": [
-                            "added",
-                            "modified",
-                            "removed",
-                            "ok"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "path",
-                        "status"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "scan.done"
-                        },
-                        "numFiles": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "numFiles"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "embed.start"
-                        },
-                        "numFiles": {
-                          "type": "number"
-                        },
-                        "numChunks": {
-                          "type": "number"
-                        },
-                        "numBytes": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "numFiles",
-                        "numChunks",
-                        "numBytes"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "embed.progress"
-                        },
-                        "numFiles": {
-                          "type": "number"
-                        },
-                        "numChunks": {
-                          "type": "number"
-                        },
-                        "numBytes": {
-                          "type": "number"
-                        },
-                        "numFilesProcessed": {
-                          "type": "number"
-                        },
-                        "numBytesProcessed": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "numFiles",
-                        "numChunks",
-                        "numBytes",
-                        "numFilesProcessed",
-                        "numBytesProcessed"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "embed.done"
-                        },
-                        "numFiles": {
-                          "type": "number"
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "numFiles"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "note.created"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "project": {
-                              "type": "number"
-                            },
-                            "path": {
-                              "type": "string"
-                            },
-                            "content": {
-                              "type": "string"
-                            },
-                            "contentHash": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "project",
-                            "path",
-                            "content",
-                            "contentHash"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
-                    },
-                    {
-                      "type": "object",
-                      "properties": {
-                        "tag": {
-                          "type": "string",
-                          "const": "note.updated"
-                        },
-                        "info": {
-                          "type": "object",
-                          "properties": {
-                            "id": {
-                              "type": "number"
-                            },
-                            "project": {
-                              "type": "number"
-                            },
-                            "path": {
-                              "type": "string"
-                            },
-                            "content": {
-                              "type": "string"
-                            },
-                            "contentHash": {
-                              "type": "string"
-                            }
-                          },
-                          "required": [
-                            "id",
-                            "project",
-                            "path",
-                            "content",
-                            "contentHash"
-                          ]
-                        }
-                      },
-                      "required": [
-                        "tag",
-                        "info"
-                      ]
+                    "updatedAt": {
+                      "type": "number"
                     }
+                  },
+                  "required": [
+                    "id",
+                    "name",
+                    "dir",
+                    "noteCount",
+                    "createdAt",
+                    "updatedAt"
                   ]
                 }
               }

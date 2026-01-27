@@ -32,6 +32,45 @@ export type NoteListResponses = {
 
 export type NoteListResponse = NoteListResponses[keyof NoteListResponses];
 
+export type NoteListByPathData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: {
+    path?: string;
+    limit?: number;
+    after?: string;
+  };
+  url: "/project/{id}/notes";
+};
+
+export type NoteListByPathErrors = {
+  /**
+   * Project not found
+   */
+  404: unknown;
+};
+
+export type NoteListByPathResponses = {
+  /**
+   * Paginated notes
+   */
+  200: {
+    notes: Array<{
+      id: number;
+      project: number;
+      path: string;
+      content: string;
+      contentHash: string;
+    }>;
+    nextCursor: string | null;
+  };
+};
+
+export type NoteListByPathResponse =
+  NoteListByPathResponses[keyof NoteListByPathResponses];
+
 export type NoteGetData = {
   body?: never;
   path: {
@@ -245,124 +284,16 @@ export type ProjectCreateData = {
 
 export type ProjectCreateResponses = {
   /**
-   * Event stream
+   * Project info
    */
-  200:
-    | {
-        tag: "sse.connected";
-      }
-    | {
-        tag: "project.created";
-        info: {
-          id: number;
-          name: string;
-          dir: string;
-          noteCount: number;
-          createdAt: number;
-          updatedAt: number;
-        };
-      }
-    | {
-        tag: "project.updated";
-        foo: number;
-      }
-    | {
-        tag: "model.download";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.progress";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-        downloaded: number;
-        total: number;
-      }
-    | {
-        tag: "model.downloaded";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.load";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.failed";
-        error: string;
-      }
-    | {
-        tag: "store.create";
-        path: string;
-      }
-    | {
-        tag: "store.created";
-        path: string;
-      }
-    | {
-        tag: "scan.start";
-        numFiles: number;
-      }
-    | {
-        tag: "scan.progress";
-        path: string;
-        status: "added" | "modified" | "removed" | "ok";
-      }
-    | {
-        tag: "scan.done";
-        numFiles: number;
-      }
-    | {
-        tag: "embed.start";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-      }
-    | {
-        tag: "embed.progress";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-        numFilesProcessed: number;
-        numBytesProcessed: number;
-      }
-    | {
-        tag: "embed.done";
-        numFiles: number;
-      }
-    | {
-        tag: "note.created";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      }
-    | {
-        tag: "note.updated";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      };
+  200: {
+    id: number;
+    name: string;
+    dir: string;
+    noteCount: number;
+    createdAt: number;
+    updatedAt: number;
+  };
 };
 
 export type ProjectCreateResponse =

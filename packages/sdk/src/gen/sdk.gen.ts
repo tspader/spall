@@ -16,6 +16,8 @@ import type {
   NoteGetByIdResponses,
   NoteGetErrors,
   NoteGetResponses,
+  NoteListByPathErrors,
+  NoteListByPathResponses,
   NoteListErrors,
   NoteListResponses,
   NoteUpdateErrors,
@@ -94,6 +96,44 @@ export class Note extends HeyApiClient {
       ThrowOnError
     >({
       url: "/project/{id}/list",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * List notes by path
+   *
+   * List notes under a path prefix with keyset pagination. Returns full note content.
+   */
+  public listByPath<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      path?: string;
+      limit?: number;
+      after?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "path" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "after" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      NoteListByPathResponses,
+      NoteListByPathErrors,
+      ThrowOnError
+    >({
+      url: "/project/{id}/notes",
       ...options,
       ...params,
     });
@@ -319,7 +359,7 @@ export class Project extends HeyApiClient {
   /**
    * Create a project
    *
-   * Create a project
+   * Get or create a project. Returns existing project if name matches, creates new one otherwise.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -339,7 +379,7 @@ export class Project extends HeyApiClient {
         },
       ],
     );
-    return (options?.client ?? this.client).sse.post<
+    return (options?.client ?? this.client).post<
       ProjectCreateResponses,
       unknown,
       ThrowOnError

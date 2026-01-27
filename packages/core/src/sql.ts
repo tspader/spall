@@ -167,4 +167,12 @@ export namespace Sql {
   export const UPDATE_NOTE = `
     UPDATE notes SET content = ?, content_hash = ?, mtime = ? WHERE id = ? RETURNING id, project_id, path, content, content_hash
   `;
+
+  export const LIST_NOTES_PAGINATED = `
+    SELECT id, project_id, path, content, content_hash
+    FROM notes
+    WHERE project_id = ? AND path LIKE ? || '%' AND path > ?
+    ORDER BY path
+    LIMIT ?
+  `;
 }

@@ -42,6 +42,42 @@ export const ProjectRoutes = lazy(() =>
       },
     )
     .get(
+      "/:id/notes",
+      describeRoute({
+        summary: "List notes by path",
+        description:
+          "List notes under a path prefix with keyset pagination. Returns full note content.",
+        operationId: "note.listByPath",
+        responses: {
+          200: {
+            description: "Paginated notes",
+            content: {
+              "application/json": {
+                schema: resolver(Note.Page),
+              },
+            },
+          },
+          404: {
+            description: "Project not found",
+          },
+        },
+      }),
+      validator("query", Note.listByPath.schema.omit({ project: true })),
+      async (c) => {
+        const id = c.req.param("id");
+        const query = c.req.valid("query");
+        try {
+          const result = Note.listByPath({
+            project: Project.Id.parse(id),
+            ...query,
+          });
+          return c.json(result);
+        } catch (error: any) {
+          return c.json({ error: error.message }, 404);
+        }
+      },
+    )
+    .get(
       "/:id/note/:path{.+}",
       describeRoute({
         summary: "Get a note",
@@ -79,14 +115,15 @@ export const ProjectRoutes = lazy(() =>
       "/",
       describeRoute({
         summary: "Create a project",
-        description: "Create a project",
+        description:
+          "Get or create a project. Returns existing project if name matches, creates new one otherwise.",
         operationId: "project.create",
         responses: {
           200: {
-            description: "Event stream",
+            description: "Project info",
             content: {
-              "text/event-stream": {
-                schema: resolver(EventUnion),
+              "application/json": {
+                schema: resolver(Project.Info),
               },
             },
           },
@@ -95,7 +132,8 @@ export const ProjectRoutes = lazy(() =>
       validator("json", Project.create.schema),
       async (context) => {
         const input = context.req.valid("json") ?? {};
-        return Sse.stream(context, Project.create, input);
+        const result = await Project.create(input);
+        return context.json(result);
       },
     )
     .get(

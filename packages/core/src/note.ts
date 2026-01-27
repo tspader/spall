@@ -119,6 +119,39 @@ export namespace Note {
     },
   );
 
+  export const Page = z.object({
+    notes: Info.array(),
+    nextCursor: z.string().nullable(),
+  });
+  export type Page = z.infer<typeof Page>;
+
+  export const listByPath = api(
+    z.object({
+      project: Project.Id,
+      path: z.string().optional(),
+      limit: z.coerce.number().optional(),
+      after: z.string().optional(),
+    }),
+    (input): Page => {
+      Project.get({ id: input.project });
+      const db = Store.get();
+
+      const path = input.path ?? "";
+      const limit = input.limit ?? 100;
+      const after = input.after ?? "";
+
+      const rows = db
+        .prepare(Sql.LIST_NOTES_PAGINATED)
+        .all(input.project, path, after, limit) as unknown[];
+
+      const notes = rows.map((r) => Row.parse(r));
+      const nextCursor =
+        notes.length === limit ? notes[notes.length - 1]!.path : null;
+
+      return { notes, nextCursor };
+    },
+  );
+
   export const add = api(
     z.object({
       project: Project.Id,
