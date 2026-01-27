@@ -23,6 +23,9 @@ export namespace Note {
     export const Created = Bus.define("note.created", {
       info: Info,
     });
+    export const Updated = Bus.define("note.updated", {
+      info: Info,
+    });
   }
 
   const Row = z
@@ -174,6 +177,96 @@ export namespace Note {
       };
 
       await Bus.publish({ tag: "note.created", info });
+    },
+  );
+
+  export const update = api(
+    z.object({
+      id: Id,
+      content: z.string(),
+    }),
+    async (input): Promise<void> => {
+      const db = Store.get();
+
+      // Check note exists
+      const existing = db.prepare(Sql.GET_NOTE).get(input.id);
+      if (!existing) throw new NotFoundError(`Note not found: ${input.id}`);
+
+      const contentHash = hash(input.content);
+      const existingNote = Row.parse(existing);
+
+      // If content unchanged, emit event and return early
+      if (contentHash === existingNote.contentHash) {
+        await Bus.publish({ tag: "note.updated", info: existingNote });
+        return;
+      }
+
+      const mtime = Date.now();
+
+      await Model.load();
+
+      // Chunk and embed new content
+      const chunks = await Store.chunk(input.content);
+
+      // Update note record
+      const updated = db
+        .prepare(Sql.UPDATE_NOTE)
+        .get(input.content, contentHash, mtime, input.id) as {
+        id: number;
+        project_id: number;
+        path: string;
+        content: string;
+        content_hash: string;
+      };
+
+      const noteKey = `note:${input.id}`;
+
+      // Clear old embeddings
+      Store.clearEmbeddings(noteKey);
+
+      if (chunks.length > 0) {
+        const texts = chunks.map((c) => c.text);
+        const embeddings = await Model.embedBatch(texts);
+
+        for (let i = 0; i < chunks.length; i++) {
+          Store.embed(noteKey, i, chunks[i]!.pos, embeddings[i]!);
+        }
+      }
+
+      const info: Info = {
+        id: Id.parse(updated.id),
+        project: Project.Id.parse(updated.project_id),
+        path: updated.path,
+        content: updated.content,
+        contentHash: updated.content_hash,
+      };
+
+      await Bus.publish({ tag: "note.updated", info });
+    },
+  );
+
+  export const upsert = api(
+    z.object({
+      project: Project.Id,
+      path: z.string(),
+      content: z.string(),
+    }),
+    async (input): Promise<void> => {
+      const db = Store.get();
+
+      // Check if note exists at this path
+      const existing = db
+        .prepare(Sql.GET_NOTE_BY_PATH)
+        .get(input.project, input.path);
+
+      if (existing) {
+        // Update existing note
+        const existingNote = Row.parse(existing);
+        await update({ id: existingNote.id, content: input.content });
+      } else {
+        // Create new note
+        await add(input);
+      }
     },
   );
 }

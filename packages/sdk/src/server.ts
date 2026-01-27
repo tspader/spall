@@ -91,6 +91,8 @@ export namespace Server {
         return `Created database at ${pc.cyanBright(event.path)}`;
       case "note.created":
         return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
+      case "note.updated":
+        return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
     }
 
     return event.tag;

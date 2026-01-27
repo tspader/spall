@@ -52,6 +52,7 @@ export const EventUnion = z.discriminatedUnion("tag", [
   Store.Event.EmbedProgress,
   Store.Event.Embedded,
   Note.Event.Created,
+  Note.Event.Updated,
 ]);
 
 export type EventUnion =
@@ -71,4 +72,5 @@ export type EventUnion =
   | z.infer<typeof Store.Event.Embed>
   | z.infer<typeof Store.Event.EmbedProgress>
   | z.infer<typeof Store.Event.Embedded>
-  | z.infer<typeof Note.Event.Created>;
+  | z.infer<typeof Note.Event.Created>
+  | z.infer<typeof Note.Event.Updated>;

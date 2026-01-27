@@ -11,7 +11,7 @@ export namespace Sse {
   //   - clean up subscriptions when finished
   export function stream<T>(
     context: SseContext,
-    handler: (arg: T) => Promise<void>,
+    handler: (arg: T) => Promise<unknown>,
     input: T,
   ) {
     return streamSSE(context, async (stream) => {

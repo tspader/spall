@@ -18,6 +18,10 @@ import type {
   NoteGetResponses,
   NoteListErrors,
   NoteListResponses,
+  NoteUpdateErrors,
+  NoteUpdateResponses,
+  NoteUpsertErrors,
+  NoteUpsertResponses,
   ProjectCreateResponses,
   ProjectGetResponses,
   ProjectListResponses,
@@ -130,6 +134,47 @@ export class Note extends HeyApiClient {
   }
 
   /**
+   * Upsert a note
+   *
+   * Create or update a note by path. Creates if not exists, updates if exists.
+   */
+  public upsert<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      path: string;
+      content?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "path", key: "path" },
+            { in: "body", key: "content" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.put<
+      NoteUpsertResponses,
+      NoteUpsertErrors,
+      ThrowOnError
+    >({
+      url: "/project/{id}/note/{path}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
    * Add a note
    *
    * Add a note to a project and embed it. Requires project ID.
@@ -193,6 +238,45 @@ export class Note extends HeyApiClient {
       url: "/note/{id}",
       ...options,
       ...params,
+    });
+  }
+
+  /**
+   * Update a note
+   *
+   * Update a note's content by ID. Re-embeds the content.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      content?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "body", key: "content" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.put<
+      NoteUpdateResponses,
+      NoteUpdateErrors,
+      ThrowOnError
+    >({
+      url: "/note/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
     });
   }
 }

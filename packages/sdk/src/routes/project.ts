@@ -116,8 +116,12 @@ export const ProjectRoutes = lazy(() =>
         },
       }),
       async (c) => {
-        const result = await Project.list({});
-        return c.json(result);
+        try {
+          const result = await Project.list({});
+          return c.json(result);
+        } catch (error: any) {
+          return c.json({ error: error.message }, 500);
+        }
       },
     )
     .get(
@@ -141,8 +145,12 @@ export const ProjectRoutes = lazy(() =>
       validator("query", Project.get.schema),
       async (context) => {
         const query = context.req.valid("query");
-        const result = await Project.get(query);
-        return context.json(result);
+        try {
+          const result = await Project.get(query);
+          return context.json(result);
+        } catch (error: any) {
+          return context.json({ error: error.message }, 404);
+        }
       },
     )
     .post(
@@ -170,6 +178,39 @@ export const ProjectRoutes = lazy(() =>
       async (context) => {
         const body = context.req.valid("json");
         return Sse.stream(context, Note.add, body);
+      },
+    )
+    .put(
+      "/:id/note/:path{.+}",
+      describeRoute({
+        summary: "Upsert a note",
+        description:
+          "Create or update a note by path. Creates if not exists, updates if exists.",
+        operationId: "note.upsert",
+        responses: {
+          200: {
+            description: "Event stream",
+            content: {
+              "text/event-stream": {
+                schema: resolver(EventUnion),
+              },
+            },
+          },
+          404: {
+            description: "Project not found",
+          },
+        },
+      }),
+      validator("json", Note.upsert.schema.omit({ project: true, path: true })),
+      async (context) => {
+        const id = context.req.param("id");
+        const path = context.req.param("path");
+        const body = context.req.valid("json");
+        return Sse.stream(context, Note.upsert, {
+          project: Project.Id.parse(id),
+          path,
+          ...body,
+        });
       },
     ),
 );

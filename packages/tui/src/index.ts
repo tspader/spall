@@ -576,6 +576,11 @@ const cliDef: Cli.CliDef = {
           required: true,
         },
         project: { alias: "p", type: "string", description: "Project name" },
+        update: {
+          alias: "u",
+          type: "boolean",
+          description: "Update if note exists (upsert)",
+        },
       },
       handler: async (argv) => {
         const client = await Client.connect();
@@ -588,13 +593,20 @@ const cliDef: Cli.CliDef = {
           })
           .then(Client.unwrap);
 
-        const { stream } = await client.note.add({
-          path: argv.path,
-          content: argv.text,
-          project: project.id,
-        });
+        // Check if note already exists
+        const existing = await client.note
+          .get({ id: project.id.toString(), path: argv.path })
+          .then(Client.unwrap)
+          .catch(() => null);
 
-        const result = await Client.until(stream, "note.created", (event) => {
+        if (existing && !argv.update) {
+          consola.error(
+            `Note already exists: ${pc.cyanBright(argv.path)}. Use --update to update it.`,
+          );
+          process.exit(1);
+        }
+
+        const handleProgress = (event: any) => {
           switch (event.tag) {
             case "model.load":
               consola.info(`Loading model ${pc.cyanBright(event.info.name)}`);
@@ -618,11 +630,42 @@ const cliDef: Cli.CliDef = {
               consola.success(`Downloaded ${pc.cyanBright(event.info.name)}`);
               break;
           }
-        });
+        };
 
-        consola.success(
-          `Added note ${pc.cyanBright(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
-        );
+        if (existing) {
+          // Update existing note
+          const { stream } = await client.note.update({
+            id: existing.id.toString(),
+            content: argv.text,
+          });
+
+          const result = await Client.until(
+            stream,
+            "note.updated",
+            handleProgress,
+          );
+
+          consola.success(
+            `Updated note ${pc.cyanBright(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
+          );
+        } else {
+          // Create new note
+          const { stream } = await client.note.add({
+            path: argv.path,
+            content: argv.text,
+            project: project.id,
+          });
+
+          const result = await Client.until(
+            stream,
+            "note.created",
+            handleProgress,
+          );
+
+          consola.success(
+            `Added note ${pc.cyanBright(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
+          );
+        }
       },
     },
     serve: {
