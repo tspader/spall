@@ -1,8 +1,8 @@
 import { For, Show, createEffect } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import type { DisplayItem } from "../lib/tree";
-import { useTheme } from "../context/theme";
+import type { DisplayItem } from "../../lib/tree";
+import { useTheme } from "../../context/theme";
 import { Section } from "./Section";
 
 export interface FileListProps {

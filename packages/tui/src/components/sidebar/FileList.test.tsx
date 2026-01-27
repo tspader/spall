@@ -1,7 +1,7 @@
 /** @jsxImportSource @opentui/solid */
 import { describe, it, expect, afterEach } from "bun:test";
-import { Test } from "../test/harness";
-import { Review } from "../Review";
+import { Test } from "../../test/harness";
+import { Review } from "../../Review";
 
 let harness: Test.Harness | null = null;
 

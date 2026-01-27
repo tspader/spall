@@ -1,6 +1,6 @@
 import type { Accessor } from "solid-js";
 import { Show } from "solid-js";
-import { useTheme } from "../context/theme";
+import { useTheme } from "../../context/theme";
 import { Section } from "./Section";
 import { basename, dirname } from "path";
 
