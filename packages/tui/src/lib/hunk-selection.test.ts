@@ -188,7 +188,7 @@ describe("hunk-selection", () => {
       expect(getSelectedHunksForFile(selections, "file2.ts")).toEqual([]);
     });
 
-    it("returns block indices for specific file", () => {
+    it("returns hunk indices for specific file", () => {
       let selections = createHunkSelections();
       selections = addHunkToSelection(selections, "file1.ts", 0);
       selections = addHunkToSelection(selections, "file1.ts", 2);

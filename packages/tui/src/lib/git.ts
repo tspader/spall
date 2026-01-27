@@ -1,5 +1,4 @@
 import { $ } from "bun";
-import { parsePatch } from "diff";
 
 export namespace Git {
   export interface Entry {
@@ -7,12 +6,6 @@ export namespace Git {
     content: string;
     isNew: boolean;
     isDeleted: boolean;
-  }
-
-  export interface Block {
-    startLine: number;
-    lineCount: number;
-    content: string;
   }
 
   export async function root(startPath: string): Promise<string | null> {
@@ -96,58 +89,6 @@ ${diffLines.join("\n")}`;
     }
 
     return result;
-  }
-
-  export function blocks(diffContent: string): Block[] {
-    if (!diffContent) return [];
-
-    try {
-      const patches = parsePatch(diffContent);
-      if (patches.length === 0) return [];
-
-      const hunks = patches[0]?.hunks ?? [];
-      const result: Block[] = [];
-      let renderedLineIndex = 0;
-
-      for (const hunk of hunks) {
-        let lineIndex = 0;
-        while (lineIndex < hunk.lines.length) {
-          const line = hunk.lines[lineIndex];
-          const firstChar = line?.[0];
-
-          if (firstChar === "-" || firstChar === "+") {
-            const blockStart = renderedLineIndex;
-            let blockLineCount = 0;
-            const blockLines: string[] = [];
-
-            while (lineIndex < hunk.lines.length) {
-              const blockLine = hunk.lines[lineIndex];
-              const blockChar = blockLine?.[0];
-              if (blockChar !== "-" && blockChar !== "+") break;
-              blockLines.push(blockLine!);
-              blockLineCount++;
-              renderedLineIndex++;
-              lineIndex++;
-            }
-
-            result.push({
-              startLine: blockStart,
-              lineCount: blockLineCount,
-              content: blockLines.join("\n"),
-            });
-          } else if (firstChar === " ") {
-            renderedLineIndex++;
-            lineIndex++;
-          } else {
-            lineIndex++;
-          }
-        }
-      }
-
-      return result;
-    } catch {
-      return [];
-    }
   }
 
   export function lines(diffContent: string): number {

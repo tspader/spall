@@ -134,7 +134,7 @@ function App(props: AppProps) {
   // Navigation state - selectedFileIndex is index into fileIndices (files only)
   const [selectedFileIndex, setSelectedFileIndex] = createSignal(0);
   const [focusPanel, setFocusPanel] = createSignal<FocusPanel>("sidebar");
-  const [selectedBlockIndex, setSelectedBlockIndex] = createSignal(0);
+  const [selectedHunkIndex, setSelectedHunkIndex] = createSignal(0);
 
   // Line selection state
   const [lineMode, setLineMode] = createSignal(false);
@@ -175,10 +175,15 @@ function App(props: AppProps) {
     const entryIndex = fileIndices()[selectedFileIndex()];
     return entryIndex !== undefined ? entries()[entryIndex] : undefined;
   };
-  const blocks = createMemo(() =>
-    selectedEntry() ? Git.blocks(selectedEntry()!.content) : [],
-  );
-  const selectedBlock = () => blocks()[selectedBlockIndex()];
+
+  // Hunk count for the selected entry (computed from diff content)
+  const hunkCount = createMemo(() => {
+    const entry = selectedEntry();
+    if (!entry) return 0;
+    // Count @@ markers in the diff content
+    const matches = entry.content.match(/^@@/gm);
+    return matches?.length ?? 0;
+  });
 
   // Count total lines in the diff for line mode
   const totalDiffLines = () => {
@@ -187,30 +192,12 @@ function App(props: AppProps) {
     return entry.content.split("\n").length;
   };
 
-  // Show block indicator in diff/editor panels
-  const showBlockIndicator = () => {
-    const panel = focusPanel();
-    if (panel !== "diff" && panel !== "editor") return false;
-    if (lineMode()) return true;
-    return selectedBlock() !== undefined;
-  };
-
-  // Get current selection for display
+  // Get current selection for display (used in line mode)
   const currentSelection = createMemo((): Selection => {
-    if (lineMode()) {
-      return selection();
-    }
-    const block = selectedBlock();
-    if (block) {
-      return {
-        start: block.startLine,
-        end: block.startLine + block.lineCount - 1,
-      };
-    }
-    return { start: 0, end: 0 };
+    return selection();
   });
 
-  // Scroll to selection when it changes
+  // Scroll to hunk when selection changes
   createEffect(() => {
     const panel = focusPanel();
     if (panel !== "diff" || !diffScrollbox) return;
@@ -219,13 +206,12 @@ function App(props: AppProps) {
       const sel = selection();
       diffScrollbox.scrollTo(sel.start);
     } else {
-      const blockIndex = selectedBlockIndex();
-      const currentBlocks = blocks();
-      if (currentBlocks.length > 0 && blockIndex < currentBlocks.length) {
-        const block = currentBlocks[blockIndex];
-        if (block) {
-          diffScrollbox.scrollTo(block.startLine);
-        }
+      // Scroll to start of selected hunk
+      // TODO: Calculate hunk start line from selectedHunkIndex
+      // For now, just scroll to top when hunk changes
+      const hunkIdx = selectedHunkIndex();
+      if (hunkIdx === 0) {
+        diffScrollbox.scrollTo(0);
       }
     }
   });
@@ -233,7 +219,7 @@ function App(props: AppProps) {
   // Reset selection when file changes
   createEffect(() => {
     selectedFileIndex();
-    setSelectedBlockIndex(0);
+    setSelectedHunkIndex(0);
     setSelection({ start: 0, end: 0 });
   });
 
@@ -336,7 +322,7 @@ function App(props: AppProps) {
         const newState = moveUp(state, false);
         setSelection(newState.selection);
       } else {
-        setSelectedBlockIndex((i) => Math.max(0, i - 1));
+        setSelectedHunkIndex((i: number) => Math.max(0, i - 1));
       }
     }
   };
@@ -352,7 +338,7 @@ function App(props: AppProps) {
         const newState = moveDown(state, false);
         setSelection(newState.selection);
       } else {
-        setSelectedBlockIndex((i) => Math.min(blocks().length - 1, i + 1));
+        setSelectedHunkIndex((i: number) => Math.min(hunkCount() - 1, i + 1));
       }
     }
   };
@@ -377,12 +363,8 @@ function App(props: AppProps) {
 
   const enterLineMode = () => {
     setLineMode(true);
-    const block = selectedBlock();
-    if (block) {
-      setSelection({ start: block.startLine, end: block.startLine });
-    } else {
-      setSelection({ start: 0, end: 0 });
-    }
+    // Start at the beginning of the diff
+    setSelection({ start: 0, end: 0 });
   };
 
   const openCommentEditor = () => {
@@ -419,7 +401,7 @@ function App(props: AppProps) {
       isActive: () => focusPanel() === "diff",
       onExecute: () => {
         setFocusPanel("sidebar");
-        setSelectedBlockIndex(0);
+        setSelectedHunkIndex(0);
         // Keep lineMode active when going back - user can continue in line mode
       },
     },
@@ -472,10 +454,10 @@ function App(props: AppProps) {
       category: "selection",
       keybinds: [{ name: "return" }],
       isActive: () =>
-        focusPanel() === "sidebar" && !!selectedEntry() && blocks().length > 0,
+        focusPanel() === "sidebar" && !!selectedEntry() && hunkCount() > 0,
       onExecute: () => {
         setFocusPanel("diff");
-        setSelectedBlockIndex(0);
+        setSelectedHunkIndex(0);
       },
     },
     {
@@ -499,14 +481,13 @@ function App(props: AppProps) {
       title: "toggle hunk",
       category: "selection",
       keybinds: [{ name: "space" }],
-      isActive: () =>
-        focusPanel() === "diff" && !lineMode() && blocks().length > 0,
+      isActive: () => focusPanel() === "diff" && !lineMode() && hunkCount() > 0,
       onExecute: () => {
         const entry = selectedEntry();
-        const blockIdx = selectedBlockIndex();
+        const hunkIdx = selectedHunkIndex();
         if (entry) {
           setSelectedHunks(
-            toggleHunkSelection(selectedHunks(), entry.file, blockIdx),
+            toggleHunkSelection(selectedHunks(), entry.file, hunkIdx),
           );
         }
       },
@@ -597,9 +578,8 @@ function App(props: AppProps) {
       width="100%"
       height={dims().height}
       backgroundColor={theme.background}
-      padding={1}
     >
-      <box flexGrow={1} flexDirection="row" gap={1}>
+      <box flexGrow={0} flexDirection="row" gap={1}>
         <box
           width={35}
           flexDirection="column"
@@ -618,6 +598,7 @@ function App(props: AppProps) {
             noteCount={noteCount}
           />
 
+          <box flexGrow={1} backgroundColor={theme.secondary}>
           <FileList
             displayItems={displayItems}
             selectedFileIndex={selectedFileIndex}
@@ -629,15 +610,15 @@ function App(props: AppProps) {
               hasLineSelections(lineSelections(), filePath)
             }
           />
+          </box>
         </box>
 
-        <box flexGrow={1} flexDirection="column">
+        <box flexGrow={1} flexDirection="column" gap={1}>
           <DiffPanel
             entry={selectedEntry}
-            blocks={blocks}
-            selectedBlockIndex={selectedBlockIndex}
+            hunkCount={hunkCount}
+            selectedHunkIndex={selectedHunkIndex}
             focused={() => focusPanel() === "diff"}
-            showBlockIndicator={showBlockIndicator}
             selection={currentSelection}
             lineMode={lineMode}
             selectedHunks={selectedHunks}

@@ -28,7 +28,7 @@ describe("Workflow", () => {
     // Enter diff panel
     await harness.run({
       keys: ["return"],
-      expect: [Test.contains("[block 1/1]")],
+      expect: [Test.contains("[hunk 1/1]")],
     });
 
     // Select hunk

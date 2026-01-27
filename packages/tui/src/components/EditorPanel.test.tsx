@@ -22,13 +22,13 @@ describe("EditorPanel", () => {
     // Enter diff but don't select
     await harness.run({
       keys: ["return"],
-      expect: [Test.contains("[block 1/1]")],
+      expect: [Test.contains("[hunk 1/1]")],
     });
 
     // Try to open editor - should not work (no .md file shown)
     await harness.run({
       keys: ["c"],
-      expect: [Test.contains("[block 1/1]")],
+      expect: [Test.contains("[hunk 1/1]")],
     });
 
     // Now select hunk

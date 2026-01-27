@@ -17,21 +17,6 @@ index 1234567..abcdefg 100644
 +added line 2
  context line 2`;
 
-const multiBlockDiff = `diff --git a/file.txt b/file.txt
---- a/file.txt
-+++ b/file.txt
-@@ -1,8 +1,7 @@
- context 1
--removed 1
-+added 1
- context 2
- context 3
- context 4
--removed 2
--removed 3
-+added 2
- context 5`;
-
 const multiHunkDiff = `diff --git a/file.txt b/file.txt
 --- a/file.txt
 +++ b/file.txt
@@ -74,91 +59,6 @@ const noNewlineDiff = `diff --git a/file.txt b/file.txt
 -old line
 \\ No newline at end of file
 +new line`;
-
-describe("Git.blocks", () => {
-  test("returns empty array for empty input", () => {
-    expect(Git.blocks("")).toEqual([]);
-  });
-
-  test("returns empty array for null/undefined input", () => {
-    expect(Git.blocks(null as any)).toEqual([]);
-    expect(Git.blocks(undefined as any)).toEqual([]);
-  });
-
-  test("parses simple diff with one change block", () => {
-    const blocks = Git.blocks(simpleDiff);
-    expect(blocks.length).toBe(1);
-    expect(blocks[0]!.startLine).toBe(1); // After "context line 1"
-    expect(blocks[0]!.lineCount).toBe(3); // -removed, +added1, +added2
-    expect(blocks[0]!.content).toBe(
-      "-removed line\n+added line 1\n+added line 2",
-    );
-  });
-
-  test("parses diff with multiple change blocks separated by context", () => {
-    const blocks = Git.blocks(multiBlockDiff);
-    expect(blocks.length).toBe(2);
-
-    // First block: -removed1, +added1
-    expect(blocks[0]!.startLine).toBe(1);
-    expect(blocks[0]!.lineCount).toBe(2);
-
-    // Second block: -removed2, -removed3, +added2
-    expect(blocks[1]!.startLine).toBe(6); // After context1, block1(2 lines), context2, context3, context4
-    expect(blocks[1]!.lineCount).toBe(3);
-  });
-
-  test("parses diff with multiple hunks", () => {
-    const blocks = Git.blocks(multiHunkDiff);
-    expect(blocks.length).toBe(2);
-
-    // First hunk block: starts after context1 (line 0), so at line 1
-    expect(blocks[0]!.startLine).toBe(1);
-    expect(blocks[0]!.lineCount).toBe(2);
-
-    // Second hunk block: hunk1 has 6 lines (0-5), hunk2 starts at 6 (context10), change at 7
-    expect(blocks[1]!.startLine).toBe(7);
-    expect(blocks[1]!.lineCount).toBe(2);
-  });
-
-  test("parses diff with only additions", () => {
-    const blocks = Git.blocks(onlyAdditionsDiff);
-    expect(blocks.length).toBe(1);
-    expect(blocks[0]!.lineCount).toBe(3);
-    expect(blocks[0]!.content).toBe("+new line 1\n+new line 2\n+new line 3");
-  });
-
-  test("parses diff with only deletions", () => {
-    const blocks = Git.blocks(onlyDeletionsDiff);
-    expect(blocks.length).toBe(1);
-    expect(blocks[0]!.lineCount).toBe(3);
-    expect(blocks[0]!.content).toBe("-deleted 1\n-deleted 2\n-deleted 3");
-  });
-
-  test("handles 'No newline at end of file' markers", () => {
-    const blocks = Git.blocks(noNewlineDiff);
-    // The backslash line breaks the contiguous block, resulting in 2 separate blocks
-    expect(blocks.length).toBe(2);
-    expect(blocks[0]!.lineCount).toBe(1);
-    expect(blocks[0]!.content).toBe("-old line");
-    expect(blocks[1]!.lineCount).toBe(1);
-    expect(blocks[1]!.content).toBe("+new line");
-  });
-
-  test("returns empty array for malformed diff", () => {
-    const blocks = Git.blocks("this is not a valid diff");
-    expect(blocks).toEqual([]);
-  });
-
-  test("returns empty array for diff with no hunks", () => {
-    const headerOnly = `diff --git a/file.txt b/file.txt
-index 1234567..abcdefg 100644
---- a/file.txt
-+++ b/file.txt`;
-    const blocks = Git.blocks(headerOnly);
-    expect(blocks).toEqual([]);
-  });
-});
 
 describe("Git.lines", () => {
   test("returns 0 for empty input", () => {

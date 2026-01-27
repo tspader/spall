@@ -66,8 +66,6 @@ export function EditorPanel(props: EditorPanelProps) {
       <box height={1} paddingLeft={1}>
         <text fg={theme.textMuted}>{props.filename()}</text>
       </box>
-
-      <HalfLineShadow />
     </box>
   )
 }

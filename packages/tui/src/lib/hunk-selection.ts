@@ -1,12 +1,11 @@
 /**
  * Hunk selection state management for multi-hunk comments.
- * A "hunk" here refers to a ChangeBlock - a contiguous group of changed lines.
  *
  * Selections are keyed by file path (relative) for stability across refreshes.
  */
 
 /**
- * Map of file path -> Set of selected block indices
+ * Map of file path -> Set of selected hunk indices
  */
 export type HunkSelections = Map<string, Set<number>>;
 
@@ -23,9 +22,9 @@ export function createHunkSelections(): HunkSelections {
 export function isHunkSelected(
   selections: HunkSelections,
   filePath: string,
-  blockIndex: number,
+  hunkIndex: number,
 ): boolean {
-  return selections.get(filePath)?.has(blockIndex) ?? false;
+  return selections.get(filePath)?.has(hunkIndex) ?? false;
 }
 
 /**
@@ -35,20 +34,20 @@ export function isHunkSelected(
 export function toggleHunkSelection(
   selections: HunkSelections,
   filePath: string,
-  blockIndex: number,
+  hunkIndex: number,
 ): HunkSelections {
   const newSelections = new Map(selections);
   const fileSet = new Set(selections.get(filePath) ?? []);
 
-  if (fileSet.has(blockIndex)) {
-    fileSet.delete(blockIndex);
+  if (fileSet.has(hunkIndex)) {
+    fileSet.delete(hunkIndex);
     if (fileSet.size === 0) {
       newSelections.delete(filePath);
     } else {
       newSelections.set(filePath, fileSet);
     }
   } else {
-    fileSet.add(blockIndex);
+    fileSet.add(hunkIndex);
     newSelections.set(filePath, fileSet);
   }
 
@@ -62,14 +61,14 @@ export function toggleHunkSelection(
 export function addHunkToSelection(
   selections: HunkSelections,
   filePath: string,
-  blockIndex: number,
+  hunkIndex: number,
 ): HunkSelections {
-  if (isHunkSelected(selections, filePath, blockIndex)) {
+  if (isHunkSelected(selections, filePath, hunkIndex)) {
     return selections;
   }
   const newSelections = new Map(selections);
   const fileSet = new Set(selections.get(filePath) ?? []);
-  fileSet.add(blockIndex);
+  fileSet.add(hunkIndex);
   newSelections.set(filePath, fileSet);
   return newSelections;
 }
@@ -81,14 +80,14 @@ export function addHunkToSelection(
 export function removeHunkFromSelection(
   selections: HunkSelections,
   filePath: string,
-  blockIndex: number,
+  hunkIndex: number,
 ): HunkSelections {
-  if (!isHunkSelected(selections, filePath, blockIndex)) {
+  if (!isHunkSelected(selections, filePath, hunkIndex)) {
     return selections;
   }
   const newSelections = new Map(selections);
   const fileSet = new Set(selections.get(filePath)!);
-  fileSet.delete(blockIndex);
+  fileSet.delete(hunkIndex);
   if (fileSet.size === 0) {
     newSelections.delete(filePath);
   } else {
@@ -126,7 +125,7 @@ export function getFileHunkSelectionCount(
 }
 
 /**
- * Get all selected block indices for a specific file.
+ * Get all selected hunk indices for a specific file.
  */
 export function getSelectedHunksForFile(
   selections: HunkSelections,

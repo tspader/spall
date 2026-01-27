@@ -1,15 +1,72 @@
-import { Show, For, createMemo } from "solid-js";
+import { Show, For, createMemo, Index } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
+import { parsePatch } from "diff";
 import { Git } from "../lib/git";
 import type { Selection } from "../lib/selection";
 import { type HunkSelections, isHunkSelected } from "../lib/hunk-selection";
-import {
-  type LineSelections,
-  getLineSelectionsForFile,
-} from "../lib/line-selection";
+import type { LineSelections } from "../lib/line-selection";
 import { useTheme } from "../context/theme";
-import { HalfLineShadow } from "./HalfLineShadow";
+
+interface ParsedHunk {
+  diffString: string;
+  oldStart: number;
+  oldLines: number;
+  skipBefore: number; // lines skipped before this hunk (0 for first)
+  lineCount: number; // number of rendered lines in this hunk
+}
+
+function parseHunks(content: string, file: string): ParsedHunk[] {
+  if (!content) return [];
+
+  try {
+    const patches = parsePatch(content);
+    if (patches.length === 0) return [];
+
+    const rawHunks = patches[0]?.hunks ?? [];
+    const result: ParsedHunk[] = [];
+
+    // Build the file header once
+    const header = `diff --git a/${file} b/${file}
+--- a/${file}
++++ b/${file}`;
+
+    for (let i = 0; i < rawHunks.length; i++) {
+      const hunk = rawHunks[i]!;
+
+      // Calculate skip from previous hunk
+      let skipBefore = 0;
+      if (i > 0) {
+        const prev = rawHunks[i - 1]!;
+        const prevEnd = prev.oldStart + prev.oldLines;
+        skipBefore = hunk.oldStart - prevEnd;
+      }
+
+      // Reconstruct the hunk as a standalone diff string
+      const hunkHeader = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
+      const diffString = `${header}\n${hunkHeader}\n${hunk.lines.join("\n")}`;
+
+      // Count rendered lines (context, additions, deletions)
+      let lineCount = 0;
+      for (const line of hunk.lines) {
+        const c = line[0];
+        if (c === " " || c === "+" || c === "-") lineCount++;
+      }
+
+      result.push({
+        diffString,
+        oldStart: hunk.oldStart,
+        oldLines: hunk.oldLines,
+        skipBefore,
+        lineCount,
+      });
+    }
+
+    return result;
+  } catch {
+    return [];
+  }
+}
 
 function getFiletype(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -88,10 +145,9 @@ function getFiletype(filename: string): string {
 
 export interface DiffPanelProps {
   entry: Accessor<Git.Entry | undefined>;
-  blocks: Accessor<Git.Block[]>;
-  selectedBlockIndex: Accessor<number>;
+  hunkCount: Accessor<number>;
+  selectedHunkIndex: Accessor<number>;
   focused: Accessor<boolean>;
-  showBlockIndicator: Accessor<boolean>;
   selection: Accessor<Selection>;
   lineMode: Accessor<boolean>;
   selectedHunks: Accessor<HunkSelections>;
@@ -100,126 +156,28 @@ export interface DiffPanelProps {
   onScrollboxRef: (ref: ScrollBoxRenderable) => void;
 }
 
-// Unified indicator component - renders a column of indicators alongside the diff
-interface DiffIndicatorProps {
-  lineMode: Accessor<boolean>;
-  blocks: Accessor<Git.Block[]>;
-  selectedBlockIndex: Accessor<number>;
-  selection: Accessor<Selection>;
-  selectedHunks: Accessor<HunkSelections>;
-  lineSelections: Accessor<LineSelections>;
-  currentFilePath: Accessor<string | undefined>;
-  focused: Accessor<boolean>;
-  totalLines: Accessor<number>;
-}
-
-function DiffIndicator(props: DiffIndicatorProps) {
-  const { theme } = useTheme();
-
-  // Build a map of line number -> color
-  const lineColors = createMemo(() => {
-    const colors = new Map<number, string>();
-    const filePath = props.currentFilePath();
-    if (filePath === undefined) return colors;
-
-    if (props.lineMode()) {
-      // Line mode: stored line selections (lower priority)
-      const fileLineSelections = getLineSelectionsForFile(
-        props.lineSelections(),
-        filePath,
-      );
-      for (const lineSel of fileLineSelections) {
-        for (let i = lineSel.startLine; i <= lineSel.endLine; i++) {
-          colors.set(i, theme.added);
-        }
-      }
-
-      // Line mode: current selection (higher priority, overwrites)
-      if (props.focused()) {
-        const sel = props.selection();
-        for (let i = sel.start; i <= sel.end; i++) {
-          colors.set(i, theme.primary);
-        }
-      }
-    } else {
-      // Hunk mode: iterate blocks
-      const blocks = props.blocks();
-      for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
-        const block = blocks[blockIndex]!;
-        const isSelected = isHunkSelected(
-          props.selectedHunks(),
-          filePath,
-          blockIndex,
-        );
-        const isFocused =
-          props.focused() && blockIndex === props.selectedBlockIndex();
-
-        let color = theme.indicatorDefault;
-        if (isFocused) {
-          color = theme.primary;
-        } else if (isSelected) {
-          color = theme.added;
-        }
-
-        for (let i = 0; i < block.lineCount; i++) {
-          colors.set(block.startLine + i, color);
-        }
-      }
-    }
-
-    return colors;
-  });
-
-  // Create array of line indices for rendering
-  const lineIndices = createMemo(() =>
-    Array.from({ length: props.totalLines() }, (_, i) => i),
-  );
-
-  return (
-    <box flexDirection="column" width={1} flexShrink={0}>
-      <For each={lineIndices()}>
-        {(lineNum) => {
-          const color = () => lineColors().get(lineNum);
-          return (
-            <text height={1} fg={color()}>
-              {/* {color() ? "▌" : " "} */}
-              {color() ? "█" : " "}
-            </text>
-          );
-        }}
-      </For>
-    </box>
-  );
-}
-
 export function DiffPanel(props: DiffPanelProps) {
   const { theme, syntax } = useTheme();
-
-  const totalLines = createMemo(() => {
-    const entry = props.entry();
-    if (!entry) return 0;
-    return Git.lines(entry.content);
-  });
 
   const title = () => {
     const entry = props.entry();
     if (!entry) return "Diff";
-    const b = props.blocks();
+    const hunkCount = props.hunkCount();
 
     if (props.lineMode()) {
       const sel = props.selection();
       const lineCount = sel.end - sel.start + 1;
       if (lineCount === 1) {
-        return `${entry.file} [line ${sel.start + 1}]`;
+        return `[line ${sel.start + 1}]`;
       }
-      return `${entry.file} [lines ${sel.start + 1}-${sel.end + 1}]`;
+      return `[lines ${sel.start + 1}-${sel.end + 1}]`;
     }
 
-    if (b.length === 0) return entry.file;
+    if (hunkCount === 0) return entry.file;
     if (props.focused()) {
-      return `${entry.file} [block ${props.selectedBlockIndex() + 1}/${b.length}]`;
+      return `[hunk ${props.selectedHunkIndex() + 1}/${hunkCount}]`;
     }
-    return `${entry.file} [${b.length} block${b.length === 1 ? "" : "s"}]`;
+    return `[${hunkCount} hunk${hunkCount === 1 ? "" : "s"}]`;
   };
 
   return (
@@ -227,54 +185,103 @@ export function DiffPanel(props: DiffPanelProps) {
       flexGrow={1}
       flexDirection="column"
       backgroundColor={theme.backgroundPanel}
+      padding={1}
     >
       {/* Title bar */}
-      <box height={1} paddingLeft={1}>
+      <box
+        height={1}
+        paddingLeft={1}
+        flexDirection="row"
+        justifyContent="flex-start"
+        gap={1}
+      >
+        <text>
+          <span style={{ italic: true }}>
+            {props.entry() ? props.entry()!.file : "none"}
+          </span>
+        </text>
         <text>
           <span style={{ bold: true }}>{title()}</span>
         </text>
       </box>
 
       <Show when={props.entry()}>
-        <scrollbox
-          ref={props.onScrollboxRef}
-          focused={false}
-          width={"100%"}
-          height={"100%"}
-          flexGrow={1}
-        >
-          <box flexDirection="row">
-            <DiffIndicator
-              lineMode={props.lineMode}
-              blocks={props.blocks}
-              selectedBlockIndex={props.selectedBlockIndex}
-              selection={props.selection}
-              selectedHunks={props.selectedHunks}
-              lineSelections={props.lineSelections}
-              currentFilePath={props.currentFilePath}
-              focused={props.focused}
-              totalLines={totalLines}
-            />
-            <diff
-              diff={props.entry()!.content}
-              view="unified"
-              filetype={getFiletype(props.entry()!.file)}
-              syntaxStyle={syntax()}
-              showLineNumbers={true}
-              flexGrow={1}
-              fg={theme.text}
-              addedBg={theme.diffAddedBg}
-              removedBg={theme.diffRemovedBg}
-              contextBg={theme.diffContextBg}
-              addedSignColor={theme.diffSignAdded}
-              removedSignColor={theme.diffSignRemoved}
-              lineNumberFg={theme.diffLineNumberFg}
-              lineNumberBg={theme.diffContextBg}
-              addedLineNumberBg={theme.diffAddedLineNumberBg}
-              removedLineNumberBg={theme.diffRemovedLineNumberBg}
-            />
-          </box>
-        </scrollbox>
+        {(() => {
+          const entry = props.entry()!;
+          const hunks = createMemo(() => parseHunks(entry.content, entry.file));
+          const filetype = getFiletype(entry.file);
+
+          return (
+            <scrollbox
+              ref={props.onScrollboxRef}
+              focused={false}
+              width={"100%"}
+              height={"100%"}
+            >
+              <box flexDirection="column" backgroundColor={theme.background}>
+                <Index each={hunks()}>
+                  {(hunk, i) => {
+                    const isFocused = () =>
+                      props.focused() && props.selectedHunkIndex() === i;
+                    const isSelected = () =>
+                      isHunkSelected(props.selectedHunks(), entry.file, i);
+                    const indicatorColor = () => {
+                      if (isFocused()) return theme.primary;
+                      if (isSelected()) return theme.added;
+                      return theme.indicatorDefault;
+                    };
+
+                    return (
+                      <>
+                        <Show when={i > 0}>
+                          <box
+                            height={1}
+                            backgroundColor={theme.backgroundPanel}
+                          />
+                        </Show>
+                        <box flexDirection="row">
+                          {/* Indicator column */}
+                          <box flexDirection="column" width={1} flexShrink={0}>
+                            <For
+                              each={Array.from(
+                                { length: hunk().lineCount },
+                                (_, j) => j,
+                              )}
+                            >
+                              {() => (
+                                <text height={1} fg={indicatorColor()}>
+                                  █
+                                </text>
+                              )}
+                            </For>
+                          </box>
+                          <diff
+                            diff={hunk().diffString}
+                            view="unified"
+                            filetype={filetype}
+                            syntaxStyle={syntax()}
+                            showLineNumbers={true}
+                            flexGrow={0}
+                            fg={theme.text}
+                            addedBg={theme.diffAddedBg}
+                            removedBg={theme.diffRemovedBg}
+                            contextBg={theme.diffContextBg}
+                            addedSignColor={theme.diffSignAdded}
+                            removedSignColor={theme.diffSignRemoved}
+                            lineNumberFg={theme.diffLineNumberFg}
+                            lineNumberBg={theme.diffContextBg}
+                            addedLineNumberBg={theme.diffAddedLineNumberBg}
+                            removedLineNumberBg={theme.diffRemovedLineNumberBg}
+                          />
+                        </box>
+                      </>
+                    );
+                  }}
+                </Index>
+              </box>
+            </scrollbox>
+          );
+        })()}
       </Show>
       <Show when={!props.entry()}>
         <box padding={1} flexGrow={1}>

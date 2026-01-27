@@ -90,7 +90,7 @@ const defaultTheme: ThemeColors = {
   // Diff styling (ayu-inspired colors)
   diffAddedBg: "#20303b", // dark blue-green tint
   diffRemovedBg: "#37222c", // dark red tint
-  diffContextBg: "transparent",
+  diffContextBg: "111111",
   diffSignAdded: "#b8db87", // bright green for "+"
   diffSignRemoved: "#e26a75", // bright red for "-"
   diffAddedLineNumberBg: "#1a2a30",

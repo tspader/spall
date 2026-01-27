@@ -14,21 +14,21 @@ const render = (repoPath: string) => <Review repoPath={repoPath} />;
 
 describe("DiffPanel", () => {
   describe("panel navigation", () => {
-    it("enters diff panel with Enter and shows block indicator", async () => {
+    it("enters diff panel with Enter and shows hunk indicator", async () => {
       harness = await Test.create({
         render,
         repo: { modified: ["file.ts"] },
       });
 
-      // Initially in sidebar, shows block count
+      // Initially in sidebar, shows hunk count
       await harness.run({
-        expect: [Test.contains("[1 block]")],
+        expect: [Test.contains("[1 hunk]")],
       });
 
       // Enter diff panel
       await harness.run({
         keys: ["return"],
-        expect: [Test.contains("[block 1/1]")],
+        expect: [Test.contains("[hunk 1/1]")],
       });
     });
   });
@@ -43,7 +43,7 @@ describe("DiffPanel", () => {
       // Enter diff panel
       await harness.run({
         keys: ["return"],
-        expect: [Test.contains("[block 1/1]"), Test.notContains("c comment")],
+        expect: [Test.contains("[hunk 1/1]"), Test.notContains("c comment")],
       });
 
       // Select hunk
@@ -69,7 +69,7 @@ describe("DiffPanel", () => {
 
       await harness.run({
         keys: ["return"],
-        expect: [Test.contains("[block")],
+        expect: [Test.contains("[hunk")],
       });
 
       // Switch to line mode
@@ -81,7 +81,7 @@ describe("DiffPanel", () => {
       // Switch back to hunk mode
       await harness.run({
         keys: ["a"],
-        expect: [Test.contains("[block")],
+        expect: [Test.contains("[hunk")],
       });
     });
 
