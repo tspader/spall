@@ -5,7 +5,7 @@ import { existsSync, statSync } from "fs";
 
 import pc from "picocolors";
 import { Client } from "@spall/sdk/client";
-import { Store, Review, ReviewComment } from "./lib/store";
+import { db, Repo, Review, Patch, ReviewComment } from "./store";
 import consola from "consola";
 
 const BAR_WIDTH = 20;
@@ -452,16 +452,16 @@ const cliDef: Cli.CliDef = {
       description: "Manage reviews",
       commands: {
         list: {
-          description: "List reviews for a project",
+          description: "List reviews for a repo",
           positionals: {
-            project: {
+            repo: {
               type: "number",
-              description: "Project ID",
+              description: "Repo ID",
               required: true,
             },
           },
           handler: (argv) => {
-            const reviews = Review.list(argv.project);
+            const reviews = Review.list(argv.repo);
             if (reviews.length === 0) {
               console.log("No reviews found.");
               return;
@@ -469,21 +469,23 @@ const cliDef: Cli.CliDef = {
             for (const r of reviews) {
               const date = new Date(r.createdAt).toISOString();
               const name = r.name ? ` (${r.name})` : "";
-              console.log(`#${r.id} ${r.commit.slice(0, 7)}${name} - ${date}`);
+              console.log(
+                `#${r.id} ${r.commitSha.slice(0, 7)}${name} - ${date}`,
+              );
             }
           },
         },
         create: {
           description: "Create a new review",
           positionals: {
-            project: {
+            repo: {
               type: "number",
-              description: "Project ID",
+              description: "Repo ID",
               required: true,
             },
             commit: {
               type: "string",
-              description: "Commit hash",
+              description: "Commit SHA",
               required: true,
             },
           },
@@ -496,8 +498,8 @@ const cliDef: Cli.CliDef = {
           },
           handler: (argv) => {
             const review = Review.create({
-              projectId: argv.project,
-              commit: argv.commit,
+              repo: argv.repo,
+              commitSha: argv.commit,
               name: argv.name,
             });
             console.log(`Created review #${review.id}`);
@@ -518,18 +520,18 @@ const cliDef: Cli.CliDef = {
           },
         },
         latest: {
-          description: "Get the latest review for a project",
+          description: "Get the latest review for a repo",
           positionals: {
-            project: {
+            repo: {
               type: "number",
-              description: "Project ID",
+              description: "Repo ID",
               required: true,
             },
           },
           handler: (argv) => {
-            const review = Review.latest(argv.project);
+            const review = Review.latest(argv.repo);
             if (!review) {
-              console.error(`No reviews found for project #${argv.project}.`);
+              console.error(`No reviews found for repo #${argv.repo}.`);
               process.exit(1);
             }
             console.log(JSON.stringify(review, null, 2));
@@ -770,7 +772,7 @@ const cliDef: Cli.CliDef = {
     tui: {
       description: "Launch the interactive TUI",
       handler: async () => {
-        Store.init();
+        db.init();
 
         await import("@opentui/solid/preload");
         const { tui } = await import("./App");

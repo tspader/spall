@@ -15,13 +15,8 @@ import {
   onMount,
   onCleanup,
 } from "solid-js";
-import {
-  getDiffEntries,
-  getDiffHash,
-  parseChangeBlocks,
-  findRepoRoot,
-  type DiffEntry,
-} from "./lib/git";
+import { Git } from "./lib/git";
+import { Repo, Review as ReviewStore, Patch } from "./store";
 import {
   FileList,
   DiffPanel,
@@ -113,8 +108,17 @@ function App(props: AppProps) {
   const [projectName, setProjectName] = createSignal<string | null>(null);
   const [noteCount, setNoteCount] = createSignal<number>(0);
 
+  // Review state (for patch tracking)
+  const [commitSha, setCommitSha] = createSignal<string | null>(null);
+  const [currentReviewId, setCurrentReviewId] = createSignal<number | null>(
+    null,
+  );
+  const [currentPatchSeq, setCurrentPatchSeq] = createSignal<number | null>(
+    null,
+  );
+
   // Data state
-  const [entries, setEntries] = createSignal<DiffEntry[]>([]);
+  const [entries, setEntries] = createSignal<Git.Entry[]>([]);
   const [loading, setLoading] = createSignal(true);
 
   // Derived tree state
@@ -172,7 +176,7 @@ function App(props: AppProps) {
     return entryIndex !== undefined ? entries()[entryIndex] : undefined;
   };
   const blocks = createMemo(() =>
-    selectedEntry() ? parseChangeBlocks(selectedEntry()!.content) : [],
+    selectedEntry() ? Git.blocks(selectedEntry()!.content) : [],
   );
   const selectedBlock = () => blocks()[selectedBlockIndex()];
 
@@ -235,22 +239,46 @@ function App(props: AppProps) {
 
   onMount(async () => {
     // Detect repo root
-    const root = await findRepoRoot(props.repoPath);
+    const root = await Git.root(props.repoPath);
     setRepoRoot(root);
 
-    const diffEntries = await getDiffEntries(props.repoPath);
+    // Get current HEAD commit
+    const head = await Git.head(props.repoPath);
+    setCommitSha(head);
+
+    const diffEntries = await Git.entries(props.repoPath);
     setEntries(diffEntries);
     setLoading(false);
 
+    // Check if we have an existing review for this repo+commit
+    if (root && head) {
+      const repo = Repo.getByPath(root);
+      if (repo) {
+        const review = ReviewStore.getByRepoAndCommit(repo.id, head);
+        if (review) {
+          setCurrentReviewId(review.id);
+          // Check current patch against stored patches
+          const fullDiff = await Git.diff(props.repoPath);
+          const hash = String(Bun.hash(fullDiff));
+          const existingPatch = Patch.getByHash(review.id, hash);
+          if (existingPatch) {
+            setCurrentPatchSeq(existingPatch.seq);
+          }
+        }
+      }
+    }
+
     // Poll for git changes every second
-    let lastHash = await getDiffHash(props.repoPath);
+    let lastHash = await Git.hash(props.repoPath);
     const pollInterval = setInterval(async () => {
       try {
-        const hash = await getDiffHash(props.repoPath);
+        const hash = await Git.hash(props.repoPath);
         if (hash !== lastHash) {
           lastHash = hash;
-          const newEntries = await getDiffEntries(props.repoPath);
+          const newEntries = await Git.entries(props.repoPath);
           setEntries(newEntries);
+          // Reset current patch seq - diff changed, need to re-check on next comment
+          setCurrentPatchSeq(null);
         }
       } catch {
         // Repo probably gone (deleted/moved) - stop polling
@@ -577,7 +605,8 @@ function App(props: AppProps) {
           flexDirection="column"
           gap={1}
           padding={1}
-         backgroundColor={theme.secondary}>
+          backgroundColor={theme.backgroundPanel}
+        >
           <ServerStatus
             url={serverUrl}
             connected={serverConnected}
@@ -623,9 +652,32 @@ function App(props: AppProps) {
               initialContent={editorInitialContent}
               focused={() => true}
               onTextareaRef={(ref) => (editorTextarea = ref)}
-              onSubmit={(content) => {
-                console.log("Saved annotation:", content);
-                console.log("Selected hunks:", selectedHunks());
+              onSubmit={async (content) => {
+                const root = repoRoot();
+                const head = commitSha();
+
+                if (root && head) {
+                  // Get or create repo
+                  const repo = Repo.getOrCreate(root);
+
+                  // Get or create review for this repo+commit
+                  let reviewId = currentReviewId();
+                  if (!reviewId) {
+                    const review = ReviewStore.getOrCreate(repo.id, head);
+                    reviewId = review.id;
+                    setCurrentReviewId(reviewId);
+                  }
+
+                  // Get or create patch for current diff state
+                  const fullDiff = await Git.diff(props.repoPath);
+                  const patch = Patch.getOrCreate(reviewId, fullDiff);
+                  setCurrentPatchSeq(patch.seq);
+
+                  // TODO: Create the actual comment with patch.seq as anchor
+                  console.log("Comment on patch", patch.seq, ":", content);
+                  console.log("Selected hunks:", selectedHunks());
+                }
+
                 setSelectedHunks(clearHunkSelections());
                 setLineSelections(clearLineSelections());
                 setFocusPanel("diff");

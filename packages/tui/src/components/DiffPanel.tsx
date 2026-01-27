@@ -1,7 +1,7 @@
 import { Show, For, createMemo } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { type DiffEntry, type ChangeBlock, countDiffLines } from "../lib/git";
+import { Git } from "../lib/git";
 import type { Selection } from "../lib/selection";
 import { type HunkSelections, isHunkSelected } from "../lib/hunk-selection";
 import {
@@ -87,8 +87,8 @@ function getFiletype(filename: string): string {
 }
 
 export interface DiffPanelProps {
-  entry: Accessor<DiffEntry | undefined>;
-  blocks: Accessor<ChangeBlock[]>;
+  entry: Accessor<Git.Entry | undefined>;
+  blocks: Accessor<Git.Block[]>;
   selectedBlockIndex: Accessor<number>;
   focused: Accessor<boolean>;
   showBlockIndicator: Accessor<boolean>;
@@ -103,7 +103,7 @@ export interface DiffPanelProps {
 // Unified indicator component - renders a column of indicators alongside the diff
 interface DiffIndicatorProps {
   lineMode: Accessor<boolean>;
-  blocks: Accessor<ChangeBlock[]>;
+  blocks: Accessor<Git.Block[]>;
   selectedBlockIndex: Accessor<number>;
   selection: Accessor<Selection>;
   selectedHunks: Accessor<HunkSelections>;
@@ -198,7 +198,7 @@ export function DiffPanel(props: DiffPanelProps) {
   const totalLines = createMemo(() => {
     const entry = props.entry();
     if (!entry) return 0;
-    return countDiffLines(entry.content);
+    return Git.lines(entry.content);
   });
 
   const title = () => {

@@ -6,6 +6,7 @@ import { testRender, render } from "@opentui/solid";
 import { createCliRenderer, engine, type CliRenderer } from "@opentui/core";
 import { createMockKeys } from "@opentui/core/testing";
 import type { JSX } from "@opentui/solid";
+import { db } from "../store";
 
 export namespace Test {
   export namespace Repo {
@@ -190,6 +191,9 @@ export namespace Test {
   }
 
   export async function create(config: Config): Promise<Harness> {
+    // Ensure db is initialized for tests
+    db.init();
+
     const repo = Repo.create(config.repo);
 
     const renderer = await testRender(() => config.render(repo.path), {

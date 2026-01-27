@@ -6,10 +6,10 @@ import { Review } from "./Review";
 import { ErrorFallback } from "./components";
 import { mkdirSync, writeFileSync } from "fs";
 import { parsers } from "../parsers";
-import { Store } from "./lib/store";
+import { db } from "./store";
 
 // Initialize TUI local database
-Store.init();
+db.init();
 
 // Register tree-sitter parsers for syntax highlighting
 addDefaultParsers(parsers);

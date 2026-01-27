@@ -1,4 +1,4 @@
-import type { DiffEntry } from "../lib/git";
+import type { Git } from "../lib/git";
 
 /**
  * A node in the file tree - either a directory or a file
@@ -9,7 +9,7 @@ export interface FileTreeNode {
   type: "file" | "dir";
   status?: "M" | "A" | "D"; // Only for files
   children: FileTreeNode[]; // Empty for files
-  entryIndex?: number; // Only for files - index into original DiffEntry[] array
+  entryIndex?: number; // Only for files - index into original Git.Entry[] array
 }
 
 /**
@@ -24,7 +24,7 @@ export interface DisplayItem {
  * Build a file tree from a list of diff entries.
  * Directories are sorted before files, then alphabetically within each group.
  */
-export function buildFileTree(entries: DiffEntry[]): FileTreeNode[] {
+export function buildFileTree(entries: Git.Entry[]): FileTreeNode[] {
   const root: FileTreeNode[] = [];
 
   for (let i = 0; i < entries.length; i++) {
@@ -46,7 +46,7 @@ function insertPath(
   nodes: FileTreeNode[],
   parts: string[],
   partIndex: number,
-  entry: DiffEntry,
+  entry: Git.Entry,
   entryIndex: number,
 ): void {
   if (partIndex >= parts.length) return;
