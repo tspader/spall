@@ -78,7 +78,7 @@ export function FileList(props: FileListProps) {
       </Show>
 
       <Show when={!props.loading() && props.displayItems().length > 0}>
-        <scrollbox ref={(r) => (scrollbox = r)}>
+        <scrollbox ref={(r) => (scrollbox = r)} flexGrow={1}>
           <For each={props.displayItems()}>
             {(item) => {
               if (item.node.type === "dir") {

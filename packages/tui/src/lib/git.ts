@@ -1,6 +1,20 @@
 import { $ } from "bun";
 import { parsePatch } from "diff";
 
+/**
+ * Find the git repository root by walking up from startPath.
+ * Returns absolute path to repo root, or null if not in a git repo.
+ */
+export async function findRepoRoot(startPath: string): Promise<string | null> {
+  try {
+    const result =
+      await $`git -C ${startPath} rev-parse --show-toplevel`.quiet();
+    return result.stdout.toString().trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 export interface DiffEntry {
   file: string;
   content: string;

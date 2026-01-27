@@ -1,4 +1,5 @@
 import type { JSXElement } from "solid-js";
+import { splitProps } from "solid-js";
 import { useTheme } from "../context/theme";
 
 export interface TitleProps {
@@ -7,7 +8,7 @@ export interface TitleProps {
 
 export function Title(props: TitleProps) {
   return (
-    <box>
+    <box flexShrink={0}>
       <text>
         <span style={{ bold: true }}>{props.title}</span>
       </text>
@@ -15,11 +16,12 @@ export function Title(props: TitleProps) {
   )
 }
 
-export function Section(props: { title: string, children: JSXElement }) {
+export function Section(props: { title: string, flexGrow?: number, children: JSXElement }) {
   const { theme } = useTheme();
 
+  const [_, boxProps] = splitProps(props, ["title", "children"]);
   return (
-    <box flexDirection="column" backgroundColor={theme.backgroundPanel} flexGrow={1}>
+    <box flexDirection="column" backgroundColor={theme.backgroundPanel} flexShrink={0} {...boxProps}>
       <Title title={props.title} />
       {props.children}
     </box>

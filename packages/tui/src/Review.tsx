@@ -19,6 +19,7 @@ import {
   getDiffEntries,
   getDiffHash,
   parseChangeBlocks,
+  findRepoRoot,
   type DiffEntry,
 } from "./lib/git";
 import {
@@ -27,6 +28,7 @@ import {
   EditorPanel,
   CommandPalette,
   ServerStatus,
+  ProjectStatus,
 } from "./components";
 import { Client } from "@spall/sdk";
 import {
@@ -40,7 +42,6 @@ import {
   createHunkSelections,
   toggleHunkSelection,
   clearHunkSelections,
-  getFileHunkSelectionCount,
   getHunkSelectionCount,
   hasSelectedHunks,
 } from "./lib/hunk-selection";
@@ -49,8 +50,6 @@ import {
   createLineSelections,
   addLineSelection,
   clearLineSelections,
-  getLineSelectionsForFile,
-  getFileLineSelectionCount,
   getLineSelectionCount,
   hasLineSelections,
 } from "./lib/line-selection";
@@ -108,6 +107,11 @@ function App(props: AppProps) {
   // Server state
   const [serverUrl, setServerUrl] = createSignal<string | null>(null);
   const [serverConnected, setServerConnected] = createSignal(false);
+
+  // Repo/project state
+  const [repoRoot, setRepoRoot] = createSignal<string | null>(null);
+  const [projectName, setProjectName] = createSignal<string | null>(null);
+  const [noteCount, setNoteCount] = createSignal<number>(0);
 
   // Data state
   const [entries, setEntries] = createSignal<DiffEntry[]>([]);
@@ -230,6 +234,10 @@ function App(props: AppProps) {
   });
 
   onMount(async () => {
+    // Detect repo root
+    const root = await findRepoRoot(props.repoPath);
+    setRepoRoot(root);
+
     const diffEntries = await getDiffEntries(props.repoPath);
     setEntries(diffEntries);
     setLoading(false);
@@ -255,7 +263,6 @@ function App(props: AppProps) {
     try {
       const client = await Client.connect(clientAbort.signal);
       const result = await client.health();
-      const { stream } = await client.events();
 
       // Subscribe to server events
       (async () => {
@@ -272,6 +279,17 @@ function App(props: AppProps) {
       if (result.response.ok) {
         setServerUrl(result.response.url.replace("/health", ""));
         setServerConnected(true);
+
+        // Get or create project for this repo
+        if (root) {
+          const { stream } = await client.project.create({ dir: root });
+          for await (const e of stream) {
+            if (e.tag === "project.created") {
+              setProjectName(e.info.name);
+              setNoteCount(e.info.noteCount);
+            }
+          }
+        }
       }
     } catch {
       setServerConnected(false);
@@ -559,13 +577,18 @@ function App(props: AppProps) {
           flexDirection="column"
           gap={1}
           padding={1}
-          backgroundColor={theme.backgroundPanel}
-        >
+         backgroundColor={theme.secondary}>
           <ServerStatus
             url={serverUrl}
             connected={serverConnected}
             event={event}
           />
+          <ProjectStatus
+            repoRoot={repoRoot}
+            projectName={projectName}
+            noteCount={noteCount}
+          />
+
           <FileList
             displayItems={displayItems}
             selectedFileIndex={selectedFileIndex}

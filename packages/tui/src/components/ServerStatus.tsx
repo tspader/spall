@@ -1,4 +1,4 @@
-import type { Accessor, JSX, JSXElement, splitProps } from "solid-js";
+import type { Accessor } from "solid-js";
 import { useTheme } from "../context/theme";
 import { Section } from "./Section";
 
@@ -13,7 +13,12 @@ export function ServerStatus(props: ServerStatusProps) {
 
   return (
     <Section title="Server">
-      <box flexDirection="row" gap={1} backgroundColor={theme.backgroundPanel} height={1}>
+      <box
+        flexDirection="row"
+        gap={1}
+        backgroundColor={theme.backgroundPanel}
+        height={1}
+      >
         <text fg={props.connected() ? theme.connected : theme.disconnected}>
           •
         </text>
@@ -22,7 +27,7 @@ export function ServerStatus(props: ServerStatusProps) {
         </text>
       </box>
       <box height={1}>
-      <text>{props.event()}</text>
+        <text>{props.event()}</text>
       </box>
     </Section>
   );
