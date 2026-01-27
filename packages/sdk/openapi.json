@@ -342,6 +342,22 @@
                       "properties": {
                         "tag": {
                           "type": "string",
+                          "const": "model.failed"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
                           "const": "store.create"
                         },
                         "path": {
@@ -903,6 +919,22 @@
                       "properties": {
                         "tag": {
                           "type": "string",
+                          "const": "model.failed"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
                           "const": "store.create"
                         },
                         "path": {
@@ -1134,6 +1166,62 @@
             }
           }
         }
+      }
+    },
+    "/note/{id}": {
+      "get": {
+        "operationId": "note.getById",
+        "summary": "Get a note by ID",
+        "description": "Get a note by its globally unique ID.",
+        "responses": {
+          "200": {
+            "description": "Note with content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "number"
+                    },
+                    "project": {
+                      "type": "number"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "content": {
+                      "type": "string"
+                    },
+                    "contentHash": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "project",
+                    "path",
+                    "content",
+                    "contentHash"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Note not found"
+          }
+        },
+        "parameters": [
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
       }
     },
     "/health": {
@@ -1373,6 +1461,22 @@
                       "required": [
                         "tag",
                         "info"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "model.failed"
+                        },
+                        "error": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
                       ]
                     },
                     {

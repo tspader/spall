@@ -71,6 +71,20 @@ export namespace Note {
     },
   );
 
+  export const getById = api(
+    z.object({
+      id: Id,
+    }),
+    (input): Info => {
+      const db = Store.get();
+
+      const row = db.prepare(Sql.GET_NOTE).get(input.id);
+      if (!row) throw new NotFoundError(`Note not found: ${input.id}`);
+
+      return Row.parse(row);
+    },
+  );
+
   export const ListItem = z.object({
     id: Id,
     path: z.string(),

@@ -41,6 +41,8 @@ const CREATE_REVIEW_COMMENTS_TABLE = `
     id INTEGER PRIMARY KEY,
     review INTEGER NOT NULL,
     note_id INTEGER NOT NULL,
+    selections TEXT,
+    created_at INTEGER NOT NULL,
     FOREIGN KEY (review) REFERENCES reviews(id)
   )
 `;

@@ -158,6 +158,10 @@ export type ProjectCreateResponses = {
         };
       }
     | {
+        tag: "model.failed";
+        error: string;
+      }
+    | {
         tag: "store.create";
         path: string;
       }
@@ -311,6 +315,10 @@ export type NoteAddResponses = {
         };
       }
     | {
+        tag: "model.failed";
+        error: string;
+      }
+    | {
         tag: "store.create";
         path: string;
       }
@@ -362,6 +370,38 @@ export type NoteAddResponses = {
 };
 
 export type NoteAddResponse = NoteAddResponses[keyof NoteAddResponses];
+
+export type NoteGetByIdData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/note/{id}";
+};
+
+export type NoteGetByIdErrors = {
+  /**
+   * Note not found
+   */
+  404: unknown;
+};
+
+export type NoteGetByIdResponses = {
+  /**
+   * Note with content
+   */
+  200: {
+    id: number;
+    project: number;
+    path: string;
+    content: string;
+    contentHash: string;
+  };
+};
+
+export type NoteGetByIdResponse =
+  NoteGetByIdResponses[keyof NoteGetByIdResponses];
 
 export type HealthData = {
   body?: never;
@@ -442,6 +482,10 @@ export type EventsResponses = {
           name: string;
           path: string;
         };
+      }
+    | {
+        tag: "model.failed";
+        error: string;
       }
     | {
         tag: "store.create";

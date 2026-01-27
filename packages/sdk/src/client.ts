@@ -2,6 +2,8 @@ import { createClient } from "./gen/client/client.gen";
 import { SpallClient } from "./gen/sdk.gen";
 import { ensure } from "./lock";
 
+export { SpallClient };
+
 export * from "./gen/types.gen";
 
 type TaggedEvent = { tag: string };

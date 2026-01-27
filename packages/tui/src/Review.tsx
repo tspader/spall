@@ -1,22 +1,9 @@
-import {
-  useKeyboard,
-  useRenderer,
-  useTerminalDimensions,
-} from "@opentui/solid";
+import { useKeyboard, useTerminalDimensions } from "@opentui/solid";
 import {
   type ScrollBoxRenderable,
   type TextareaRenderable,
 } from "@opentui/core";
-import {
-  createSignal,
-  createEffect,
-  createMemo,
-  Show,
-  onMount,
-  onCleanup,
-} from "solid-js";
-import { Git } from "./lib/git";
-import { Repo, Review as ReviewStore, Patch } from "./store";
+import { createSignal, createEffect, createMemo, Show } from "solid-js";
 import {
   FileList,
   DiffPanel,
@@ -25,7 +12,6 @@ import {
   ServerStatus,
   ProjectStatus,
 } from "./components";
-import { Client } from "@spall/sdk";
 import {
   type Selection,
   createSelectionState,
@@ -58,6 +44,7 @@ import { DialogProvider, useDialog } from "./context/dialog";
 import { CommandProvider, useCommand } from "./context/command";
 import { ThemeProvider, useTheme } from "./context/theme";
 import { ExitProvider, useExit } from "./context/exit";
+import { ReviewProvider, useReview } from "./context/review";
 import { type Command, matchAny } from "./lib/keybind";
 
 // Generate random string for filename
@@ -77,11 +64,13 @@ export function Review(props: ReviewProps = {}) {
   return (
     <ThemeProvider>
       <ExitProvider>
-        <DialogProvider>
-          <CommandProvider>
-            <App repoPath={repoPath} />
-          </CommandProvider>
-        </DialogProvider>
+        <ReviewProvider repoPath={repoPath}>
+          <DialogProvider>
+            <CommandProvider>
+              <App repoPath={repoPath} />
+            </CommandProvider>
+          </DialogProvider>
+        </ReviewProvider>
       </ExitProvider>
     </ThemeProvider>
   );
@@ -92,38 +81,16 @@ interface AppProps {
 }
 
 function App(props: AppProps) {
-  const renderer = useRenderer();
   const dims = useTerminalDimensions();
   const dialog = useDialog();
   const command = useCommand();
-  const { theme, themeName, setTheme } = useTheme();
-  const { exit, registerCleanup } = useExit();
-
-  // Server state
-  const [serverUrl, setServerUrl] = createSignal<string | null>(null);
-  const [serverConnected, setServerConnected] = createSignal(false);
-
-  // Repo/project state
-  const [repoRoot, setRepoRoot] = createSignal<string | null>(null);
-  const [projectName, setProjectName] = createSignal<string | null>(null);
-  const [noteCount, setNoteCount] = createSignal<number>(0);
-
-  // Review state (for patch tracking)
-  const [commitSha, setCommitSha] = createSignal<string | null>(null);
-  const [currentReviewId, setCurrentReviewId] = createSignal<number | null>(
-    null,
-  );
-  const [currentPatchSeq, setCurrentPatchSeq] = createSignal<number | null>(
-    null,
-  );
-
-  // Data state
-  const [entries, setEntries] = createSignal<Git.Entry[]>([]);
-  const [loading, setLoading] = createSignal(true);
+  const { theme } = useTheme();
+  const { exit } = useExit();
+  const review = useReview();
 
   // Derived tree state
   const displayItems = createMemo<DisplayItem[]>(() => {
-    const e = entries();
+    const e = review.entries();
     if (e.length === 0) return [];
     const tree = buildFileTree(e);
     return flattenTree(tree);
@@ -157,23 +124,22 @@ function App(props: AppProps) {
   const [editorInitialContent, setEditorInitialContent] = createSignal("");
   const [editorFilename, setEditorFilename] = createSignal("");
 
-  const [event, setEvent] = createSignal("");
+  // Pending comment state (captured when editor opens, used on escape/quit)
+  const [pendingHunks, setPendingHunks] = createSignal<HunkSelections>(
+    createHunkSelections(),
+  );
+  const [pendingLines, setPendingLines] = createSignal<LineSelections>(
+    createLineSelections(),
+  );
 
   // Refs
   let diffScrollbox: ScrollBoxRenderable | null = null;
   let editorTextarea: TextareaRenderable | null = null;
-  const clientAbort = new AbortController() as {
-    signal: AbortSignal;
-    abort: () => void;
-  };
-
-  // Register cleanup for client abort
-  registerCleanup(() => clientAbort.abort());
 
   // Derived state - map navigation index to actual entry
   const selectedEntry = () => {
     const entryIndex = fileIndices()[selectedFileIndex()];
-    return entryIndex !== undefined ? entries()[entryIndex] : undefined;
+    return entryIndex !== undefined ? review.entries()[entryIndex] : undefined;
   };
 
   // Hunk count for the selected entry (computed from diff content)
@@ -221,93 +187,6 @@ function App(props: AppProps) {
     selectedFileIndex();
     setSelectedHunkIndex(0);
     setSelection({ start: 0, end: 0 });
-  });
-
-  onMount(async () => {
-    // Detect repo root
-    const root = await Git.root(props.repoPath);
-    setRepoRoot(root);
-
-    // Get current HEAD commit
-    const head = await Git.head(props.repoPath);
-    setCommitSha(head);
-
-    const diffEntries = await Git.entries(props.repoPath);
-    setEntries(diffEntries);
-    setLoading(false);
-
-    // Check if we have an existing review for this repo+commit
-    if (root && head) {
-      const repo = Repo.getByPath(root);
-      if (repo) {
-        const review = ReviewStore.getByRepoAndCommit(repo.id, head);
-        if (review) {
-          setCurrentReviewId(review.id);
-          // Check current patch against stored patches
-          const fullDiff = await Git.diff(props.repoPath);
-          const hash = String(Bun.hash(fullDiff));
-          const existingPatch = Patch.getByHash(review.id, hash);
-          if (existingPatch) {
-            setCurrentPatchSeq(existingPatch.seq);
-          }
-        }
-      }
-    }
-
-    // Poll for git changes every second
-    let lastHash = await Git.hash(props.repoPath);
-    const pollInterval = setInterval(async () => {
-      try {
-        const hash = await Git.hash(props.repoPath);
-        if (hash !== lastHash) {
-          lastHash = hash;
-          const newEntries = await Git.entries(props.repoPath);
-          setEntries(newEntries);
-          // Reset current patch seq - diff changed, need to re-check on next comment
-          setCurrentPatchSeq(null);
-        }
-      } catch {
-        // Repo probably gone (deleted/moved) - stop polling
-        clearInterval(pollInterval);
-      }
-    }, 1000);
-    onCleanup(() => clearInterval(pollInterval));
-
-    // Connect to server
-    try {
-      const client = await Client.connect(clientAbort.signal);
-      const result = await client.health();
-
-      // Subscribe to server events
-      (async () => {
-        const { stream } = await client.events();
-        for await (const e of stream) {
-          if (e.tag.length == 0) {
-            setEvent("nothing");
-          } else {
-            setEvent(e.tag);
-          }
-        }
-      })();
-
-      if (result.response.ok) {
-        setServerUrl(result.response.url.replace("/health", ""));
-        setServerConnected(true);
-
-        // Get or create project for this repo
-        if (root) {
-          const { stream } = await client.project.create({ dir: root });
-          for await (const e of stream) {
-            if (e.tag === "project.created") {
-              setProjectName(e.info.name);
-              setNoteCount(e.info.noteCount);
-            }
-          }
-        }
-      }
-    } catch {
-      setServerConnected(false);
-    }
   });
 
   // Helper functions for commands
@@ -368,6 +247,10 @@ function App(props: AppProps) {
   };
 
   const openCommentEditor = () => {
+    // Capture current selections before opening editor
+    setPendingHunks(selectedHunks());
+    setPendingLines(lineSelections());
+
     const tmpFilename = `${randomId()}.md`;
     setEditorFilename(tmpFilename);
     setEditorInitialContent("");
@@ -411,7 +294,20 @@ function App(props: AppProps) {
       category: "movement",
       keybinds: [{ name: "escape" }],
       isActive: () => focusPanel() === "editor",
-      onExecute: () => setFocusPanel("diff"),
+      onExecute: async () => {
+        // Auto-save comment if there's content
+        const content = editorTextarea?.editBuffer?.getText() ?? "";
+        if (content.trim()) {
+          await review.saveComment(content, pendingHunks(), pendingLines());
+        }
+
+        // Clear selections and pending state
+        setSelectedHunks(clearHunkSelections());
+        setLineSelections(clearLineSelections());
+        setPendingHunks(createHunkSelections());
+        setPendingLines(createLineSelections());
+        setFocusPanel("diff");
+      },
     },
     {
       id: "quit",
@@ -424,6 +320,24 @@ function App(props: AppProps) {
       ],
       isActive: () => focusPanel() !== "editor",
       onExecute: () => exit(),
+    },
+    {
+      id: "quit-from-editor",
+      title: "quit",
+      category: "movement",
+      keybinds: [
+        { name: "c", ctrl: true },
+        { name: "d", ctrl: true },
+      ],
+      isActive: () => focusPanel() === "editor",
+      onExecute: async () => {
+        // Auto-save comment if there's content before quitting
+        const content = editorTextarea?.editBuffer?.getText() ?? "";
+        if (content.trim()) {
+          await review.saveComment(content, pendingHunks(), pendingLines());
+        }
+        exit();
+      },
     },
     // Selection
     {
@@ -588,28 +502,28 @@ function App(props: AppProps) {
           backgroundColor={theme.backgroundPanel}
         >
           <ServerStatus
-            url={serverUrl}
-            connected={serverConnected}
-            event={event}
+            url={review.serverUrl}
+            connected={review.serverConnected}
+            event={review.serverEvent}
           />
           <ProjectStatus
-            repoRoot={repoRoot}
-            projectName={projectName}
-            noteCount={noteCount}
+            repoRoot={review.repoRoot}
+            projectName={review.projectName}
+            noteCount={review.noteCount}
           />
 
           <box flexGrow={1} backgroundColor={theme.secondary}>
-          <FileList
-            displayItems={displayItems}
-            selectedFileIndex={selectedFileIndex}
-            fileIndices={fileIndices}
-            loading={loading}
-            focused={() => focusPanel() === "sidebar"}
-            hasSelectedHunks={(filePath) =>
-              hasSelectedHunks(selectedHunks(), filePath) ||
-              hasLineSelections(lineSelections(), filePath)
-            }
-          />
+            <FileList
+              displayItems={displayItems}
+              selectedFileIndex={selectedFileIndex}
+              fileIndices={fileIndices}
+              loading={review.loading}
+              focused={() => focusPanel() === "sidebar"}
+              hasSelectedHunks={(filePath) =>
+                hasSelectedHunks(selectedHunks(), filePath) ||
+                hasLineSelections(lineSelections(), filePath)
+              }
+            />
           </box>
         </box>
 
@@ -634,30 +548,11 @@ function App(props: AppProps) {
               focused={() => true}
               onTextareaRef={(ref) => (editorTextarea = ref)}
               onSubmit={async (content) => {
-                const root = repoRoot();
-                const head = commitSha();
-
-                if (root && head) {
-                  // Get or create repo
-                  const repo = Repo.getOrCreate(root);
-
-                  // Get or create review for this repo+commit
-                  let reviewId = currentReviewId();
-                  if (!reviewId) {
-                    const review = ReviewStore.getOrCreate(repo.id, head);
-                    reviewId = review.id;
-                    setCurrentReviewId(reviewId);
-                  }
-
-                  // Get or create patch for current diff state
-                  const fullDiff = await Git.diff(props.repoPath);
-                  const patch = Patch.getOrCreate(reviewId, fullDiff);
-                  setCurrentPatchSeq(patch.seq);
-
-                  // TODO: Create the actual comment with patch.seq as anchor
-                  console.log("Comment on patch", patch.seq, ":", content);
-                  console.log("Selected hunks:", selectedHunks());
-                }
+                await review.saveComment(
+                  content,
+                  selectedHunks(),
+                  lineSelections(),
+                );
 
                 setSelectedHunks(clearHunkSelections());
                 setLineSelections(clearLineSelections());

@@ -12,6 +12,8 @@ import type {
   HealthResponses,
   NoteAddErrors,
   NoteAddResponses,
+  NoteGetByIdErrors,
+  NoteGetByIdResponses,
   NoteGetErrors,
   NoteGetResponses,
   NoteListErrors,
@@ -165,6 +167,32 @@ export class Note extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    });
+  }
+
+  /**
+   * Get a note by ID
+   *
+   * Get a note by its globally unique ID.
+   */
+  public getById<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "path", key: "id" }] }],
+    );
+    return (options?.client ?? this.client).get<
+      NoteGetByIdResponses,
+      NoteGetByIdErrors,
+      ThrowOnError
+    >({
+      url: "/note/{id}",
+      ...options,
+      ...params,
     });
   }
 }

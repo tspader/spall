@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { Server } from "./server";
 import { ProjectRoutes } from "./routes/project";
+import { NoteRoutes } from "./routes/note";
 import { Sse } from "./sse";
 import { EventUnion } from "@spall/core";
 
@@ -26,6 +27,7 @@ export namespace App {
       })
       .use(logger())
       .route("/project", ProjectRoutes())
+      .route("/note", NoteRoutes())
       .get(
         "/health",
         describeRoute({

@@ -10,6 +10,14 @@ import { Lock } from "./lock";
 export { Lock } from "./lock";
 export { ensure } from "./lock";
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024)
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 export namespace Server {
   let server: Bun.Server;
   let persist = false;
@@ -81,6 +89,8 @@ export namespace Server {
         return `Creating database at ${pc.cyanBright(event.path)}`;
       case "store.created":
         return `Created database at ${pc.cyanBright(event.path)}`;
+      case "note.created":
+        return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
     }
 
     return event.tag;
