@@ -111,29 +111,21 @@ export namespace Project {
       dir: z.string(),
       name: z.string().optional(),
     }),
-    async (input) => {
+    async (input): Promise<Info> => {
       Store.ensure();
       const db = Store.get();
 
       const name = input.name ?? basename(input.dir);
       const now = Date.now();
       const row = db
-        .prepare(Sql.INSERT_PROJECT)
+        .prepare(Sql.UPSERT_PROJECT)
         .get(name, input.dir, now, now) as {
         id: number;
       };
 
-      //await Model.fakeDownload();
-
-      const project: Info = {
-        id: Id.parse(row.id),
-        name,
-        dir: input.dir,
-        noteCount: 0,
-        createdAt: now,
-        updatedAt: now,
-      };
+      const project = get({ id: row.id });
       await Bus.publish({ tag: "project.created", info: project });
+      return project;
     },
   );
 }

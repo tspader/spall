@@ -3,6 +3,7 @@ import pc from "picocolors";
 
 import { type EventUnion } from "@spall/core";
 import { Bus } from "@spall/core/event";
+import { Model } from "@spall/core/model";
 import { App } from "./app";
 import { Lock } from "./lock";
 
@@ -74,6 +75,8 @@ export namespace Server {
       }
       case "model.load":
         return `Loaded ${pc.cyanBright(event.info.name)}`;
+      case "model.failed":
+        return `${pc.red("Failed to load model:")} ${event.error}`;
       case "store.create":
         return `Creating database at ${pc.cyanBright(event.path)}`;
       case "store.created":
@@ -135,11 +138,11 @@ export namespace Server {
     Lock.setPort(port);
 
     process.once("SIGINT", () => {
-      consola.info(`Received ${pc.gray("SIGINT")}`)
+      consola.info(`Received ${pc.gray("SIGINT")}`);
       stop();
     });
     process.once("SIGTERM", () => {
-      consola.info(`Received ${pc.gray("SIGTERM")}`)
+      consola.info(`Received ${pc.gray("SIGTERM")}`);
       stop();
     });
 
@@ -152,6 +155,9 @@ export namespace Server {
     Bus.subscribe((event: EventUnion) => {
       consola.info(`${pc.gray(event.tag)} ${render(event)}`);
     });
+
+    // Kick off model download/load in background (errors published as model.failed event)
+    Model.load().catch(() => {});
 
     return { port, stopped };
   }

@@ -39,6 +39,9 @@ export namespace Model {
     Load: Bus.define("model.load", {
       info: Info,
     }),
+    Failed: Bus.define("model.failed", {
+      error: z.string(),
+    }),
   };
 
   function modelCacheDir(): string {
@@ -54,18 +57,24 @@ export namespace Model {
     model: LlamaModel | null;
   };
 
-  export type Embedder = {
+  type Embedder = {
     instance: Instance;
     context: LlamaEmbeddingContext | null;
   };
 
-  export type Reranker = {
+  type Reranker = {
     instance: Instance;
+  };
+
+  type Promises = {
+    download: Promise<void> | null;
+    load: Promise<void> | null;
   };
 
   let initialized = false;
   let embedder: Embedder;
   let reranker!: Reranker;
+  let promises: Promises;
   let llama: Llama | null = null;
 
   export const fakeDownload = async () => {
@@ -121,7 +130,7 @@ export namespace Model {
     return llama;
   }
 
-  export async function download(): Promise<void> {
+  function ensureInitialized(): void {
     if (!initialized) {
       initialized = true;
       embedder = {
@@ -131,7 +140,12 @@ export namespace Model {
       reranker = {
         instance: { name: "", path: null, status: "pending", model: null },
       };
+      promises = { download: null, load: null };
     }
+  }
+
+  async function downloadImpl(): Promise<void> {
+    ensureInitialized();
 
     if (embedder.instance.path) return;
 
@@ -205,7 +219,15 @@ export namespace Model {
     }
   }
 
-  export async function load(): Promise<void> {
+  export function download(): Promise<void> {
+    ensureInitialized();
+    if (!promises.download) {
+      promises.download = downloadImpl();
+    }
+    return promises.download;
+  }
+
+  async function loadImpl(): Promise<void> {
     await download();
 
     if (!embedder.instance.path) {
@@ -231,6 +253,20 @@ export namespace Model {
     if (!embedder.context) {
       embedder.context = await embedder.instance.model.createEmbeddingContext();
     }
+  }
+
+  export function load(): Promise<void> {
+    ensureInitialized();
+    if (!promises.load) {
+      promises.load = loadImpl().catch(async (err) => {
+        await Bus.publish({
+          tag: "model.failed",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        throw err;
+      });
+    }
+    return promises.load;
   }
 
   export async function embed(text: string): Promise<number[]> {
@@ -282,5 +318,6 @@ export namespace Model {
     initialized = false;
     embedder = undefined!;
     reranker = undefined!;
+    promises = undefined!;
   }
 }

@@ -42,6 +42,7 @@ export const EventUnion = z.discriminatedUnion("tag", [
   Model.Event.Progress,
   Model.Event.Downloaded,
   Model.Event.Load,
+  Model.Event.Failed,
   Store.Event.Create,
   Store.Event.Created,
   Store.Event.Scan,
@@ -61,6 +62,7 @@ export type EventUnion =
   | z.infer<typeof Model.Event.Progress>
   | z.infer<typeof Model.Event.Downloaded>
   | z.infer<typeof Model.Event.Load>
+  | z.infer<typeof Model.Event.Failed>
   | z.infer<typeof Store.Event.Create>
   | z.infer<typeof Store.Event.Created>
   | z.infer<typeof Store.Event.Scan>

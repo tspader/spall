@@ -29,7 +29,7 @@ export namespace Sql {
   export const CREATE_PROJECT_TABLE = `
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY,
-      name TEXT NOT NULL,
+      name TEXT NOT NULL UNIQUE,
       dir TEXT NOT NULL,
       created_at INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL DEFAULT 0
@@ -102,8 +102,10 @@ export namespace Sql {
     WHERE data MATCH ? AND k = ?
   `;
 
-  export const INSERT_PROJECT = `
-    INSERT INTO projects (name, dir, created_at, updated_at) VALUES (?, ?, ?, ?) RETURNING id
+  export const UPSERT_PROJECT = `
+    INSERT INTO projects (name, dir, created_at, updated_at) VALUES (?, ?, ?, ?)
+    ON CONFLICT(name) DO UPDATE SET updated_at = excluded.updated_at
+    RETURNING id
   `;
 
   export const GET_DEFAULT_PROJECT = `
