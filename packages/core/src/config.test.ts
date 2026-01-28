@@ -37,6 +37,9 @@ describe("Config", () => {
         embedding: "custom-embed",
         reranker: "custom-rerank",
       },
+      server: {
+        idleTimeout: 30,
+      },
     };
 
     Config.set(custom);

@@ -171,7 +171,7 @@ export namespace Sql {
   export const LIST_NOTES_PAGINATED = `
     SELECT id, project_id, path, content, content_hash
     FROM notes
-    WHERE project_id = ? AND path LIKE ? || '%' AND path > ?
+    WHERE project_id = ? AND path GLOB ? AND path > ?
     ORDER BY path
     LIMIT ?
   `;

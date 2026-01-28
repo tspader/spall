@@ -51,6 +51,12 @@ export namespace Lock {
     writeFileSync(path(), JSON.stringify({ pid: process.pid, port }));
   }
 
+  /** Overwrite lock with current pid, no port yet (used by --force) */
+  export function takeover(): void {
+    Cache.ensure();
+    writeFileSync(path(), JSON.stringify({ pid: process.pid, port: null }));
+  }
+
   export function remove(): void {
     try {
       unlinkSync(path());

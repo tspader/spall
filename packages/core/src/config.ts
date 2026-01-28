@@ -13,11 +13,15 @@ export type ConfigSchema = {
     embedding: string;
     reranker: string;
   };
+  server: {
+    idleTimeout: number;
+  };
 };
 
 export type PartialConfig = {
   dirs?: Partial<ConfigSchema["dirs"]>;
   models?: Partial<ConfigSchema["models"]>;
+  server?: Partial<ConfigSchema["server"]>;
 };
 
 function getDefaults(): ConfigSchema {
@@ -34,6 +38,9 @@ function getDefaults(): ConfigSchema {
       reranker:
         "hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf",
     },
+    server: {
+      idleTimeout: 1,
+    },
   };
 }
 
@@ -45,6 +52,7 @@ export namespace Config {
     config = {
       dirs: { ...defaults.dirs, ...values.dirs },
       models: { ...defaults.models, ...values.models },
+      server: { ...defaults.server, ...values.server },
     };
   }
 

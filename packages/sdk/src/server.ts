@@ -119,14 +119,14 @@ export namespace Server {
         consola.info(
           `Killing existing server (${pc.gray("pid")} ${pc.yellow(existing.pid)}, ${pc.gray("port")} ${pc.cyan(existing.port)})`,
         );
+        // Claim lock before killing so there's no window where lock doesn't exist
+        Lock.takeover();
         try {
           process.kill(existing.pid, "SIGTERM");
           // Wait for it to die
           await new Promise((resolve) => setTimeout(resolve, 500));
-          Lock.remove();
         } catch {
           // Process may have already died
-          Lock.remove();
         }
       } else {
         throw new Error(`Server is already running at port ${existing.port}`);
@@ -177,7 +177,11 @@ export namespace Server {
   export function stop(): void {
     consola.info("Stopping server");
     server.stop();
-    Lock.remove();
+    // Only remove lock if we still own it (--force may have overwritten it)
+    const lock = Lock.read();
+    if (lock && lock.pid === process.pid) {
+      Lock.remove();
+    }
     resolved();
   }
 
