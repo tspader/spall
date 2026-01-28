@@ -1,11 +1,8 @@
-import { Show, For, createMemo, Index } from "solid-js";
+import { Show, For, createMemo, createEffect, Index } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { parsePatch } from "diff";
 import { Git } from "../lib/git";
-import type { Selection } from "../lib/selection";
-import { type HunkSelections, isHunkSelected } from "../lib/hunk-selection";
-import type { LineSelections } from "../lib/line-selection";
 import { useTheme } from "../context/theme";
 
 interface ParsedHunk {
@@ -148,12 +145,6 @@ export interface DiffPanelProps {
   hunkCount: Accessor<number>;
   selectedHunkIndex: Accessor<number>;
   focused: Accessor<boolean>;
-  selection: Accessor<Selection>;
-  lineMode: Accessor<boolean>;
-  selectedHunks: Accessor<HunkSelections>;
-  lineSelections: Accessor<LineSelections>;
-  currentFilePath: Accessor<string | undefined>;
-  onScrollboxRef: (ref: ScrollBoxRenderable) => void;
 }
 
 export function DiffPanel(props: DiffPanelProps) {
@@ -163,15 +154,6 @@ export function DiffPanel(props: DiffPanelProps) {
     const entry = props.entry();
     if (!entry) return "Diff";
     const hunkCount = props.hunkCount();
-
-    if (props.lineMode()) {
-      const sel = props.selection();
-      const lineCount = sel.end - sel.start + 1;
-      if (lineCount === 1) {
-        return `[line ${sel.start + 1}]`;
-      }
-      return `[lines ${sel.start + 1}-${sel.end + 1}]`;
-    }
 
     if (hunkCount === 0) return entry.file;
     if (props.focused()) {
@@ -185,7 +167,11 @@ export function DiffPanel(props: DiffPanelProps) {
       flexGrow={1}
       flexDirection="column"
       backgroundColor={theme.backgroundPanel}
-      padding={1}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={2}
+
     >
       {/* Title bar */}
       <box
@@ -211,23 +197,40 @@ export function DiffPanel(props: DiffPanelProps) {
           const hunks = createMemo(() => parseHunks(entry.content, entry.file));
           const filetype = getFiletype(entry.file);
 
+          let scrollbox: ScrollBoxRenderable | null = null;
+
+          // Scroll to selected hunk when it changes
+          createEffect(() => {
+            const hunkIdx = props.selectedHunkIndex();
+            const hunkList = hunks();
+            if (!scrollbox || hunkList.length === 0) return;
+
+            // Calculate scroll position: sum of line counts before this hunk
+            // plus separator lines (1 line between each hunk)
+            let scrollLine = 0;
+            for (let i = 0; i < hunkIdx && i < hunkList.length; i++) {
+              scrollLine += hunkList[i]!.lineCount;
+              scrollLine += 1; // separator line after each hunk
+            }
+
+            scrollbox.scrollTo(scrollLine);
+          });
+
           return (
             <scrollbox
-              ref={props.onScrollboxRef}
+              ref={(r) => {
+                scrollbox = r;
+              }}
               focused={false}
-              width={"100%"}
-              height={"100%"}
+              flexGrow={1}
             >
               <box flexDirection="column" backgroundColor={theme.background}>
                 <Index each={hunks()}>
                   {(hunk, i) => {
                     const isFocused = () =>
                       props.focused() && props.selectedHunkIndex() === i;
-                    const isSelected = () =>
-                      isHunkSelected(props.selectedHunks(), entry.file, i);
                     const indicatorColor = () => {
                       if (isFocused()) return theme.primary;
-                      if (isSelected()) return theme.added;
                       return theme.indicatorDefault;
                     };
 
@@ -242,18 +245,25 @@ export function DiffPanel(props: DiffPanelProps) {
                         <box flexDirection="row">
                           {/* Indicator column */}
                           <box flexDirection="column" width={1} flexShrink={0}>
+                            {/* <text height={1} fg={indicatorColor()}> */}
+                            {/*   {"\u2582"} */}
+                            {/* </text> */}
                             <For
                               each={Array.from(
                                 { length: hunk().lineCount },
                                 (_, j) => j,
                               )}
                             >
-                              {() => (
+                              {(j) => (
                                 <text height={1} fg={indicatorColor()}>
-                                  █
+                                  ▌
                                 </text>
                               )}
                             </For>
+                            {/* <text height={1} fg={indicatorColor()}> */}
+                            {/*   {"\u2594"} */}
+                            {/* </text> */}
+                            {/**/}
                           </box>
                           <diff
                             diff={hunk().diffString}

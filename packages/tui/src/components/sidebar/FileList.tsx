@@ -3,7 +3,8 @@ import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { DisplayItem } from "../../lib/tree";
 import { useTheme } from "../../context/theme";
-import { Section } from "./Section";
+import { Section, Title } from "./Section";
+import { EmptyBorder } from "../HalfLineShadow";
 
 export interface FileListProps {
   displayItems: Accessor<DisplayItem[]>;
@@ -13,8 +14,6 @@ export interface FileListProps {
   fileIndices: Accessor<number[]>;
   loading: Accessor<boolean>;
   focused: Accessor<boolean>;
-  /** Check if a file (by path) has any selected hunks */
-  hasSelectedHunks: (filePath: string) => boolean;
 }
 
 /** Number of items to keep visible below the cursor */
@@ -64,7 +63,13 @@ export function FileList(props: FileListProps) {
   });
 
   return (
-    <Section title="Files">
+    <box
+      flexGrow={1}
+      flexDirection="column"
+      backgroundColor={theme.backgroundPanel}
+    >
+      <Title section="files" />
+
       <Show when={props.loading()}>
         <box>
           <text>Loading...</text>
@@ -78,7 +83,7 @@ export function FileList(props: FileListProps) {
       </Show>
 
       <Show when={!props.loading() && props.displayItems().length > 0}>
-        <scrollbox ref={(r) => (scrollbox = r)}>
+        <scrollbox ref={(r) => (scrollbox = r)} flexGrow={1}>
           <For each={props.displayItems()}>
             {(item) => {
               if (item.node.type === "dir") {
@@ -94,18 +99,14 @@ export function FileList(props: FileListProps) {
               }
 
               const textColor = () =>
-                isSelected(item) ? theme.primary : undefined;
-              const statusColor = () => {
-                return props.hasSelectedHunks(item.node.path)
-                  ? theme.added
-                  : theme.textMuted;
-              };
+                isSelected(item) && props.focused() ? theme.primary : undefined;
+
               return (
                 <box flexDirection="row">
                   <Show when={item.depth > 0}>
                     <text>{"  ".repeat(item.depth)}</text>
                   </Show>
-                  <text fg={statusColor()}>{item.node.status} </text>
+                  <text fg={theme.textMuted}>{item.node.status} </text>
                   <text fg={textColor()}>{item.node.name}</text>
                 </box>
               );
@@ -113,6 +114,6 @@ export function FileList(props: FileListProps) {
           </For>
         </scrollbox>
       </Show>
-    </Section>
+    </box>
   );
 }

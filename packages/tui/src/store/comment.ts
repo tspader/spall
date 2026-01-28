@@ -4,46 +4,44 @@ type Row = {
   id: number;
   review: number;
   note_id: number;
-  selections: string | null;
+  file: string;
+  hunk_index: number;
   created_at: number;
-};
-
-export type SelectionsJson = {
-  hunks: Record<string, number[]>; // file -> hunkIndices
-  lines: Record<string, Array<[number, number]>>; // file -> [start, end] pairs
 };
 
 export type Info = {
   id: number;
   review: number;
   noteId: number;
-  selections: SelectionsJson | null;
+  file: string;
+  hunkIndex: number;
   createdAt: number;
 };
 
 export function create(input: {
   review: number;
   noteId: number;
-  selections?: SelectionsJson;
+  file: string;
+  hunkIndex: number;
 }): Info {
   const now = Date.now();
-  const selectionsJson = input.selections
-    ? JSON.stringify(input.selections)
-    : null;
 
   const row = db
     .get()
     .prepare(
-      `INSERT INTO review_comments (review, note_id, selections, created_at) 
-       VALUES (?, ?, ?, ?) RETURNING id`,
+      `INSERT INTO review_comments (review, note_id, file, hunk_index, created_at) 
+       VALUES (?, ?, ?, ?, ?) RETURNING id`,
     )
-    .get(input.review, input.noteId, selectionsJson, now) as { id: number };
+    .get(input.review, input.noteId, input.file, input.hunkIndex, now) as {
+    id: number;
+  };
 
   return {
     id: row.id,
     review: input.review,
     noteId: input.noteId,
-    selections: input.selections ?? null,
+    file: input.file,
+    hunkIndex: input.hunkIndex,
     createdAt: now,
   };
 }
@@ -60,7 +58,8 @@ export function list(review: number): Info[] {
     id: row.id,
     review: row.review,
     noteId: row.note_id,
-    selections: row.selections ? JSON.parse(row.selections) : null,
+    file: row.file,
+    hunkIndex: row.hunk_index,
     createdAt: row.created_at,
   }));
 }

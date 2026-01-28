@@ -1,14 +1,14 @@
 import type { JSXElement } from "solid-js";
-import { splitProps } from "solid-js";
 import { useTheme } from "../../context/theme";
+import { useSidebar, type SidebarSection } from "../../context/sidebar";
+import { EmptyBorder } from "../HalfLineShadow";
 
-export interface TitleProps {
-  title: string;
-}
-
-export function Title(props: TitleProps) {
+/** Static section title (for Server, Project, etc.) */
+function SectionTitle(props: { title: string }) {
   return (
-    <box flexShrink={0}>
+    <box
+      flexShrink={0}
+    >
       <text>
         <span style={{ bold: true }}>{props.title}</span>
       </text>
@@ -16,22 +16,45 @@ export function Title(props: TitleProps) {
   );
 }
 
-export function Section(props: {
-  title: string;
-  flexGrow?: number;
-  children: JSXElement;
-}) {
+/** Selectable sidebar section title (for Files, Comments) */
+export function Title(props: { section: SidebarSection }) {
+  const { theme } = useTheme();
+  const sidebar = useSidebar();
+
+  const isActive = () => sidebar.activeSection() === props.section;
+  const color = () => (isActive() ? theme.primary : undefined);
+  const title = () =>
+    props.section.charAt(0).toUpperCase() + props.section.slice(1);
+
+  return (
+    <box
+      flexShrink={0}
+      border={["left"]}
+      borderColor={isActive() ? theme.primary : theme.indicatorDefault}
+      customBorderChars={{
+        ...EmptyBorder,
+        vertical: "▌"
+      }}
+
+    >
+      <text>
+        <span style={{ bold: true }}>{title()}</span>
+      </text>
+    </box>
+  );
+}
+
+/** Container for static sidebar sections */
+export function Section(props: { title: string; children: JSXElement }) {
   const { theme } = useTheme();
 
-  const [_, boxProps] = splitProps(props, ["title", "children"]);
   return (
     <box
       flexDirection="column"
       backgroundColor={theme.backgroundPanel}
       flexShrink={0}
-      {...boxProps}
     >
-      <Title title={props.title} />
+      <SectionTitle title={props.title} />
       {props.children}
     </box>
   );

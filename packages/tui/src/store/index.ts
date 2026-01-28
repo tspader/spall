@@ -5,4 +5,3 @@ import * as Patch from "./patch";
 import * as ReviewComment from "./comment";
 
 export { db, Repo, Review, Patch, ReviewComment };
-export type { SelectionsJson } from "./comment";

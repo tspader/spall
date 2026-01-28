@@ -8,11 +8,11 @@ export { HalfLineShadow } from "./HalfLineShadow";
 export {
   FileList,
   type FileListProps,
+  CommentList,
+  type CommentListProps,
   ServerStatus,
-  type ServerStatusProps,
   ProjectStatus,
   type ProjectStatusProps,
   Section,
   Title,
-  type TitleProps,
 } from "./sidebar";

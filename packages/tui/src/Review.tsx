@@ -1,39 +1,14 @@
 import { useKeyboard, useTerminalDimensions } from "@opentui/solid";
-import {
-  type ScrollBoxRenderable,
-  type TextareaRenderable,
-} from "@opentui/core";
 import { createSignal, createEffect, createMemo, Show } from "solid-js";
 import {
   FileList,
+  CommentList,
   DiffPanel,
   EditorPanel,
   CommandPalette,
   ServerStatus,
   ProjectStatus,
 } from "./components";
-import {
-  type Selection,
-  createSelectionState,
-  moveDown,
-  moveUp,
-} from "./lib/selection";
-import {
-  type HunkSelections,
-  createHunkSelections,
-  toggleHunkSelection,
-  clearHunkSelections,
-  getHunkSelectionCount,
-  hasSelectedHunks,
-} from "./lib/hunk-selection";
-import {
-  type LineSelections,
-  createLineSelections,
-  addLineSelection,
-  clearLineSelections,
-  getLineSelectionCount,
-  hasLineSelections,
-} from "./lib/line-selection";
 import {
   buildFileTree,
   flattenTree,
@@ -44,15 +19,13 @@ import { DialogProvider, useDialog } from "./context/dialog";
 import { CommandProvider, useCommand } from "./context/command";
 import { ThemeProvider, useTheme } from "./context/theme";
 import { ExitProvider, useExit } from "./context/exit";
+import { ServerProvider } from "./context/server";
 import { ReviewProvider, useReview } from "./context/review";
+import { SidebarProvider } from "./context/sidebar";
 import { type Command, matchAny } from "./lib/keybind";
 
-// Generate random string for filename
-function randomId(): string {
-  return Math.random().toString(36).substring(2, 10);
-}
-
 type FocusPanel = "sidebar" | "diff" | "editor";
+type SidebarMode = "files" | "comments";
 
 export interface ReviewProps {
   /** Path to the git repository. Defaults to process.argv[2] or "." */
@@ -64,13 +37,15 @@ export function Review(props: ReviewProps = {}) {
   return (
     <ThemeProvider>
       <ExitProvider>
-        <ReviewProvider repoPath={repoPath}>
-          <DialogProvider>
-            <CommandProvider>
-              <App repoPath={repoPath} />
-            </CommandProvider>
-          </DialogProvider>
-        </ReviewProvider>
+        <ServerProvider>
+          <ReviewProvider repoPath={repoPath}>
+            <DialogProvider>
+              <CommandProvider>
+                <App repoPath={repoPath} />
+              </CommandProvider>
+            </DialogProvider>
+          </ReviewProvider>
+        </ServerProvider>
       </ExitProvider>
     </ThemeProvider>
   );
@@ -101,40 +76,11 @@ function App(props: AppProps) {
   // Navigation state - selectedFileIndex is index into fileIndices (files only)
   const [selectedFileIndex, setSelectedFileIndex] = createSignal(0);
   const [focusPanel, setFocusPanel] = createSignal<FocusPanel>("sidebar");
+  const [sidebarMode, setSidebarMode] = createSignal<SidebarMode>("files");
   const [selectedHunkIndex, setSelectedHunkIndex] = createSignal(0);
 
-  // Line selection state
-  const [lineMode, setLineMode] = createSignal(false);
-  const [selection, setSelection] = createSignal<Selection>({
-    start: 0,
-    end: 0,
-  });
-
-  // Hunk selection state (for multi-hunk comments)
-  const [selectedHunks, setSelectedHunks] = createSignal<HunkSelections>(
-    createHunkSelections(),
-  );
-
-  // Line selection state (for line-by-line mode)
-  const [lineSelections, setLineSelections] = createSignal<LineSelections>(
-    createLineSelections(),
-  );
-
-  // Editor state
-  const [editorInitialContent, setEditorInitialContent] = createSignal("");
-  const [editorFilename, setEditorFilename] = createSignal("");
-
-  // Pending comment state (captured when editor opens, used on escape/quit)
-  const [pendingHunks, setPendingHunks] = createSignal<HunkSelections>(
-    createHunkSelections(),
-  );
-  const [pendingLines, setPendingLines] = createSignal<LineSelections>(
-    createLineSelections(),
-  );
-
-  // Refs
-  let diffScrollbox: ScrollBoxRenderable | null = null;
-  let editorTextarea: TextareaRenderable | null = null;
+  // Comment list state
+  const [selectedCommentIndex, setSelectedCommentIndex] = createSignal(0);
 
   // Derived state - map navigation index to actual entry
   const selectedEntry = () => {
@@ -151,110 +97,48 @@ function App(props: AppProps) {
     return matches?.length ?? 0;
   });
 
-  // Count total lines in the diff for line mode
-  const totalDiffLines = () => {
-    const entry = selectedEntry();
-    if (!entry) return 0;
-    return entry.content.split("\n").length;
-  };
-
-  // Get current selection for display (used in line mode)
-  const currentSelection = createMemo((): Selection => {
-    return selection();
-  });
-
-  // Scroll to hunk when selection changes
-  createEffect(() => {
-    const panel = focusPanel();
-    if (panel !== "diff" || !diffScrollbox) return;
-
-    if (lineMode()) {
-      const sel = selection();
-      diffScrollbox.scrollTo(sel.start);
-    } else {
-      // Scroll to start of selected hunk
-      // TODO: Calculate hunk start line from selectedHunkIndex
-      // For now, just scroll to top when hunk changes
-      const hunkIdx = selectedHunkIndex();
-      if (hunkIdx === 0) {
-        diffScrollbox.scrollTo(0);
-      }
-    }
-  });
-
   // Reset selection when file changes
   createEffect(() => {
     selectedFileIndex();
     setSelectedHunkIndex(0);
-    setSelection({ start: 0, end: 0 });
   });
 
   // Helper functions for commands
   const navigateUp = () => {
     const panel = focusPanel();
     if (panel === "sidebar") {
-      setSelectedFileIndex((i) => Math.max(0, i - 1));
-    } else if (panel === "diff") {
-      if (lineMode()) {
-        const state = createSelectionState(totalDiffLines());
-        state.selection = selection();
-        const newState = moveUp(state, false);
-        setSelection(newState.selection);
+      if (sidebarMode() === "files") {
+        setSelectedFileIndex((i) => Math.max(0, i - 1));
       } else {
-        setSelectedHunkIndex((i: number) => Math.max(0, i - 1));
+        setSelectedCommentIndex((i) => Math.max(0, i - 1));
       }
+    } else if (panel === "diff") {
+      setSelectedHunkIndex((i: number) => Math.max(0, i - 1));
     }
   };
 
   const navigateDown = () => {
     const panel = focusPanel();
     if (panel === "sidebar") {
-      setSelectedFileIndex((i) => Math.min(fileIndices().length - 1, i + 1));
-    } else if (panel === "diff") {
-      if (lineMode()) {
-        const state = createSelectionState(totalDiffLines());
-        state.selection = selection();
-        const newState = moveDown(state, false);
-        setSelection(newState.selection);
+      if (sidebarMode() === "files") {
+        setSelectedFileIndex((i) => Math.min(fileIndices().length - 1, i + 1));
       } else {
-        setSelectedHunkIndex((i: number) => Math.min(hunkCount() - 1, i + 1));
+        const maxIndex = review.comments().length - 1;
+        setSelectedCommentIndex((i) => Math.min(maxIndex, i + 1));
       }
+    } else if (panel === "diff") {
+      setSelectedHunkIndex((i: number) => Math.min(hunkCount() - 1, i + 1));
     }
-  };
-
-  const extendSelectionUp = () => {
-    if (focusPanel() === "diff" && lineMode()) {
-      const state = createSelectionState(totalDiffLines());
-      state.selection = selection();
-      const newState = moveUp(state, true);
-      setSelection(newState.selection);
-    }
-  };
-
-  const extendSelectionDown = () => {
-    if (focusPanel() === "diff" && lineMode()) {
-      const state = createSelectionState(totalDiffLines());
-      state.selection = selection();
-      const newState = moveDown(state, true);
-      setSelection(newState.selection);
-    }
-  };
-
-  const enterLineMode = () => {
-    setLineMode(true);
-    // Start at the beginning of the diff
-    setSelection({ start: 0, end: 0 });
   };
 
   const openCommentEditor = () => {
-    // Capture current selections before opening editor
-    setPendingHunks(selectedHunks());
-    setPendingLines(lineSelections());
-
-    const tmpFilename = `${randomId()}.md`;
-    setEditorFilename(tmpFilename);
-    setEditorInitialContent("");
+    const entry = selectedEntry();
+    if (!entry) return;
     setFocusPanel("editor");
+  };
+
+  const toggleSidebarMode = () => {
+    setSidebarMode((m) => (m === "files" ? "comments" : "files"));
   };
 
   // Define all commands with structured keybinds
@@ -285,30 +169,9 @@ function App(props: AppProps) {
       onExecute: () => {
         setFocusPanel("sidebar");
         setSelectedHunkIndex(0);
-        // Keep lineMode active when going back - user can continue in line mode
       },
     },
-    {
-      id: "back-from-editor",
-      title: "back",
-      category: "movement",
-      keybinds: [{ name: "escape" }],
-      isActive: () => focusPanel() === "editor",
-      onExecute: async () => {
-        // Auto-save comment if there's content
-        const content = editorTextarea?.editBuffer?.getText() ?? "";
-        if (content.trim()) {
-          await review.saveComment(content, pendingHunks(), pendingLines());
-        }
 
-        // Clear selections and pending state
-        setSelectedHunks(clearHunkSelections());
-        setLineSelections(clearLineSelections());
-        setPendingHunks(createHunkSelections());
-        setPendingLines(createLineSelections());
-        setFocusPanel("diff");
-      },
-    },
     {
       id: "quit",
       title: "quit",
@@ -321,105 +184,60 @@ function App(props: AppProps) {
       isActive: () => focusPanel() !== "editor",
       onExecute: () => exit(),
     },
+
     {
-      id: "quit-from-editor",
-      title: "quit",
+      id: "switch-sidebar",
+      title: "switch section",
       category: "movement",
-      keybinds: [
-        { name: "c", ctrl: true },
-        { name: "d", ctrl: true },
-      ],
-      isActive: () => focusPanel() === "editor",
-      onExecute: async () => {
-        // Auto-save comment if there's content before quitting
-        const content = editorTextarea?.editBuffer?.getText() ?? "";
-        if (content.trim()) {
-          await review.saveComment(content, pendingHunks(), pendingLines());
-        }
-        exit();
-      },
+      keybinds: [{ name: "tab" }, { name: "tab", shift: true }],
+      isActive: () => focusPanel() === "sidebar",
+      onExecute: toggleSidebarMode,
     },
-    // Selection
-    {
-      id: "extend-up",
-      title: "extend selection up",
-      category: "selection",
-      keybinds: [
-        { name: "up", shift: true },
-        { name: "k", shift: true },
-      ],
-      isActive: () => focusPanel() === "diff" && lineMode(),
-      onExecute: extendSelectionUp,
-    },
-    {
-      id: "extend-down",
-      title: "extend selection down",
-      category: "selection",
-      keybinds: [
-        { name: "down", shift: true },
-        { name: "j", shift: true },
-      ],
-      isActive: () => focusPanel() === "diff" && lineMode(),
-      onExecute: extendSelectionDown,
-    },
+
     {
       id: "select-hunks",
       title: "select hunks",
       category: "selection",
       keybinds: [{ name: "return" }],
       isActive: () =>
-        focusPanel() === "sidebar" && !!selectedEntry() && hunkCount() > 0,
+        focusPanel() === "sidebar" &&
+        sidebarMode() === "files" &&
+        !!selectedEntry() &&
+        hunkCount() > 0,
       onExecute: () => {
         setFocusPanel("diff");
         setSelectedHunkIndex(0);
       },
     },
     {
-      id: "select-by-lines",
-      title: "select by lines",
+      id: "open-comment",
+      title: "open comment",
       category: "selection",
-      keybinds: [{ name: "a" }],
-      isActive: () => focusPanel() === "diff" && !lineMode(),
-      onExecute: enterLineMode,
-    },
-    {
-      id: "select-by-hunks",
-      title: "select by hunks",
-      category: "selection",
-      keybinds: [{ name: "a" }],
-      isActive: () => focusPanel() === "diff" && lineMode(),
-      onExecute: () => setLineMode(false),
-    },
-    {
-      id: "toggle-hunk",
-      title: "toggle hunk",
-      category: "selection",
-      keybinds: [{ name: "space" }],
-      isActive: () => focusPanel() === "diff" && !lineMode() && hunkCount() > 0,
+      keybinds: [{ name: "return" }],
+      isActive: () =>
+        focusPanel() === "sidebar" &&
+        sidebarMode() === "comments" &&
+        review.comments().length > 0,
       onExecute: () => {
-        const entry = selectedEntry();
-        const hunkIdx = selectedHunkIndex();
-        if (entry) {
-          setSelectedHunks(
-            toggleHunkSelection(selectedHunks(), entry.file, hunkIdx),
-          );
-        }
-      },
-    },
-    {
-      id: "add-line-selection",
-      title: "add selection",
-      category: "selection",
-      keybinds: [{ name: "space" }],
-      isActive: () => focusPanel() === "diff" && lineMode(),
-      onExecute: () => {
-        const entry = selectedEntry();
-        if (entry) {
-          const sel = selection();
-          setLineSelections(
-            addLineSelection(lineSelections(), entry.file, sel.start, sel.end),
-          );
-        }
+        // Navigate to the comment's file+hunk and open editor
+        const comments = review.comments();
+        const idx = selectedCommentIndex();
+        const comment = comments[idx];
+        if (!comment) return;
+
+        // Find the file index for this comment's file
+        const entries = review.entries();
+        const entryIndex = entries.findIndex((e) => e.file === comment.file);
+        if (entryIndex === -1) return;
+
+        // Find the navigation index (into fileIndices)
+        const navIndex = fileIndices().indexOf(entryIndex);
+        if (navIndex === -1) return;
+
+        // Navigate to the file and hunk
+        setSelectedFileIndex(navIndex);
+        setSelectedHunkIndex(comment.hunkIndex);
+        setFocusPanel("editor");
       },
     },
     // Actions
@@ -428,10 +246,7 @@ function App(props: AppProps) {
       title: "comment",
       category: "actions",
       keybinds: [{ name: "c" }],
-      isActive: () =>
-        focusPanel() !== "editor" &&
-        (getHunkSelectionCount(selectedHunks()) > 0 ||
-          getLineSelectionCount(lineSelections()) > 0),
+      isActive: () => focusPanel() === "diff" && hunkCount() > 0,
       onExecute: openCommentEditor,
     },
   ];
@@ -463,13 +278,19 @@ function App(props: AppProps) {
         <text>j/k </text>
         <text fg="brightBlack">navigate</text>
       </box>
-      <Show when={focusPanel() === "diff"}>
+      <Show when={focusPanel() === "sidebar"}>
         <box flexDirection="row">
-          <text>space </text>
-          <text fg="brightBlack">select</text>
+          <text>tab </text>
+          <text fg="brightBlack">switch</text>
         </box>
       </Show>
-      <Show when={getHunkSelectionCount(selectedHunks()) > 0}>
+      <Show when={focusPanel() === "sidebar" && sidebarMode() === "comments"}>
+        <box flexDirection="row">
+          <text>h/l </text>
+          <text fg="brightBlack">collapse/expand</text>
+        </box>
+      </Show>
+      <Show when={focusPanel() === "diff"}>
         <box flexDirection="row">
           <text>c </text>
           <text fg="brightBlack">comment</text>
@@ -489,75 +310,71 @@ function App(props: AppProps) {
   return (
     <box
       flexDirection="column"
-      width="100%"
+      width={dims().width}
       height={dims().height}
       backgroundColor={theme.background}
     >
-      <box flexGrow={0} flexDirection="row" gap={1}>
+      <box flexGrow={1} flexDirection="row" gap={1}>
         <box
           width={35}
           flexDirection="column"
           gap={1}
-          padding={1}
+          paddingTop={1}
+          paddingBottom={1}
+          paddingLeft={2}
+          paddingRight={2}
           backgroundColor={theme.backgroundPanel}
         >
-          <ServerStatus
-            url={review.serverUrl}
-            connected={review.serverConnected}
-            event={review.serverEvent}
-          />
+          <ServerStatus />
           <ProjectStatus
             repoRoot={review.repoRoot}
             projectName={review.projectName}
             noteCount={review.noteCount}
           />
 
-          <box flexGrow={1} backgroundColor={theme.secondary}>
-            <FileList
-              displayItems={displayItems}
-              selectedFileIndex={selectedFileIndex}
-              fileIndices={fileIndices}
-              loading={review.loading}
-              focused={() => focusPanel() === "sidebar"}
-              hasSelectedHunks={(filePath) =>
-                hasSelectedHunks(selectedHunks(), filePath) ||
-                hasLineSelections(lineSelections(), filePath)
-              }
-            />
-          </box>
+          <SidebarProvider activeSection={sidebarMode}>
+            <box flexGrow={1} flexDirection="column" overflow="hidden" gap={1}>
+              <box flexGrow={1}>
+                <FileList
+                  displayItems={displayItems}
+                  selectedFileIndex={selectedFileIndex}
+                  fileIndices={fileIndices}
+                  loading={review.loading}
+                  focused={() =>
+                    focusPanel() === "sidebar" && sidebarMode() === "files"
+                  }
+                />
+              </box>
+
+              <box flexGrow={1} flexDirection="column">
+                <CommentList
+                  comments={review.comments}
+                  loading={review.commentsLoading}
+                  selectedIndex={selectedCommentIndex}
+                  focused={() =>
+                    focusPanel() === "sidebar" && sidebarMode() === "comments"
+                  }
+                />
+              </box>
+            </box>
+          </SidebarProvider>
         </box>
 
-        <box flexGrow={1} flexDirection="column" gap={1}>
+        <box
+          flexGrow={1} flexDirection="column" gap={1}
+        >
           <DiffPanel
             entry={selectedEntry}
             hunkCount={hunkCount}
             selectedHunkIndex={selectedHunkIndex}
             focused={() => focusPanel() === "diff"}
-            selection={currentSelection}
-            lineMode={lineMode}
-            selectedHunks={selectedHunks}
-            lineSelections={lineSelections}
-            currentFilePath={() => selectedEntry()?.file}
-            onScrollboxRef={(ref) => (diffScrollbox = ref)}
           />
 
-          <Show when={focusPanel() === "editor"}>
+          <Show when={focusPanel() === "editor" && selectedEntry()}>
             <EditorPanel
-              filename={editorFilename}
-              initialContent={editorInitialContent}
-              focused={() => true}
-              onTextareaRef={(ref) => (editorTextarea = ref)}
-              onSubmit={async (content) => {
-                await review.saveComment(
-                  content,
-                  selectedHunks(),
-                  lineSelections(),
-                );
-
-                setSelectedHunks(clearHunkSelections());
-                setLineSelections(clearLineSelections());
-                setFocusPanel("diff");
-              }}
+              file={selectedEntry()!.file}
+              hunkIndex={selectedHunkIndex()}
+              onClose={() => setFocusPanel("diff")}
             />
           </Show>
         </box>

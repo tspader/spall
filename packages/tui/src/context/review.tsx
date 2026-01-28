@@ -2,6 +2,7 @@ import {
   createContext,
   useContext,
   createSignal,
+  createEffect,
   onMount,
   onCleanup,
   type ParentProps,
@@ -9,29 +10,23 @@ import {
 } from "solid-js";
 import { Client, SpallClient } from "@spall/sdk/client";
 import { Git } from "../lib/git";
-import {
-  Repo,
-  Review as ReviewStore,
-  Patch,
-  ReviewComment,
-  type SelectionsJson,
-} from "../store";
-import { useExit } from "./exit";
-import {
-  type HunkSelections,
-  getHunkSelectionCount,
-} from "../lib/hunk-selection";
-import {
-  type LineSelections,
-  getLineSelectionCount,
-} from "../lib/line-selection";
+import { Repo, Review as ReviewStore, Patch, ReviewComment } from "../store";
+import { useServer } from "./server";
+
+// Comment with hydrated note details
+export interface CommentWithNote {
+  id: number;
+  reviewId: number;
+  noteId: number;
+  file: string;
+  hunkIndex: number;
+  createdAt: number;
+  // Hydrated from server
+  notePath: string | null;
+  noteContent: string | null;
+}
 
 export interface ReviewContextValue {
-  // Server state
-  serverUrl: Accessor<string | null>;
-  serverConnected: Accessor<boolean>;
-  serverEvent: Accessor<string>;
-
   // Project state
   projectId: Accessor<number | null>;
   projectName: Accessor<string | null>;
@@ -50,12 +45,21 @@ export interface ReviewContextValue {
   entries: Accessor<Git.Entry[]>;
   loading: Accessor<boolean>;
 
+  // Comments state
+  comments: Accessor<CommentWithNote[]>;
+  commentsLoading: Accessor<boolean>;
+
   // Actions
-  saveComment: (
+  getCommentForHunk: (
+    file: string,
+    hunkIndex: number,
+  ) => CommentWithNote | null;
+  createComment: (
+    file: string,
+    hunkIndex: number,
     content: string,
-    hunks: HunkSelections,
-    lines: LineSelections,
-  ) => Promise<number | null>;
+  ) => Promise<CommentWithNote | null>;
+  updateComment: (commentId: number, content: string) => Promise<void>;
 }
 
 const ReviewContext = createContext<ReviewContextValue>();
@@ -64,50 +68,14 @@ export interface ReviewProviderProps extends ParentProps {
   repoPath: string;
 }
 
-// Generate random string for filename
-function randomId(): string {
-  return Math.random().toString(36).substring(2, 10);
-}
-
 // Get repo name from path (last segment)
 function repoName(path: string): string {
   const segments = path.split("/").filter(Boolean);
   return segments[segments.length - 1] || "unknown";
 }
 
-// Convert HunkSelections/LineSelections to JSON-serializable format
-function toSelectionsJson(
-  hunks: HunkSelections,
-  lines: LineSelections,
-): SelectionsJson | undefined {
-  const hunkCount = getHunkSelectionCount(hunks);
-  const lineCount = getLineSelectionCount(lines);
-
-  if (hunkCount === 0 && lineCount === 0) {
-    return undefined;
-  }
-
-  const hunksObj: Record<string, number[]> = {};
-  for (const [file, indices] of hunks) {
-    hunksObj[file] = Array.from(indices);
-  }
-
-  const linesObj: Record<string, Array<[number, number]>> = {};
-  for (const [file, ranges] of lines) {
-    linesObj[file] = ranges.map((r) => [r.startLine, r.endLine]);
-  }
-
-  return { hunks: hunksObj, lines: linesObj };
-}
-
 export function ReviewProvider(props: ReviewProviderProps) {
-  const { registerCleanup } = useExit();
-
-  // Server state
-  const [serverUrl, setServerUrl] = createSignal<string | null>(null);
-  const [serverConnected, setServerConnected] = createSignal(false);
-  const [serverEvent, setServerEvent] = createSignal("");
-  const [client, setClient] = createSignal<SpallClient | null>(null);
+  const server = useServer();
 
   // Project state
   const [projectId, setProjectId] = createSignal<number | null>(null);
@@ -126,12 +94,88 @@ export function ReviewProvider(props: ReviewProviderProps) {
   const [entries, setEntries] = createSignal<Git.Entry[]>([]);
   const [loading, setLoading] = createSignal(true);
 
-  // Abort controller for client
-  const clientAbort = new AbortController() as {
-    signal: AbortSignal;
-    abort: () => void;
+  // Comments state
+  const [comments, setComments] = createSignal<CommentWithNote[]>([]);
+  const [commentsLoading, setCommentsLoading] = createSignal(false);
+
+  // Track if we've initialized project for current connection
+  const [projectInitialized, setProjectInitialized] = createSignal(false);
+
+  // Load comments for a review, hydrating note details from server
+  const loadComments = async (revId: number, c: SpallClient) => {
+    setCommentsLoading(true);
+    try {
+      const localComments = ReviewComment.list(revId);
+      const hydrated: CommentWithNote[] = [];
+
+      for (const comment of localComments) {
+        let notePath: string | null = null;
+        let noteContent: string | null = null;
+
+        try {
+          const result = await c.note.getById({
+            id: comment.noteId.toString(),
+          });
+          if (result.data) {
+            notePath = result.data.path;
+            noteContent = result.data.content;
+          }
+        } catch {
+          // Note might have been deleted or server unavailable
+        }
+
+        hydrated.push({
+          id: comment.id,
+          reviewId: comment.review,
+          noteId: comment.noteId,
+          file: comment.file,
+          hunkIndex: comment.hunkIndex,
+          createdAt: comment.createdAt,
+          notePath,
+          noteContent,
+        });
+      }
+
+      setComments(hydrated);
+    } finally {
+      setCommentsLoading(false);
+    }
   };
-  registerCleanup(() => clientAbort.abort());
+
+  // React to server connection changes
+  createEffect(async () => {
+    const c = server.client();
+    const root = repoRoot();
+    const revId = reviewId();
+
+    if (!c || !root) {
+      // Disconnected - reset project state but keep comments
+      setProjectInitialized(false);
+      return;
+    }
+
+    // Already initialized for this connection
+    if (projectInitialized()) return;
+
+    try {
+      // Get or create project for this repo
+      const result = await c.project.create({ dir: root });
+      if (result.data) {
+        setProjectId(result.data.id);
+        setProjectName(result.data.name);
+        setNoteCount(result.data.noteCount);
+      }
+
+      // Load existing comments if we have a review
+      if (revId) {
+        await loadComments(revId, c);
+      }
+
+      setProjectInitialized(true);
+    } catch {
+      // Connection lost during initialization
+    }
+  });
 
   onMount(async () => {
     // Detect repo root
@@ -183,56 +227,26 @@ export function ReviewProvider(props: ReviewProviderProps) {
       }
     }, 1000);
     onCleanup(() => clearInterval(pollInterval));
-
-    // Connect to server
-    try {
-      const connectedClient = await Client.connect(clientAbort.signal);
-      const result = await connectedClient.health();
-
-      // Subscribe to server events
-      (async () => {
-        const { stream } = await connectedClient.events();
-        for await (const e of stream) {
-          if (e.tag.length === 0) {
-            setServerEvent("nothing");
-          } else {
-            setServerEvent(e.tag);
-          }
-        }
-      })();
-
-      if (result.response.ok) {
-        setServerUrl(result.response.url.replace("/health", ""));
-        setServerConnected(true);
-        setClient(connectedClient);
-
-        // Get or create project for this repo
-        if (root) {
-          const { stream } = await connectedClient.project.create({
-            dir: root,
-          });
-          for await (const e of stream) {
-            if (e.tag === "project.created") {
-              setProjectId(e.info.id);
-              setProjectName(e.info.name);
-              setNoteCount(e.info.noteCount);
-            }
-          }
-        }
-      }
-    } catch {
-      setServerConnected(false);
-    }
   });
 
-  const saveComment = async (
+  const getCommentForHunk = (
+    file: string,
+    hunkIndex: number,
+  ): CommentWithNote | null => {
+    return (
+      comments().find((c) => c.file === file && c.hunkIndex === hunkIndex) ??
+      null
+    );
+  };
+
+  const createComment = async (
+    file: string,
+    hunkIndex: number,
     content: string,
-    hunks: HunkSelections,
-    lines: LineSelections,
-  ): Promise<number | null> => {
+  ): Promise<CommentWithNote | null> => {
     const root = repoRoot();
     const head = commitSha();
-    const c = client();
+    const c = server.client();
     const pid = projectId();
 
     if (!root || !head) return null;
@@ -254,13 +268,11 @@ export function ReviewProvider(props: ReviewProviderProps) {
     const patch = Patch.getOrCreate(revId, fullDiff);
     setPatchSeq(patch.seq);
 
-    // Convert selections to JSON format
-    const selections = toSelectionsJson(hunks, lines);
-
     // If we have a server connection, create note via SDK
     if (c && pid) {
       const name = repoName(root);
-      const path = `review/${name}/${head}/${patch.seq}/${randomId()}.md`;
+      const shortFile = file.split("/").pop() ?? file;
+      const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${hunkIndex + 1}.md`;
 
       const { stream } = await c.note.add({
         project: pid,
@@ -272,22 +284,66 @@ export function ReviewProvider(props: ReviewProviderProps) {
       const noteId = event.info.id;
 
       // Create review comment linking to the note
-      ReviewComment.create({ review: revId, noteId, selections });
+      const localComment = ReviewComment.create({
+        review: revId,
+        noteId,
+        file,
+        hunkIndex,
+      });
       setNoteCount((n) => n + 1);
 
-      return noteId;
+      // Build the hydrated comment
+      const newComment: CommentWithNote = {
+        id: localComment.id,
+        reviewId: revId,
+        noteId,
+        file,
+        hunkIndex,
+        createdAt: localComment.createdAt,
+        notePath: path,
+        noteContent: content,
+      };
+
+      // Add to comments list
+      setComments((prev) => [...prev, newComment]);
+
+      return newComment;
     }
 
     // No server connection - can't save note
-    // TODO: Queue for later sync?
     return null;
   };
 
+  const updateComment = async (
+    commentId: number,
+    content: string,
+  ): Promise<void> => {
+    const c = server.client();
+
+    if (!c) return;
+    if (!content.trim()) return;
+
+    // Find the comment to get its noteId
+    const comment = comments().find((c) => c.id === commentId);
+    if (!comment) return;
+
+    // Update the note via SDK
+    const { stream } = await c.note.update({
+      id: comment.noteId.toString(),
+      content,
+    });
+
+    await Client.until(stream, "note.updated");
+
+    // Update local state
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId ? { ...c, noteContent: content } : c,
+      ),
+    );
+  };
+
   const value: ReviewContextValue = {
-    // Server
-    serverUrl,
-    serverConnected,
-    serverEvent,
     // Project
     projectId,
     projectName,
@@ -302,8 +358,13 @@ export function ReviewProvider(props: ReviewProviderProps) {
     // Diff
     entries,
     loading,
+    // Comments
+    comments,
+    commentsLoading,
     // Actions
-    saveComment,
+    getCommentForHunk,
+    createComment,
+    updateComment,
   };
 
   return (

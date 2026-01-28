@@ -45,16 +45,17 @@ export namespace Git {
   }
 
   export async function entries(repoPath: string): Promise<Entry[]> {
+    const context = 0
     const result: Entry[] = [];
     const filesResult =
-      await $`git -C ${repoPath} diff HEAD --name-only --relative`.quiet();
+      await $`git -C ${repoPath} diff -U${context} HEAD --name-only --relative`.quiet();
     const filesOutput = filesResult.stdout.toString().trim();
     const trackedFiles = filesOutput
       ? filesOutput.split("\n").filter(Boolean)
       : [];
 
     const deletedResult =
-      await $`git -C ${repoPath} diff HEAD --name-only --diff-filter=D --relative`.quiet();
+      await $`git -C ${repoPath} diff -U${context} HEAD --name-only --diff-filter=D --relative`.quiet();
     const deletedOutput = deletedResult.stdout.toString().trim();
     const deletedFiles = new Set(
       deletedOutput ? deletedOutput.split("\n").filter(Boolean) : [],
@@ -62,7 +63,7 @@ export namespace Git {
 
     for (const file of trackedFiles) {
       const diffResult =
-        await $`git -C ${repoPath} diff HEAD -- ${file}`.quiet();
+        await $`git -C ${repoPath} diff -U${context} HEAD -- ${file}`.quiet();
       const content = diffResult.stdout.toString();
       const isDeleted = deletedFiles.has(file);
       result.push({ file, content, isNew: false, isDeleted });
