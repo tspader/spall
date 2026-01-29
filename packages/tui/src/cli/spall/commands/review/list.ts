@@ -1,7 +1,6 @@
 import { db, Repo, Review } from "@spall/tui/store";
 import { Git } from "@spall/tui/lib/git";
-import { table } from "../../layout";
-import type { CommandDef } from "../../yargs";
+import { table, type CommandDef } from "@spall/tui/cli/shared";
 
 export const list: CommandDef = {
   description: "List reviews for the current repo",

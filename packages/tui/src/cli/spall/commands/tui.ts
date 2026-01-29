@@ -1,5 +1,5 @@
-import { db } from "../../store";
-import type { CommandDef } from "../yargs";
+import { db } from "@spall/tui/store";
+import type { CommandDef } from "@spall/tui/cli/shared";
 
 export const tui: CommandDef = {
   description: "Launch the interactive TUI",
@@ -7,7 +7,7 @@ export const tui: CommandDef = {
     db.init();
 
     await import("@opentui/solid/preload");
-    const { tui } = await import("../../App");
+    const { tui } = await import("../../../App");
     await tui({ repoPath: process.cwd() });
   },
 };

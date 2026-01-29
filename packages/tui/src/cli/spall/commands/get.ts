@@ -1,9 +1,7 @@
 import pc from "picocolors";
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { table } from "../layout";
-import type { CommandDef } from "../yargs";
-import { type Theme, defaultTheme as theme } from '../theme'
+import { table, type CommandDef, type Theme, defaultTheme as theme } from "@spall/tui/cli/shared";
 
 export const get: CommandDef = {
   description: "Get note(s) by path or glob",
@@ -115,7 +113,7 @@ export const get: CommandDef = {
           for (const [name, child] of sorted) {
             if (child.isDir) {
               console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
-              printTree(child, indent + "  ");
+              printTree(child, indent + " ");
             } else {
               console.log(`${theme.dim(indent)}${name}`);
             }

@@ -1,7 +1,7 @@
 import pc from "picocolors";
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import type { CommandDef } from "../../yargs";
+import type { CommandDef } from "@spall/tui/cli/shared";
 
 export const create: CommandDef = {
   description: "Create a new project",

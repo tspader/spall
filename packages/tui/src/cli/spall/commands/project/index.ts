@@ -1,4 +1,4 @@
-import type { CommandDef } from "../../yargs";
+import type { CommandDef } from "@spall/tui/cli/shared";
 import { create } from "./create";
 import { list } from "./list";
 
