@@ -1,17 +1,23 @@
 import { onMount } from "solid-js";
+import { spawn } from "child_process";
+import { writeFileSync, readFileSync } from "fs";
 import type { TextareaRenderable, KeyEvent } from "@opentui/core";
+import { useRenderer } from "@opentui/solid";
 import { useTheme } from "../context/theme";
 import { useReview } from "../context/review";
 
 export interface EditorPanelProps {
   file: string;
   hunkIndex: number;
+  startRow?: number;
+  endRow?: number;
   onClose: () => void;
 }
 
 export function EditorPanel(props: EditorPanelProps) {
   const { theme } = useTheme();
   const review = useReview();
+  const renderer = useRenderer();
 
   let textareaRef: TextareaRenderable | null = null;
   let initialized = false;
@@ -20,9 +26,13 @@ export function EditorPanel(props: EditorPanelProps) {
   const existingComment = review.getCommentForHunk(props.file, props.hunkIndex);
   const initialContent = existingComment?.noteContent ?? "";
 
-  // Filename is file:hunk (e.g., "CommentList.tsx:1.md")
+  // Filename is file:range (e.g., "CommentList.tsx:rows-3-5.md")
   const shortFile = props.file.split("/").pop() ?? props.file;
-  const filename = `${shortFile}:${props.hunkIndex + 1}.md`;
+  const rangeLabel =
+    props.startRow && props.endRow
+      ? `rows-${props.startRow}-${props.endRow}`
+      : `hunk-${props.hunkIndex + 1}`;
+  const filename = `${shortFile}:${rangeLabel}.md`;
 
   // Mark as initialized after first render to ignore the trigger key
   onMount(() => {
@@ -53,6 +63,40 @@ export function EditorPanel(props: EditorPanelProps) {
     props.onClose();
   };
 
+  const openInEditor = async () => {
+    if (!textareaRef) return;
+
+    const tmpFile = `/tmp/spall-${filename}`;
+    writeFileSync(tmpFile, textareaRef.editBuffer.getText());
+
+    renderer.suspend();
+
+    await new Promise<void>((resolve, reject) => {
+      const editor = process.env.EDITOR || "nvim";
+      const child = spawn(editor, [tmpFile], { stdio: "inherit" });
+      child.on("close", (code) =>
+        code === 0 ? resolve() : reject(new Error(`exit ${code}`)),
+      );
+      child.on("error", reject);
+    });
+
+    const content = readFileSync(tmpFile, "utf-8");
+    renderer.resume();
+
+    if (!content.trim()) {
+      props.onClose();
+      return;
+    }
+
+    if (existingComment) {
+      await review.updateComment(existingComment.id, content);
+    } else {
+      await review.createComment(props.file, props.hunkIndex, content);
+    }
+
+    props.onClose();
+  };
+
   const handleKeyDown = (e: KeyEvent) => {
     // Ignore the first "c" key that opened this editor
     if (!initialized && e.name === "c") {
@@ -64,6 +108,12 @@ export function EditorPanel(props: EditorPanelProps) {
     if (e.name === "escape" || (e.ctrl && e.name === "return")) {
       e.preventDefault();
       submit();
+      return;
+    }
+
+    if (e.name === "e" && e.ctrl) {
+      e.preventDefault();
+      void openInEditor();
       return;
     }
   };

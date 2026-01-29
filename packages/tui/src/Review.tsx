@@ -15,6 +15,7 @@ import {
   getFileIndices,
   type DisplayItem,
 } from "./lib/tree";
+import { parseFileDiff } from "./lib/diff";
 import { DialogProvider, useDialog } from "./context/dialog";
 import { CommandProvider, useCommand } from "./context/command";
 import { ThemeProvider, useTheme } from "./context/theme";
@@ -95,6 +96,15 @@ function App(props: AppProps) {
     // Count @@ markers in the diff content
     const matches = entry.content.match(/^@@/gm);
     return matches?.length ?? 0;
+  });
+
+  const selectedHunkRange = createMemo(() => {
+    const entry = selectedEntry();
+    if (!entry) return null;
+    const hunks = parseFileDiff(entry.content, entry.file).hunks;
+    const hunk = hunks[selectedHunkIndex()];
+    if (!hunk) return null;
+    return { startRow: hunk.startRow, endRow: hunk.endRow };
   });
 
   // Reset selection when file changes
@@ -360,9 +370,7 @@ function App(props: AppProps) {
           </SidebarProvider>
         </box>
 
-        <box
-          flexGrow={1} flexDirection="column" gap={1}
-        >
+        <box flexGrow={1} flexDirection="column" gap={1}>
           <DiffPanel
             entry={selectedEntry}
             hunkCount={hunkCount}
@@ -374,6 +382,8 @@ function App(props: AppProps) {
             <EditorPanel
               file={selectedEntry()!.file}
               hunkIndex={selectedHunkIndex()}
+              startRow={selectedHunkRange()?.startRow}
+              endRow={selectedHunkRange()?.endRow}
               onClose={() => setFocusPanel("diff")}
             />
           </Show>

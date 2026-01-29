@@ -70,11 +70,9 @@ export function CommentList(props: CommentListProps) {
 
               return (
                 <box flexDirection="row" justifyContent="flex-start" gap={1}>
-                  <text fg={textColor()}>
-                    {getShortFile(comment.file)}
-                  </text>
+                  <text fg={textColor()}>{getShortFile(comment.file)}</text>
                   <text fg={theme.textMuted}>
-                    {`hunk ${comment.hunkIndex + 1}`}
+                    {`lines ${comment.startRow}-${comment.endRow}`}
                   </text>
                 </box>
               );

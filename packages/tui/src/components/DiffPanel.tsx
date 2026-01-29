@@ -1,69 +1,9 @@
 import { Show, For, createMemo, createEffect, Index } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
-import { parsePatch } from "diff";
 import { Git } from "../lib/git";
+import { parseFileDiff } from "../lib/diff";
 import { useTheme } from "../context/theme";
-
-interface ParsedHunk {
-  diffString: string;
-  oldStart: number;
-  oldLines: number;
-  skipBefore: number; // lines skipped before this hunk (0 for first)
-  lineCount: number; // number of rendered lines in this hunk
-}
-
-function parseHunks(content: string, file: string): ParsedHunk[] {
-  if (!content) return [];
-
-  try {
-    const patches = parsePatch(content);
-    if (patches.length === 0) return [];
-
-    const rawHunks = patches[0]?.hunks ?? [];
-    const result: ParsedHunk[] = [];
-
-    // Build the file header once
-    const header = `diff --git a/${file} b/${file}
---- a/${file}
-+++ b/${file}`;
-
-    for (let i = 0; i < rawHunks.length; i++) {
-      const hunk = rawHunks[i]!;
-
-      // Calculate skip from previous hunk
-      let skipBefore = 0;
-      if (i > 0) {
-        const prev = rawHunks[i - 1]!;
-        const prevEnd = prev.oldStart + prev.oldLines;
-        skipBefore = hunk.oldStart - prevEnd;
-      }
-
-      // Reconstruct the hunk as a standalone diff string
-      const hunkHeader = `@@ -${hunk.oldStart},${hunk.oldLines} +${hunk.newStart},${hunk.newLines} @@`;
-      const diffString = `${header}\n${hunkHeader}\n${hunk.lines.join("\n")}`;
-
-      // Count rendered lines (context, additions, deletions)
-      let lineCount = 0;
-      for (const line of hunk.lines) {
-        const c = line[0];
-        if (c === " " || c === "+" || c === "-") lineCount++;
-      }
-
-      result.push({
-        diffString,
-        oldStart: hunk.oldStart,
-        oldLines: hunk.oldLines,
-        skipBefore,
-        lineCount,
-      });
-    }
-
-    return result;
-  } catch {
-    return [];
-  }
-}
 
 function getFiletype(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
@@ -167,11 +107,10 @@ export function DiffPanel(props: DiffPanelProps) {
       flexGrow={1}
       flexDirection="column"
       backgroundColor={theme.backgroundPanel}
-          paddingTop={1}
-          paddingBottom={1}
-          paddingLeft={2}
-          paddingRight={2}
-
+      paddingTop={1}
+      paddingBottom={1}
+      paddingLeft={2}
+      paddingRight={2}
     >
       {/* Title bar */}
       <box
@@ -194,7 +133,9 @@ export function DiffPanel(props: DiffPanelProps) {
       <Show when={props.entry()}>
         {(() => {
           const entry = props.entry()!;
-          const hunks = createMemo(() => parseHunks(entry.content, entry.file));
+          const hunks = createMemo(
+            () => parseFileDiff(entry.content, entry.file).hunks,
+          );
           const filetype = getFiletype(entry.file);
 
           let scrollbox: ScrollBoxRenderable | null = null;
@@ -205,12 +146,12 @@ export function DiffPanel(props: DiffPanelProps) {
             const hunkList = hunks();
             if (!scrollbox || hunkList.length === 0) return;
 
-            // Calculate scroll position: sum of line counts before this hunk
+            // Calculate scroll position: rows before this hunk
             // plus separator lines (1 line between each hunk)
             let scrollLine = 0;
-            for (let i = 0; i < hunkIdx && i < hunkList.length; i++) {
-              scrollLine += hunkList[i]!.lineCount;
-              scrollLine += 1; // separator line after each hunk
+            if (hunkIdx > 0) {
+              const prev = hunkList[Math.min(hunkIdx - 1, hunkList.length - 1)];
+              if (prev) scrollLine = prev.endRow + hunkIdx;
             }
 
             scrollbox.scrollTo(scrollLine);

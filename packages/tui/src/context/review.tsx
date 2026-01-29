@@ -10,6 +10,7 @@ import {
 } from "solid-js";
 import { Client, SpallClient } from "@spall/sdk/client";
 import { Git } from "../lib/git";
+import { getHunkRowRange } from "../lib/diff";
 import { Repo, Review as ReviewStore, Patch, ReviewComment } from "../store";
 import { useServer } from "./server";
 
@@ -19,6 +20,9 @@ export interface CommentWithNote {
   reviewId: number;
   noteId: number;
   file: string;
+  patchId: number;
+  startRow: number;
+  endRow: number;
   hunkIndex: number;
   createdAt: number;
   // Hydrated from server
@@ -129,6 +133,9 @@ export function ReviewProvider(props: ReviewProviderProps) {
           reviewId: comment.review,
           noteId: comment.noteId,
           file: comment.file,
+          patchId: comment.patchId,
+          startRow: comment.startRow,
+          endRow: comment.endRow,
           hunkIndex: comment.hunkIndex,
           createdAt: comment.createdAt,
           notePath,
@@ -268,26 +275,46 @@ export function ReviewProvider(props: ReviewProviderProps) {
     const patch = Patch.getOrCreate(revId, fullDiff);
     setPatchSeq(patch.seq);
 
+    const entry = entries().find((e) => e.file === file);
+    if (!entry) return null;
+
+    const rowRange = getHunkRowRange(entry.content, entry.file, hunkIndex);
+    if (!rowRange) return null;
+
     // If we have a server connection, create note via SDK
     if (c && pid) {
       const name = repoName(root);
       const shortFile = file.split("/").pop() ?? file;
-      const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${hunkIndex + 1}.md`;
+      const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${rowRange.startRow}-${rowRange.endRow}.md`;
 
       const { stream } = await c.note.add({
         project: pid,
         path,
         content,
+        dupe: true,
       });
 
-      const event = await Client.until(stream, "note.created");
-      const noteId = event.info.id;
+      let noteId: number | null = null;
+      for await (const event of stream as AsyncGenerator<any>) {
+        if (event?.tag === "error") {
+          return null;
+        }
+        if (event.tag === "note.created") {
+          noteId = event.info.id;
+          break;
+        }
+      }
+
+      if (noteId === null) return null;
 
       // Create review comment linking to the note
       const localComment = ReviewComment.create({
         review: revId,
         noteId,
         file,
+        patchId: patch.id,
+        startRow: rowRange.startRow,
+        endRow: rowRange.endRow,
         hunkIndex,
       });
       setNoteCount((n) => n + 1);
@@ -298,7 +325,10 @@ export function ReviewProvider(props: ReviewProviderProps) {
         reviewId: revId,
         noteId,
         file,
-        hunkIndex,
+        patchId: localComment.patchId,
+        startRow: localComment.startRow,
+        endRow: localComment.endRow,
+        hunkIndex: localComment.hunkIndex,
         createdAt: localComment.createdAt,
         notePath: path,
         noteContent: content,
@@ -331,9 +361,13 @@ export function ReviewProvider(props: ReviewProviderProps) {
     const { stream } = await c.note.update({
       id: comment.noteId.toString(),
       content,
+      dupe: true,
     });
 
-    await Client.until(stream, "note.updated");
+    for await (const event of stream as AsyncGenerator<any>) {
+      if (event?.tag === "error") return;
+      if (event.tag === "note.updated") break;
+    }
 
     // Update local state
     setComments((prev) =>
