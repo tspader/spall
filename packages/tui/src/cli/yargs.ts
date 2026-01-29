@@ -57,7 +57,7 @@ function usage(def: CommandDef | CliDef, path: string[], t: Theme): string {
     def.commands &&
     Object.keys(def.commands).length > 0
   ) {
-    parts.push(t.dim("$command"));
+    parts.push(t.arg("$command"));
   }
 
   return parts.join(" ");

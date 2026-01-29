@@ -1,11 +1,16 @@
-import { db, Repo, Review, ReviewComment } from "@spall/tui/store";
+import { db, Repo, Review, Patch } from "@spall/tui/store";
 import { Git } from "@spall/tui/lib/git";
-import { Client } from "@spall/sdk/client";
 import { table } from "../../layout";
 import type { CommandDef } from "../../yargs";
 
-export const comments: CommandDef = {
-  description: "List comments for a review",
+export const patches: CommandDef = {
+  description: "View patches for a review",
+  positionals: {
+    seq: {
+      type: "number",
+      description: "Patch sequence number to display",
+    },
+  },
   options: {
     path: {
       alias: "p",
@@ -52,62 +57,56 @@ export const comments: CommandDef = {
 
       const repo = Repo.getByPath(root);
       if (!repo) {
-        console.log("No comments found.");
+        console.log("No patches found.");
         return;
       }
 
       const review = Review.getByRepoAndCommit(repo.id, commitSha);
       if (!review) {
-        console.log("No comments found.");
+        console.log("No patches found.");
         return;
       }
 
       reviewId = review.id;
     }
 
-    const localComments = ReviewComment.list(reviewId);
-    if (localComments.length === 0) {
-      console.log("No comments found.");
+    // If a seq number is given, show that specific patch's diff
+    if (argv.seq != null) {
+      const allPatches = Patch.list(reviewId);
+      const patch = allPatches.find((p) => p.seq === argv.seq);
+      if (!patch) {
+        console.error(`Patch #${argv.seq} not found.`);
+        process.exit(1);
+      }
+
+      if (argv.output === "json") {
+        console.log(JSON.stringify(patch, null, 2));
+      } else {
+        console.log(patch.content);
+      }
       return;
     }
 
-    // Hydrate comment content from the server
-    const client = await Client.connect();
-    type Hydrated = ReviewComment.Info & {
-      content: string | null;
-    };
-    const hydrated: Hydrated[] = [];
-
-    for (const comment of localComments) {
-      let content: string | null = null;
-      try {
-        const result = await client.note.getById({
-          id: comment.noteId.toString(),
-        });
-        if (result.data) {
-          content = result.data.content;
-        }
-      } catch {
-        // Note might have been deleted or server unavailable
-      }
-      hydrated.push({ ...comment, content });
+    // Otherwise, list all patches
+    const allPatches = Patch.list(reviewId);
+    if (allPatches.length === 0) {
+      console.log("No patches found.");
+      return;
     }
-
-    const oneLine = (s: string) => s.replace(/\n/g, " ");
 
     switch (argv.output) {
       case "json":
-        console.log(JSON.stringify(hydrated, null, 2));
+        console.log(JSON.stringify(allPatches, null, 2));
         break;
       default:
         table(
-          ["file", "lines", "content"],
+          ["seq", "hash", "lines", "created"],
           [
-            hydrated.map((c) => c.file),
-            hydrated.map((c) => `${c.startRow}:${c.endRow}`),
-            hydrated.map((c) => oneLine(c.content ?? "(unavailable)")),
+            allPatches.map((p) => String(p.seq)),
+            allPatches.map((p) => p.hash.slice(0, 12)),
+            allPatches.map((p) => String(Git.lines(p.content))),
+            allPatches.map((p) => new Date(p.createdAt).toISOString()),
           ],
-          { flex: [1, 0, 2] },
         );
     }
   },

@@ -1,25 +1,59 @@
-import { Review } from "../../../store";
+import { db, Repo, Review } from "@spall/tui/store";
+import { Git } from "@spall/tui/lib/git";
+import { table } from "../../layout";
 import type { CommandDef } from "../../yargs";
 
 export const list: CommandDef = {
-  description: "List reviews for a repo",
-  positionals: {
-    repo: {
-      type: "number",
-      description: "Repo ID",
-      required: true,
+  description: "List reviews for the current repo",
+  options: {
+    path: {
+      alias: "p",
+      type: "string",
+      description: "Path to git repo",
+      default: ".",
+    },
+    output: {
+      alias: "o",
+      type: "string",
+      description: "Output format: table, json",
+      default: "table",
     },
   },
-  handler: (argv) => {
-    const reviews = Review.list(argv.repo);
+  handler: async (argv) => {
+    db.init();
+
+    const root = await Git.root(argv.path);
+    if (!root) {
+      console.error("Not a git repository.");
+      process.exit(1);
+    }
+
+    const repo = Repo.getByPath(root);
+    if (!repo) {
+      console.log("No reviews found.");
+      return;
+    }
+
+    const reviews = Review.list(repo.id);
     if (reviews.length === 0) {
       console.log("No reviews found.");
       return;
     }
-    for (const r of reviews) {
-      const date = new Date(r.createdAt).toISOString();
-      const name = r.name ? ` (${r.name})` : "";
-      console.log(`#${r.id} ${r.commitSha.slice(0, 7)}${name} - ${date}`);
+
+    switch (argv.output) {
+      case "json":
+        console.log(JSON.stringify(reviews, null, 2));
+        break;
+      default:
+        table(
+          ["id", "commit", "name", "created"],
+          [
+            reviews.map((r) => String(r.id)),
+            reviews.map((r) => r.commitSha.slice(0, 7)),
+            reviews.map((r) => r.name ?? ""),
+            reviews.map((r) => new Date(r.createdAt).toISOString()),
+          ],
+        );
     }
   },
 };

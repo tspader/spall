@@ -1,4 +1,5 @@
 export type Theme = {
+  primary: (s: string) => string;
   header: (s: string) => string;
   command: (s: string) => string;
   arg: (s: string) => string;
@@ -13,14 +14,20 @@ function rgb(r: number, g: number, b: number): (s: string) => string {
 }
 
 function dim(s: string): string {
-  return `\x1b[2m${s}\x1b[22m`;
+  return gray(128)(s)
+  //return `\x1b[2m${s}\x1b[22m`;
 }
 
+const gray = (n: number) => rgb(n, n, n)
+
+const primary = rgb(114, 161, 136);
+
 export const defaultTheme: Theme = {
+  primary,
   header: dim,
-  command: rgb(96, 161, 127),
-  arg: rgb(126, 230, 230),
-  option: rgb(230, 230, 126),
+  command: primary,
+  arg: rgb(161, 212, 212),
+  option: rgb(212, 212, 161),
   type: dim,
   description: (s) => s,
   dim,

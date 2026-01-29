@@ -11,7 +11,7 @@ export const get: CommandDef = {
     path: {
       type: "string",
       description: "Path or glob to notes",
-      required: true,
+      default: "*",
     },
   },
   options: {
@@ -29,8 +29,7 @@ export const get: CommandDef = {
     output: {
       alias: "o",
       type: "string",
-      description: "Output format: list, table, json",
-      default: "list",
+      description: "Output format: list, tree, table, json",
     },
   },
   handler: async (argv) => {
@@ -73,11 +72,12 @@ export const get: CommandDef = {
     }
 
     if (notes.length === 0) {
-      console.log(pc.dim("(no notes matching pattern)"));
+      console.log(theme.dim("(no notes matching pattern)"));
       return;
     }
 
-    switch (argv.output) {
+    const output = argv.output ?? (argv.path === "*" ? "tree" : "list");
+    switch (output) {
       case "json":
         console.log(JSON.stringify(notes, null, 2));
         break;

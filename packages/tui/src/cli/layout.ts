@@ -1,4 +1,5 @@
 import pc from "picocolors";
+import { defaultTheme as theme } from "./theme";
 
 export const CLEAR = "\x1b[K";
 
@@ -37,24 +38,28 @@ export function table(
   if (flex && maxWidth) {
     const totalGap = gap * (numCols - 1);
     const available = maxWidth - totalGap;
+    const totalNatural = natural.reduce((a, b) => a + b, 0);
 
-    // Fixed columns (flex=0) keep natural width
-    let used = 0;
-    let totalFlex = 0;
-    for (let i = 0; i < numCols; i++) {
-      if (flex[i] === 0) {
-        used += natural[i]!;
-      } else {
-        totalFlex += flex[i] ?? 1;
+    // Only apply flex when natural widths exceed available space
+    if (totalNatural > available) {
+      // Fixed columns (flex=0) keep natural width
+      let used = 0;
+      let totalFlex = 0;
+      for (let i = 0; i < numCols; i++) {
+        if (flex[i] === 0) {
+          used += natural[i]!;
+        } else {
+          totalFlex += flex[i] ?? 1;
+        }
       }
-    }
 
-    // Distribute remaining space to flex columns
-    const remaining = Math.max(0, available - used);
-    for (let i = 0; i < numCols; i++) {
-      if (flex[i] !== 0) {
-        const share = (flex[i] ?? 1) / totalFlex;
-        widths[i] = Math.max(headers[i]!.length, Math.floor(remaining * share));
+      // Distribute remaining space to flex columns
+      const remaining = Math.max(0, available - used);
+      for (let i = 0; i < numCols; i++) {
+        if (flex[i] !== 0) {
+          const share = (flex[i] ?? 1) / totalFlex;
+          widths[i] = Math.max(headers[i]!.length, Math.floor(remaining * share));
+        }
       }
     }
   }
@@ -63,7 +68,7 @@ export function table(
   const header = headers
     .map((h, i) => truncateMiddle(h, widths[i]!).padEnd(widths[i]!))
     .join("  ");
-  console.log(pc.dim(header));
+  console.log(theme.dim(header));
 
   const numRows = Math.max(...columns.map((c) => c.length));
   for (let row = 0; row < numRows; row++) {
