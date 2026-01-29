@@ -26,6 +26,7 @@ export { Config, type ConfigSchema } from "./config";
 
 export { Project } from "./project";
 export { Note } from "./note";
+export { Error } from "./error";
 
 import { z } from "zod";
 import { Project } from "./project";
@@ -33,8 +34,10 @@ import { Model } from "./model";
 import { Store } from "./store";
 import { Bus } from "./event";
 import { Note } from "./note";
+import { Error } from "./error";
 
 export const EventUnion = z.discriminatedUnion("tag", [
+  Error.Event.Raised,
   Bus.Event.Connected,
   Project.Event.Created,
   Project.Event.Updated,
@@ -56,6 +59,7 @@ export const EventUnion = z.discriminatedUnion("tag", [
 ]);
 
 export type EventUnion =
+  | z.infer<typeof Error.Event.Raised>
   | z.infer<typeof Bus.Event.Connected>
   | z.infer<typeof Project.Event.Created>
   | z.infer<typeof Project.Event.Updated>

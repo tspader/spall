@@ -106,6 +106,7 @@ export type NoteGetResponse = NoteGetResponses[keyof NoteGetResponses];
 export type NoteUpsertData = {
   body?: {
     content: string;
+    dupe?: boolean;
   };
   path: {
     id: string;
@@ -127,6 +128,13 @@ export type NoteUpsertResponses = {
    * Event stream
    */
   200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
     | {
         tag: "sse.connected";
       }
@@ -328,6 +336,7 @@ export type NoteAddData = {
     project: number;
     path: string;
     content: string;
+    dupe?: boolean;
   };
   path?: never;
   query?: never;
@@ -346,6 +355,13 @@ export type NoteAddResponses = {
    * Event stream
    */
   200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
     | {
         tag: "sse.connected";
       }
@@ -500,6 +516,7 @@ export type NoteGetByIdResponse =
 export type NoteUpdateData = {
   body?: {
     content: string;
+    dupe?: boolean;
   };
   path: {
     id: string;
@@ -520,6 +537,13 @@ export type NoteUpdateResponses = {
    * Event stream
    */
   200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
     | {
         tag: "sse.connected";
       }
@@ -667,6 +691,13 @@ export type EventsResponses = {
    * Event stream
    */
   200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
     | {
         tag: "sse.connected";
       }

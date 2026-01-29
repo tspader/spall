@@ -183,6 +183,7 @@ export class Note extends HeyApiClient {
       id: string;
       path: string;
       content?: string;
+      dupe?: boolean;
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -194,6 +195,7 @@ export class Note extends HeyApiClient {
             { in: "path", key: "id" },
             { in: "path", key: "path" },
             { in: "body", key: "content" },
+            { in: "body", key: "dupe" },
           ],
         },
       ],
@@ -224,6 +226,7 @@ export class Note extends HeyApiClient {
       project?: number;
       path?: string;
       content?: string;
+      dupe?: boolean;
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -235,6 +238,7 @@ export class Note extends HeyApiClient {
             { in: "body", key: "project" },
             { in: "body", key: "path" },
             { in: "body", key: "content" },
+            { in: "body", key: "dupe" },
           ],
         },
       ],
@@ -290,6 +294,7 @@ export class Note extends HeyApiClient {
     parameters: {
       id: string;
       content?: string;
+      dupe?: boolean;
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -300,6 +305,7 @@ export class Note extends HeyApiClient {
           args: [
             { in: "path", key: "id" },
             { in: "body", key: "content" },
+            { in: "body", key: "dupe" },
           ],
         },
       ],

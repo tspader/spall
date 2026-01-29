@@ -3,7 +3,7 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 
 import { lazy } from "../util";
 import { Sse } from "../sse";
-import { Note, EventUnion } from "@spall/core";
+import { Note, EventUnion, Error } from "@spall/core";
 
 export const NoteRoutes = lazy(() =>
   new Hono()
@@ -35,7 +35,7 @@ export const NoteRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: error.message }, 404);
+          return c.json({ error: Error.from(error) }, 404);
         }
       },
     )

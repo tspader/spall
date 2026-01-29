@@ -124,7 +124,8 @@ export namespace Sql {
       content TEXT NOT NULL,
       content_hash TEXT NOT NULL,
       mtime INTEGER NOT NULL,
-      FOREIGN KEY (project_id) REFERENCES projects(id)
+      FOREIGN KEY (project_id) REFERENCES projects(id),
+      UNIQUE (project_id, path)
     )
   `;
 

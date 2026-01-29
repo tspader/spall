@@ -35,9 +35,17 @@ export namespace Client {
     tag: TTag,
     handler?: (event: TEvent) => void,
   ): Promise<Extract<TEvent, { tag: TTag }>> {
-    for await (const event of stream) {
+    for await (const event of stream as AsyncGenerator<any>) {
       handler?.(event);
-      if (event.tag === tag) {
+
+      if (event?.tag === "error") {
+        const e = event.error;
+        const err = new Error(e?.message ?? "unknown error");
+        (err as any).code = e?.code ?? "error";
+        throw err;
+      }
+
+      if (event?.tag === tag) {
         return event as Extract<TEvent, { tag: TTag }>;
       }
     }

@@ -28,6 +28,21 @@ afterAll(() => {
   rmSync(testDir, { recursive: true, force: true });
 });
 
+async function readUntil(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  decoder: TextDecoder,
+  predicate: (text: string) => boolean,
+  maxReads = 50,
+): Promise<string> {
+  for (let i = 0; i < maxReads; i++) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    const text = decoder.decode(value);
+    if (predicate(text)) return text;
+  }
+  throw new Error("Stream ended without expected event");
+}
+
 test("/events receives published events", async () => {
   const response = await fetch(`http://127.0.0.1:${port}/events`);
   const reader = response.body!.getReader();
@@ -40,8 +55,9 @@ test("/events receives published events", async () => {
   // Publish event directly - no model/db needed
   await Bus.publish({ tag: "store.create", path: "/test" });
 
-  const { value } = await reader.read();
-  const text = decoder.decode(value);
+  const text = await readUntil(reader, decoder, (t) =>
+    t.includes("store.create"),
+  );
 
   expect(text).toContain("store.create");
   expect(text).toContain("/test");
@@ -81,10 +97,13 @@ test("/events broadcasts to multiple subscribers", async () => {
 
   await Bus.publish({ tag: "store.create", path: "/multi-test" });
 
-  const results = await Promise.all(readers.map((r) => r.read()));
+  const texts = await Promise.all(
+    readers.map((r) =>
+      readUntil(r, decoder, (t) => t.includes("store.create")),
+    ),
+  );
 
-  for (const { value } of results) {
-    const text = decoder.decode(value);
+  for (const text of texts) {
     expect(text).toContain("store.create");
     expect(text).toContain("/multi-test");
   }

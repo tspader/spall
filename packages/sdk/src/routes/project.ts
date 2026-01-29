@@ -3,7 +3,7 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 
 import { lazy } from "../util";
 import { Sse } from "../sse";
-import { Project, Note, EventUnion } from "@spall/core";
+import { Project, Note, EventUnion, Error } from "@spall/core";
 
 export const ProjectRoutes = lazy(() =>
   new Hono()
@@ -36,8 +36,9 @@ export const ProjectRoutes = lazy(() =>
             return c.json(result);
           })
           .catch((error: any) => {
-            return c.json({ error: error.message }, 404);
+            return c.json({ error: Error.from(error) }, 404);
           });
+
         return result;
       },
     )
@@ -73,7 +74,7 @@ export const ProjectRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: error.message }, 404);
+          return c.json({ error: Error.from(error) }, 404);
         }
       },
     )
@@ -107,7 +108,7 @@ export const ProjectRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: error.message }, 404);
+          return c.json({ error: Error.from(error) }, 404);
         }
       },
     )
@@ -158,7 +159,7 @@ export const ProjectRoutes = lazy(() =>
           const result = await Project.list({});
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: error.message }, 500);
+          return c.json({ error: Error.from(error) }, 500);
         }
       },
     )
@@ -187,7 +188,7 @@ export const ProjectRoutes = lazy(() =>
           const result = await Project.get(query);
           return context.json(result);
         } catch (error: any) {
-          return context.json({ error: error.message }, 404);
+          return context.json({ error: Error.from(error) }, 404);
         }
       },
     )

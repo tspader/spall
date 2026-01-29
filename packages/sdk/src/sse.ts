@@ -1,6 +1,6 @@
 import { streamSSE } from "hono/streaming";
 
-import { Bus, EventUnion } from "@spall/core";
+import { Bus, EventUnion, Error } from "@spall/core";
 import { Server } from "./server";
 
 export namespace Sse {
@@ -26,9 +26,7 @@ export namespace Sse {
       try {
         await handler(input);
       } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "unknown error";
-        await stream.writeSSE({ data: JSON.stringify({ error: message }) });
+        await write({ tag: "error", error: Error.from(error) });
       } finally {
         unsubscribe();
         Server.decrementSse();

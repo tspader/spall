@@ -231,6 +231,34 @@
                       "properties": {
                         "tag": {
                           "type": "string",
+                          "const": "error"
+                        },
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
                           "const": "sse.connected"
                         }
                       },
@@ -709,6 +737,9 @@
                 "properties": {
                   "content": {
                     "type": "string"
+                  },
+                  "dupe": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -928,6 +959,34 @@
               "text/event-stream": {
                 "schema": {
                   "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
+                      ]
+                    },
                     {
                       "type": "object",
                       "properties": {
@@ -1417,6 +1476,9 @@
                   },
                   "content": {
                     "type": "string"
+                  },
+                  "dupe": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -1496,6 +1558,34 @@
               "text/event-stream": {
                 "schema": {
                   "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
+                      ]
+                    },
                     {
                       "type": "object",
                       "properties": {
@@ -1979,6 +2069,9 @@
                 "properties": {
                   "content": {
                     "type": "string"
+                  },
+                  "dupe": {
+                    "type": "boolean"
                   }
                 },
                 "required": [
@@ -2031,6 +2124,34 @@
               "text/event-stream": {
                 "schema": {
                   "oneOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "error"
+                        },
+                        "error": {
+                          "type": "object",
+                          "properties": {
+                            "code": {
+                              "type": "string"
+                            },
+                            "message": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "code",
+                            "message"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "error"
+                      ]
+                    },
                     {
                       "type": "object",
                       "properties": {

@@ -5,6 +5,7 @@ import { Model } from "./model";
 import { Sql } from "./sql";
 import { Project } from "./project";
 import { Bus } from "./event";
+import { Error } from "./error";
 
 export namespace Note {
   export const Id = z.coerce.number().brand<"NoteId">();
@@ -46,15 +47,132 @@ export namespace Note {
       }),
     );
 
-  export class NotFoundError extends Error {
+  export class NotFoundError extends Error.SpallError {
     constructor(message: string) {
-      super(message);
+      super("note.not_found", message);
       this.name = "NotFoundError";
     }
   }
 
-  function hash(content: string): string {
+  class DuplicateError extends Error.SpallError {
+    constructor(path: string) {
+      super(
+        "note.duplicate",
+        `Duplicate content detected for ${path}. Use dupe=true to allow duplicates.`,
+      );
+      this.name = "DuplicateError";
+    }
+  }
+
+  class ExistsError extends Error.SpallError {
+    constructor(path: string) {
+      super("note.exists", `Note already exists at ${path}.`);
+      this.name = "ExistsError";
+    }
+  }
+
+  function getHash(content: string): string {
     return Bun.hash(content).toString(16);
+  }
+
+  function checkDupe(
+    project: number,
+    hash: string,
+    dupe?: boolean,
+    id?: number,
+  ): void {
+    const db = Store.get();
+    const existing = db.prepare(Sql.GET_NOTE_BY_HASH).get(project, hash);
+    if (!existing) return;
+
+    const note = Row.parse(existing);
+    if (id && note.id === id) return;
+    if (dupe) return;
+
+    throw new DuplicateError(note.path);
+  }
+
+  async function createNote(
+    projectId: number,
+    path: string,
+    content: string,
+    contentHash: string,
+  ): Promise<Info> {
+    const db = Store.get();
+
+    await Model.load();
+
+    const chunks = await Store.chunk(content);
+
+    const inserted = db
+      .prepare(Sql.INSERT_NOTE)
+      .get(projectId, path, content, contentHash, Date.now()) as {
+      id: number;
+    };
+
+    if (chunks.length > 0) {
+      const noteKey = `note:${inserted.id}`;
+
+      Store.clearEmbeddings(noteKey);
+
+      const texts = chunks.map((c) => c.text);
+      const embeddings = await Model.embedBatch(texts);
+
+      for (let i = 0; i < chunks.length; i++) {
+        Store.embed(noteKey, i, chunks[i]!.pos, embeddings[i]!);
+      }
+    }
+
+    return {
+      id: Id.parse(inserted.id),
+      project: Project.Id.parse(projectId),
+      path,
+      content,
+      contentHash,
+    };
+  }
+
+  async function updateNote(
+    id: Id,
+    content: string,
+    contentHash: string,
+  ): Promise<Info> {
+    const db = Store.get();
+
+    await Model.load();
+
+    const chunks = await Store.chunk(content);
+
+    const updated = db
+      .prepare(Sql.UPDATE_NOTE)
+      .get(content, contentHash, Date.now(), id) as {
+      id: number;
+      project_id: number;
+      path: string;
+      content: string;
+      content_hash: string;
+    };
+
+    const key = `note:${id}`;
+
+    Store.clearEmbeddings(key);
+
+    if (chunks.length > 0) {
+      const texts = chunks.map((c) => c.text);
+      const embeddings = await Model.embedBatch(texts);
+
+      for (let i = 0; i < chunks.length; i++) {
+        Store.embed(key, i, chunks[i]!.pos, embeddings[i]!);
+      }
+    }
+
+    return {
+      id: Id.parse(updated.id),
+      project: Project.Id.parse(updated.project_id),
+      path: updated.path,
+      content: updated.content,
+      contentHash: updated.content_hash,
+    };
   }
 
   export const get = api(
@@ -157,57 +275,28 @@ export namespace Note {
       project: Project.Id,
       path: z.string(),
       content: z.string(),
+      dupe: z.boolean().optional(),
     }),
     async (input): Promise<void> => {
       const project = Project.get({ id: input.project });
       const db = Store.get();
 
-      const contentHash = hash(input.content);
+      const contentHash = getHash(input.content);
+      checkDupe(project.id, contentHash, input.dupe);
 
-      // Check for existing note with same hash in this project
-      const existing = db
-        .prepare(Sql.GET_NOTE_BY_HASH)
-        .get(project.id, contentHash);
-      if (existing) {
-        const info = Row.parse(existing);
-        await Bus.publish({ tag: "note.created", info });
-        return;
+      const existingByPath = db
+        .prepare(Sql.GET_NOTE_BY_PATH)
+        .get(project.id, input.path);
+      if (existingByPath) {
+        throw new ExistsError(input.path);
       }
 
-      const mtime = Date.now();
-
-      await Model.load();
-
-      // Chunk and embed
-      const chunks = await Store.chunk(input.content);
-
-      // Insert note record
-      const inserted = db
-        .prepare(Sql.INSERT_NOTE)
-        .get(project.id, input.path, input.content, contentHash, mtime) as {
-        id: number;
-      };
-
-      if (chunks.length > 0) {
-        const noteKey = `note:${inserted.id}`;
-
-        Store.clearEmbeddings(noteKey);
-
-        const texts = chunks.map((c) => c.text);
-        const embeddings = await Model.embedBatch(texts);
-
-        for (let i = 0; i < chunks.length; i++) {
-          Store.embed(noteKey, i, chunks[i]!.pos, embeddings[i]!);
-        }
-      }
-
-      const info: Info = {
-        id: Id.parse(inserted.id),
-        project: project.id,
-        path: input.path,
-        content: input.content,
+      const info = await createNote(
+        project.id,
+        input.path,
+        input.content,
         contentHash,
-      };
+      );
 
       await Bus.publish({ tag: "note.created", info });
     },
@@ -217,63 +306,25 @@ export namespace Note {
     z.object({
       id: Id,
       content: z.string(),
+      dupe: z.boolean().optional(),
     }),
     async (input): Promise<void> => {
       const db = Store.get();
 
-      // Check note exists
-      const existing = db.prepare(Sql.GET_NOTE).get(input.id);
-      if (!existing) throw new NotFoundError(`Note not found: ${input.id}`);
+      const cursor = db.prepare(Sql.GET_NOTE).get(input.id);
+      if (!cursor) throw new NotFoundError(`Note not found: ${input.id}`);
 
-      const contentHash = hash(input.content);
-      const existingNote = Row.parse(existing);
+      const hash = getHash(input.content);
+      const row = Row.parse(cursor);
 
-      // If content unchanged, emit event and return early
-      if (contentHash === existingNote.contentHash) {
-        await Bus.publish({ tag: "note.updated", info: existingNote });
+      if (hash === row.contentHash) {
+        await Bus.publish({ tag: "note.updated", info: row });
         return;
       }
 
-      const mtime = Date.now();
+      checkDupe(row.project, hash, input.dupe, input.id);
 
-      await Model.load();
-
-      // Chunk and embed new content
-      const chunks = await Store.chunk(input.content);
-
-      // Update note record
-      const updated = db
-        .prepare(Sql.UPDATE_NOTE)
-        .get(input.content, contentHash, mtime, input.id) as {
-        id: number;
-        project_id: number;
-        path: string;
-        content: string;
-        content_hash: string;
-      };
-
-      const noteKey = `note:${input.id}`;
-
-      // Clear old embeddings
-      Store.clearEmbeddings(noteKey);
-
-      if (chunks.length > 0) {
-        const texts = chunks.map((c) => c.text);
-        const embeddings = await Model.embedBatch(texts);
-
-        for (let i = 0; i < chunks.length; i++) {
-          Store.embed(noteKey, i, chunks[i]!.pos, embeddings[i]!);
-        }
-      }
-
-      const info: Info = {
-        id: Id.parse(updated.id),
-        project: Project.Id.parse(updated.project_id),
-        path: updated.path,
-        content: updated.content,
-        contentHash: updated.content_hash,
-      };
-
+      const info = await updateNote(input.id, input.content, hash);
       await Bus.publish({ tag: "note.updated", info });
     },
   );
@@ -283,6 +334,7 @@ export namespace Note {
       project: Project.Id,
       path: z.string(),
       content: z.string(),
+      dupe: z.boolean().optional(),
     }),
     async (input): Promise<void> => {
       const db = Store.get();
@@ -295,7 +347,11 @@ export namespace Note {
       if (existing) {
         // Update existing note
         const existingNote = Row.parse(existing);
-        await update({ id: existingNote.id, content: input.content });
+        await update({
+          id: existingNote.id,
+          content: input.content,
+          dupe: input.dupe,
+        });
       } else {
         // Create new note
         await add(input);
