@@ -1,4 +1,5 @@
 import { parsePatch } from "diff";
+import { Git } from "./git";
 
 export interface DiffHunk {
   diffString: string;
@@ -74,6 +75,62 @@ export function parseFileDiff(content: string, file: string): DiffFileModel {
   } catch {
     return { hunks: [], totalRows: 0 };
   }
+}
+
+export function getHunkIndexForRow(
+  content: string,
+  file: string,
+  row: number,
+): number | null {
+  const { hunks } = parseFileDiff(content, file);
+  for (let i = 0; i < hunks.length; i++) {
+    const hunk = hunks[i]!;
+    if (row >= hunk.startRow && row <= hunk.endRow) return i;
+  }
+  return null;
+}
+
+function stripPrefix(path: string | undefined | null): string {
+  if (!path) return "";
+  return path.replace(/^a\//, "").replace(/^b\//, "");
+}
+
+export function parsePatchEntries(content: string): Git.Entry[] {
+  if (!content.trim()) return [];
+
+  const chunks = content.trimEnd().split(/\n(?=diff --git )/);
+  const entries: Git.Entry[] = [];
+
+  for (const chunk of chunks) {
+    if (!chunk.trim()) continue;
+    const parsed = parsePatch(chunk);
+    const patch = parsed[0];
+
+    let file = "";
+    if (patch) {
+      const newName = stripPrefix(patch.newFileName);
+      const oldName = stripPrefix(patch.oldFileName);
+      file = newName !== "/dev/null" ? newName : oldName;
+    }
+
+    if (!file) {
+      const first = chunk.split("\n")[0] ?? "";
+      const match = first.match(/^diff --git a\/(.+?) b\/(.+)$/);
+      if (match) file = match[2] ?? match[1] ?? "";
+    }
+
+    if (!file) continue;
+
+    const isNew =
+      patch?.oldFileName === "/dev/null" || chunk.includes("\nnew file mode");
+    const isDeleted =
+      patch?.newFileName === "/dev/null" ||
+      chunk.includes("\ndeleted file mode");
+
+    entries.push({ file, content: chunk, isNew, isDeleted });
+  }
+
+  return entries;
 }
 
 export function getHunkRowRange(

@@ -8,7 +8,6 @@ type Row = {
   patch_id: number;
   start_row: number;
   end_row: number;
-  hunk_index: number;
   created_at: number;
 };
 
@@ -20,7 +19,6 @@ export type Info = {
   patchId: number;
   startRow: number;
   endRow: number;
-  hunkIndex: number;
   createdAt: number;
 };
 
@@ -31,7 +29,6 @@ export function create(input: {
   patchId: number;
   startRow: number;
   endRow: number;
-  hunkIndex: number;
 }): Info {
   const now = Date.now();
 
@@ -45,10 +42,9 @@ export function create(input: {
          patch_id,
          start_row,
          end_row,
-         hunk_index,
          created_at
        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING id`,
+       VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING id`,
     )
     .get(
       input.review,
@@ -57,7 +53,6 @@ export function create(input: {
       input.patchId,
       input.startRow,
       input.endRow,
-      input.hunkIndex,
       now,
     ) as {
     id: number;
@@ -71,7 +66,6 @@ export function create(input: {
     patchId: input.patchId,
     startRow: input.startRow,
     endRow: input.endRow,
-    hunkIndex: input.hunkIndex,
     createdAt: now,
   };
 }
@@ -92,7 +86,6 @@ export function list(review: number): Info[] {
     patchId: row.patch_id,
     startRow: row.start_row,
     endRow: row.end_row,
-    hunkIndex: row.hunk_index,
     createdAt: row.created_at,
   }));
 }

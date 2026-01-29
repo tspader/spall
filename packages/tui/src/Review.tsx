@@ -15,7 +15,7 @@ import {
   getFileIndices,
   type DisplayItem,
 } from "./lib/tree";
-import { parseFileDiff } from "./lib/diff";
+import { getHunkIndexForRow, parseFileDiff } from "./lib/diff";
 import { DialogProvider, useDialog } from "./context/dialog";
 import { CommandProvider, useCommand } from "./context/command";
 import { ThemeProvider, useTheme } from "./context/theme";
@@ -27,6 +27,13 @@ import { type Command, matchAny } from "./lib/keybind";
 
 type FocusPanel = "sidebar" | "diff" | "editor";
 type SidebarMode = "files" | "comments";
+
+type EditorAnchor = {
+  file: string;
+  startRow: number;
+  endRow: number;
+  commentId?: number;
+};
 
 export interface ReviewProps {
   /** Path to the git repository. Defaults to process.argv[2] or "." */
@@ -74,11 +81,23 @@ function App(props: AppProps) {
 
   const fileIndices = createMemo(() => getFileIndices(displayItems()));
 
+  createEffect(() => {
+    const indices = fileIndices();
+    if (indices.length === 0) {
+      setSelectedFileIndex(0);
+      return;
+    }
+    setSelectedFileIndex((i) => Math.min(i, indices.length - 1));
+  });
+
   // Navigation state - selectedFileIndex is index into fileIndices (files only)
   const [selectedFileIndex, setSelectedFileIndex] = createSignal(0);
   const [focusPanel, setFocusPanel] = createSignal<FocusPanel>("sidebar");
   const [sidebarMode, setSidebarMode] = createSignal<SidebarMode>("files");
   const [selectedHunkIndex, setSelectedHunkIndex] = createSignal(0);
+  const [editorAnchor, setEditorAnchor] = createSignal<EditorAnchor | null>(
+    null,
+  );
 
   // Comment list state
   const [selectedCommentIndex, setSelectedCommentIndex] = createSignal(0);
@@ -143,7 +162,21 @@ function App(props: AppProps) {
 
   const openCommentEditor = () => {
     const entry = selectedEntry();
-    if (!entry) return;
+    const range = selectedHunkRange();
+    if (!entry || !range) return;
+
+    const existing = review.getCommentForRange(
+      entry.file,
+      range.startRow,
+      range.endRow,
+    );
+
+    setEditorAnchor({
+      file: entry.file,
+      startRow: range.startRow,
+      endRow: range.endRow,
+      commentId: existing?.id,
+    });
     setFocusPanel("editor");
   };
 
@@ -179,6 +212,18 @@ function App(props: AppProps) {
       onExecute: () => {
         setFocusPanel("sidebar");
         setSelectedHunkIndex(0);
+      },
+    },
+
+    {
+      id: "workspace",
+      title: "workspace",
+      category: "movement",
+      keybinds: [{ name: "w" }],
+      isActive: () =>
+        focusPanel() !== "editor" && review.activePatchId() !== null,
+      onExecute: () => {
+        review.setActivePatch(null);
       },
     },
 
@@ -229,11 +274,13 @@ function App(props: AppProps) {
         sidebarMode() === "comments" &&
         review.comments().length > 0,
       onExecute: () => {
-        // Navigate to the comment's file+hunk and open editor
+        // Navigate to the comment's file+range and open editor
         const comments = review.comments();
         const idx = selectedCommentIndex();
         const comment = comments[idx];
         if (!comment) return;
+
+        review.setActivePatch(comment.patchId);
 
         // Find the file index for this comment's file
         const entries = review.entries();
@@ -244,9 +291,20 @@ function App(props: AppProps) {
         const navIndex = fileIndices().indexOf(entryIndex);
         if (navIndex === -1) return;
 
+        const entry = entries[entryIndex];
+        if (!entry) return;
+        const hunkIndex =
+          getHunkIndexForRow(entry.content, entry.file, comment.startRow) ?? 0;
+
         // Navigate to the file and hunk
         setSelectedFileIndex(navIndex);
-        setSelectedHunkIndex(comment.hunkIndex);
+        setSelectedHunkIndex(hunkIndex);
+        setEditorAnchor({
+          file: comment.file,
+          startRow: comment.startRow,
+          endRow: comment.endRow,
+          commentId: comment.id,
+        });
         setFocusPanel("editor");
       },
     },
@@ -304,6 +362,12 @@ function App(props: AppProps) {
         <box flexDirection="row">
           <text>c </text>
           <text fg="brightBlack">comment</text>
+        </box>
+      </Show>
+      <Show when={review.activePatchId() !== null}>
+        <box flexDirection="row">
+          <text>w </text>
+          <text fg="brightBlack">workspace</text>
         </box>
       </Show>
       <box flexDirection="row">
@@ -378,13 +442,16 @@ function App(props: AppProps) {
             focused={() => focusPanel() === "diff"}
           />
 
-          <Show when={focusPanel() === "editor" && selectedEntry()}>
+          <Show when={focusPanel() === "editor" && editorAnchor()}>
             <EditorPanel
-              file={selectedEntry()!.file}
-              hunkIndex={selectedHunkIndex()}
-              startRow={selectedHunkRange()?.startRow}
-              endRow={selectedHunkRange()?.endRow}
-              onClose={() => setFocusPanel("diff")}
+              file={editorAnchor()!.file}
+              startRow={editorAnchor()!.startRow}
+              endRow={editorAnchor()!.endRow}
+              commentId={editorAnchor()!.commentId}
+              onClose={() => {
+                setFocusPanel("diff");
+                setEditorAnchor(null);
+              }}
             />
           </Show>
         </box>

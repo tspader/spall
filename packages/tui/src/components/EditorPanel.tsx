@@ -8,9 +8,9 @@ import { useReview } from "../context/review";
 
 export interface EditorPanelProps {
   file: string;
-  hunkIndex: number;
-  startRow?: number;
-  endRow?: number;
+  startRow: number;
+  endRow: number;
+  commentId?: number;
   onClose: () => void;
 }
 
@@ -22,16 +22,15 @@ export function EditorPanel(props: EditorPanelProps) {
   let textareaRef: TextareaRenderable | null = null;
   let initialized = false;
 
-  // Get existing comment for this file+hunk (if any)
-  const existingComment = review.getCommentForHunk(props.file, props.hunkIndex);
+  // Get existing comment for this file+range (if any)
+  const existingComment = props.commentId
+    ? review.getCommentById(props.commentId)
+    : review.getCommentForRange(props.file, props.startRow, props.endRow);
   const initialContent = existingComment?.noteContent ?? "";
 
   // Filename is file:range (e.g., "CommentList.tsx:rows-3-5.md")
   const shortFile = props.file.split("/").pop() ?? props.file;
-  const rangeLabel =
-    props.startRow && props.endRow
-      ? `rows-${props.startRow}-${props.endRow}`
-      : `hunk-${props.hunkIndex + 1}`;
+  const rangeLabel = `rows-${props.startRow}-${props.endRow}`;
   const filename = `${shortFile}:${rangeLabel}.md`;
 
   // Mark as initialized after first render to ignore the trigger key
@@ -57,7 +56,12 @@ export function EditorPanel(props: EditorPanelProps) {
       await review.updateComment(existingComment.id, content);
     } else {
       // Create new comment
-      await review.createComment(props.file, props.hunkIndex, content);
+      await review.createComment(
+        props.file,
+        props.startRow,
+        props.endRow,
+        content,
+      );
     }
 
     props.onClose();
@@ -91,15 +95,20 @@ export function EditorPanel(props: EditorPanelProps) {
     if (existingComment) {
       await review.updateComment(existingComment.id, content);
     } else {
-      await review.createComment(props.file, props.hunkIndex, content);
+      await review.createComment(
+        props.file,
+        props.startRow,
+        props.endRow,
+        content,
+      );
     }
 
     props.onClose();
   };
 
   const handleKeyDown = (e: KeyEvent) => {
-    // Ignore the first "c" key that opened this editor
-    if (!initialized && e.name === "c") {
+    // Ignore the trigger key that opened this editor
+    if (!initialized && (e.name === "c" || e.name === "return")) {
       e.preventDefault();
       return;
     }

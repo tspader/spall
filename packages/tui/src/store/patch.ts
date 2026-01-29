@@ -46,6 +46,16 @@ export function create(input: {
   return rowToInfo(row);
 }
 
+export function get(id: number): Info | null {
+  const row = db
+    .get()
+    .prepare(`SELECT * FROM patches WHERE id = ?`)
+    .get(id) as Row | null;
+
+  if (!row) return null;
+  return rowToInfo(row);
+}
+
 export function getByHash(review: number, hash: string): Info | null {
   const row = db
     .get()

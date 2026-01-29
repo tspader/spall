@@ -10,7 +10,7 @@ import {
 } from "solid-js";
 import { Client, SpallClient } from "@spall/sdk/client";
 import { Git } from "../lib/git";
-import { getHunkRowRange } from "../lib/diff";
+import { parsePatchEntries } from "../lib/diff";
 import { Repo, Review as ReviewStore, Patch, ReviewComment } from "../store";
 import { useServer } from "./server";
 
@@ -23,7 +23,6 @@ export interface CommentWithNote {
   patchId: number;
   startRow: number;
   endRow: number;
-  hunkIndex: number;
   createdAt: number;
   // Hydrated from server
   notePath: string | null;
@@ -43,7 +42,7 @@ export interface ReviewContextValue {
   // Review state
   reviewId: Accessor<number | null>;
   commitSha: Accessor<string | null>;
-  patchSeq: Accessor<number | null>;
+  activePatchId: Accessor<number | null>;
 
   // Diff state
   entries: Accessor<Git.Entry[]>;
@@ -54,13 +53,17 @@ export interface ReviewContextValue {
   commentsLoading: Accessor<boolean>;
 
   // Actions
-  getCommentForHunk: (
+  setActivePatch: (patchId: number | null) => void;
+  getCommentById: (commentId: number) => CommentWithNote | null;
+  getCommentForRange: (
     file: string,
-    hunkIndex: number,
+    startRow: number,
+    endRow: number,
   ) => CommentWithNote | null;
   createComment: (
     file: string,
-    hunkIndex: number,
+    startRow: number,
+    endRow: number,
     content: string,
   ) => Promise<CommentWithNote | null>;
   updateComment: (commentId: number, content: string) => Promise<void>;
@@ -92,15 +95,32 @@ export function ReviewProvider(props: ReviewProviderProps) {
   // Review state
   const [reviewId, setReviewId] = createSignal<number | null>(null);
   const [commitSha, setCommitSha] = createSignal<string | null>(null);
-  const [patchSeq, setPatchSeq] = createSignal<number | null>(null);
+  const [activePatchId, setActivePatchIdState] = createSignal<number | null>(
+    null,
+  );
 
   // Diff state
+  const [workspaceEntries, setWorkspaceEntries] = createSignal<Git.Entry[]>([]);
   const [entries, setEntries] = createSignal<Git.Entry[]>([]);
   const [loading, setLoading] = createSignal(true);
 
   // Comments state
   const [comments, setComments] = createSignal<CommentWithNote[]>([]);
   const [commentsLoading, setCommentsLoading] = createSignal(false);
+
+  const setActivePatch = (patchId: number | null) => {
+    if (patchId === null) {
+      setActivePatchIdState(null);
+      setEntries(workspaceEntries());
+      return;
+    }
+
+    const patch = Patch.get(patchId);
+    if (!patch) return;
+
+    setActivePatchIdState(patchId);
+    setEntries(parsePatchEntries(patch.content));
+  };
 
   // Track if we've initialized project for current connection
   const [projectInitialized, setProjectInitialized] = createSignal(false);
@@ -136,7 +156,6 @@ export function ReviewProvider(props: ReviewProviderProps) {
           patchId: comment.patchId,
           startRow: comment.startRow,
           endRow: comment.endRow,
-          hunkIndex: comment.hunkIndex,
           createdAt: comment.createdAt,
           notePath,
           noteContent,
@@ -195,6 +214,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
 
     // Load diff entries
     const diffEntries = await Git.entries(props.repoPath);
+    setWorkspaceEntries(diffEntries);
     setEntries(diffEntries);
     setLoading(false);
 
@@ -210,7 +230,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
           const hash = String(Bun.hash(fullDiff));
           const existingPatch = Patch.getByHash(review.id, hash);
           if (existingPatch) {
-            setPatchSeq(existingPatch.seq);
+            setActivePatch(existingPatch.id);
           }
         }
       }
@@ -224,9 +244,11 @@ export function ReviewProvider(props: ReviewProviderProps) {
         if (hash !== lastHash) {
           lastHash = hash;
           const newEntries = await Git.entries(props.repoPath);
-          setEntries(newEntries);
-          // Reset current patch seq - diff changed, need to re-check on next comment
-          setPatchSeq(null);
+          // Update workspace entries if viewing live diff
+          setWorkspaceEntries(newEntries);
+          if (activePatchId() === null) {
+            setEntries(newEntries);
+          }
         }
       } catch {
         // Repo probably gone (deleted/moved) - stop polling
@@ -236,19 +258,32 @@ export function ReviewProvider(props: ReviewProviderProps) {
     onCleanup(() => clearInterval(pollInterval));
   });
 
-  const getCommentForHunk = (
+  const getCommentById = (commentId: number): CommentWithNote | null => {
+    return comments().find((c) => c.id === commentId) ?? null;
+  };
+
+  const getCommentForRange = (
     file: string,
-    hunkIndex: number,
+    startRow: number,
+    endRow: number,
   ): CommentWithNote | null => {
+    const patchId = activePatchId();
+    if (patchId === null) return null;
     return (
-      comments().find((c) => c.file === file && c.hunkIndex === hunkIndex) ??
-      null
+      comments().find(
+        (c) =>
+          c.patchId === patchId &&
+          c.file === file &&
+          c.startRow === startRow &&
+          c.endRow === endRow,
+      ) ?? null
     );
   };
 
   const createComment = async (
     file: string,
-    hunkIndex: number,
+    startRow: number,
+    endRow: number,
     content: string,
   ): Promise<CommentWithNote | null> => {
     const root = repoRoot();
@@ -271,21 +306,20 @@ export function ReviewProvider(props: ReviewProviderProps) {
     }
 
     // Get or create patch for current diff state
-    const fullDiff = await Git.diff(props.repoPath);
-    const patch = Patch.getOrCreate(revId, fullDiff);
-    setPatchSeq(patch.seq);
+    let patch = activePatchId() ? Patch.get(activePatchId()!) : null;
+    if (!patch) {
+      const fullDiff = await Git.diff(props.repoPath);
+      patch = Patch.getOrCreate(revId, fullDiff);
+      setActivePatch(patch.id);
+    }
 
-    const entry = entries().find((e) => e.file === file);
-    if (!entry) return null;
-
-    const rowRange = getHunkRowRange(entry.content, entry.file, hunkIndex);
-    if (!rowRange) return null;
+    if (!patch) return null;
 
     // If we have a server connection, create note via SDK
     if (c && pid) {
       const name = repoName(root);
       const shortFile = file.split("/").pop() ?? file;
-      const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${rowRange.startRow}-${rowRange.endRow}.md`;
+      const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${startRow}-${endRow}.md`;
 
       const { stream } = await c.note.add({
         project: pid,
@@ -313,9 +347,8 @@ export function ReviewProvider(props: ReviewProviderProps) {
         noteId,
         file,
         patchId: patch.id,
-        startRow: rowRange.startRow,
-        endRow: rowRange.endRow,
-        hunkIndex,
+        startRow,
+        endRow,
       });
       setNoteCount((n) => n + 1);
 
@@ -328,7 +361,6 @@ export function ReviewProvider(props: ReviewProviderProps) {
         patchId: localComment.patchId,
         startRow: localComment.startRow,
         endRow: localComment.endRow,
-        hunkIndex: localComment.hunkIndex,
         createdAt: localComment.createdAt,
         notePath: path,
         noteContent: content,
@@ -388,7 +420,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
     // Review
     reviewId,
     commitSha,
-    patchSeq,
+    activePatchId,
     // Diff
     entries,
     loading,
@@ -396,7 +428,9 @@ export function ReviewProvider(props: ReviewProviderProps) {
     comments,
     commentsLoading,
     // Actions
-    getCommentForHunk,
+    setActivePatch,
+    getCommentById,
+    getCommentForRange,
     createComment,
     updateComment,
   };

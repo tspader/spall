@@ -6,10 +6,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./store": "./src/store/index.ts",
-    "./lib/git": "./src/lib/git.ts"
+    "./lib/git": "./src/lib/git.ts",
+    "./cli/shared": "./src/cli/shared/index.ts"
   },
   "bin": {
-    "spall": "src/index.ts"
+    "spall": "src/cli/spall/index.ts",
+    "spallm": "src/cli/llm/index.ts"
   },
   "scripts": {
     "tui": "bun src/App.tsx",

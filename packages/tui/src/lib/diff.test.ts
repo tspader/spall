@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseFileDiff } from "./diff";
+import { getHunkIndexForRow, parseFileDiff } from "./diff";
 
 const multiHunkDiff = `diff --git a/file.txt b/file.txt
 index 1234567..abcdef0 100644
@@ -29,5 +29,13 @@ describe("parseFileDiff", () => {
     expect(result.hunks[1]!.startRow).toBe(4);
     expect(result.hunks[1]!.endRow).toBe(7);
     expect(result.hunks[1]!.lineCount).toBe(4);
+  });
+
+  test("maps rows back to hunks", () => {
+    expect(getHunkIndexForRow(multiHunkDiff, "file.txt", 1)).toBe(0);
+    expect(getHunkIndexForRow(multiHunkDiff, "file.txt", 3)).toBe(0);
+    expect(getHunkIndexForRow(multiHunkDiff, "file.txt", 4)).toBe(1);
+    expect(getHunkIndexForRow(multiHunkDiff, "file.txt", 7)).toBe(1);
+    expect(getHunkIndexForRow(multiHunkDiff, "file.txt", 9)).toBeNull();
   });
 });

@@ -1,9 +1,9 @@
 import { Database } from "bun:sqlite";
 import { mkdirSync, existsSync } from "fs";
 import { dirname, join } from "path";
-import { homedir } from "os";
+import { Config } from "@spall/core/config";
 
-const DB_PATH = join(homedir(), ".cache", "spall", "tui.db");
+const DB_PATH = join(Config.get().dirs.data, "tui.db");
 
 const CREATE_REPOS_TABLE = `
   CREATE TABLE IF NOT EXISTS repos (
@@ -45,7 +45,6 @@ const CREATE_REVIEW_COMMENTS_TABLE = `
     patch_id INTEGER NOT NULL,
     start_row INTEGER NOT NULL,
     end_row INTEGER NOT NULL,
-    hunk_index INTEGER NOT NULL,
     created_at INTEGER NOT NULL,
     FOREIGN KEY (review) REFERENCES reviews(id)
   )
