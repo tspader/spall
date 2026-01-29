@@ -25,7 +25,7 @@ export const serve: CommandDef = {
     const { Server } = await import("@spall/sdk/server");
     const { port, stopped } = await Server.start({
       persist: argv.daemon,
-      idleTimeout: argv.timeout * 1000,
+      idleTimeoutMs: argv.timeout * 1000,
       force: argv.force,
     });
 

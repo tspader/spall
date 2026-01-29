@@ -1,9 +1,9 @@
 import {
   mkdirSync,
   existsSync,
-  unlinkSync,
   readFileSync,
   writeFileSync,
+  rmSync,
 } from "fs";
 import { join } from "path";
 
@@ -34,7 +34,7 @@ export namespace Lock {
     }
   }
 
-  export function claim(): boolean {
+  export function create(): boolean {
     Cache.ensure();
     try {
       writeFileSync(path(), JSON.stringify({ pid: process.pid, port: null }), {
@@ -46,23 +46,18 @@ export namespace Lock {
     }
   }
 
-  export function setPort(port: number): void {
+  export function update(port: number): void {
     Cache.ensure();
     writeFileSync(path(), JSON.stringify({ pid: process.pid, port }));
   }
 
-  /** Overwrite lock with current pid, no port yet (used by --force) */
   export function takeover(): void {
     Cache.ensure();
     writeFileSync(path(), JSON.stringify({ pid: process.pid, port: null }));
   }
 
   export function remove(): void {
-    try {
-      unlinkSync(path());
-    } catch {
-      // Ignore - may not exist
-    }
+    rmSync(path(), { force: true })
   }
 }
 
@@ -95,7 +90,7 @@ type AcquireResult =
 
 async function acquire(): Promise<AcquireResult> {
   while (true) {
-    if (Lock.claim()) {
+    if (Lock.create()) {
       return { role: Role.Leader };
     }
 
@@ -118,8 +113,9 @@ async function acquire(): Promise<AcquireResult> {
       continue;
     }
 
-    // at this point, the lock file exists but has no port. another client
-    // beat us. make sure they're alive (otherwise, it's stale)
+    // at this point, the lock file exists but has no port.
+    //   - if its pid is running, assume the server is starting
+    //   - if it isn't, it's a stale lock.
     if (!isProcessAlive(lock.pid)) {
       Lock.remove();
       continue;
@@ -130,7 +126,7 @@ async function acquire(): Promise<AcquireResult> {
   }
 }
 
-// Atomically start a local server, or connect to an existing one.
+// atomically start a local server, or connect to an existing one.
 export async function ensure(): Promise<string> {
   const result = await acquire();
 
@@ -138,7 +134,9 @@ export async function ensure(): Promise<string> {
     return result.url;
   }
 
-  Bun.spawn(["spall", "serve"], {
+  // do our best to invoke the server regardless of how we're installed
+  const script = join(import.meta.dir, "serve.ts")
+  Bun.spawn([process.execPath, script], {
     stdin: "ignore",
     stdout: "ignore",
     stderr: "ignore",

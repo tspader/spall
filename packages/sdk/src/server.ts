@@ -3,6 +3,7 @@ import pc from "picocolors";
 
 import { type EventUnion } from "@spall/core";
 import { Bus } from "@spall/core/event";
+import { Config } from "@spall/core/config";
 import { Model } from "@spall/core/model";
 import { App } from "./app";
 import { Lock } from "./lock";
@@ -18,6 +19,28 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
 }
 
+function parseBooleanEnv(value: string | undefined): boolean | undefined {
+  if (!value) return undefined;
+  if (value === "1" || value === "true") return true;
+  if (value === "0" || value === "false") return false;
+  return undefined;
+}
+
+function parseNumberEnv(value: string | undefined): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export namespace Server {
   let server: Bun.Server;
   let persist = false;
@@ -27,10 +50,14 @@ export namespace Server {
   let idleTimeoutMs = 1000;
   let resolved: () => void;
 
-  export type StartOptions = {
-    persist?: boolean;
-    idleTimeout?: number;
-    force?: boolean;
+  const MAX_POLL_DURATION = 2000;
+  const POLL_TIME = 50;
+
+
+  export type Options = {
+    persist: boolean;
+    idleTimeoutMs: number;
+    force: boolean;
   };
 
   export function increment(): void {
@@ -98,10 +125,31 @@ export namespace Server {
     return event.tag;
   }
 
-  export async function start(options?: StartOptions): Promise<ServerResult> {
-    persist = options?.persist ?? false;
-    idleTimeoutMs = options?.idleTimeout ?? 1000;
-    const force = options?.force ?? false;
+  export async function start(
+    request?: Partial<Options>,
+  ): Promise<ServerResult> {
+    const env: Partial<Options> = {
+      persist: parseBooleanEnv(process.env.SPALL_SERVER_PERSIST),
+      force: parseBooleanEnv(process.env.SPALL_SERVER_FORCE),
+      idleTimeoutMs: parseNumberEnv(process.env.SPALL_SERVER_IDLE_TIMEOUT_MS),
+    };
+    const config: Partial<Options> = {
+      idleTimeoutMs: Config.get().server.idleTimeout * 1000,
+    };
+
+    const options: Options = {
+      persist: request?.persist ?? env.persist ?? false,
+      idleTimeoutMs:
+        request?.idleTimeoutMs ??
+        env.idleTimeoutMs ??
+        config.idleTimeoutMs ??
+        1000,
+      force: request?.force ?? env.force ?? false,
+    };
+
+    // set module level fields
+    persist = options.persist;
+    idleTimeoutMs = options.idleTimeoutMs;
 
     // sanity check; this function should only be called when you have the
     // process lock, so we *can* unconditionally write our pid and port to
@@ -115,18 +163,23 @@ export namespace Server {
       existing.port !== null &&
       (await checkHealth(existing.port))
     ) {
-      if (force) {
-        consola.info(
-          `Killing existing server (${pc.gray("pid")} ${pc.yellow(existing.pid)}, ${pc.gray("port")} ${pc.cyan(existing.port)})`,
-        );
-        // Claim lock before killing so there's no window where lock doesn't exist
+      if (options.force) {
+        const pid = `${pc.gray("pid")} ${pc.yellow(existing.pid)}`;
+        const port = `${pc.gray("port")} ${pc.cyan(existing.port)}`;
+        consola.info(`Killing existing server (${pid}, ${port})`);
+
+        // claim lock before killing so there's no window where lock doesn't exist
         Lock.takeover();
+
         try {
           process.kill(existing.pid, "SIGTERM");
-          // Wait for it to die
-          await new Promise((resolve) => setTimeout(resolve, 500));
+
+          for (let i = 0; i < 40; i++) {
+            if (!isProcessAlive(existing.pid)) break;
+            await Bun.sleep(50);
+          }
         } catch {
-          // Process may have already died
+          // the process is already dead
         }
       } else {
         throw new Error(`Server is already running at port ${existing.port}`);
@@ -147,7 +200,7 @@ export namespace Server {
 
     consola.log(`Listening on port ${pc.cyanBright(String(port))}`);
 
-    Lock.setPort(port);
+    Lock.update(port);
 
     process.once("SIGINT", () => {
       consola.info(`Received ${pc.gray("SIGINT")}`);

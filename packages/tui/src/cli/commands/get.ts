@@ -3,13 +3,14 @@ import consola from "consola";
 import { Client } from "@spall/sdk/client";
 import { table } from "../layout";
 import type { CommandDef } from "../yargs";
+import { type Theme, defaultTheme as theme } from '../theme'
 
 export const get: CommandDef = {
-  description: "Get the content of a note (supports glob patterns)",
+  description: "Get note(s) by path or glob",
   positionals: {
     path: {
       type: "string",
-      description: "Path to the note (glob patterns like 'foo/*' supported)",
+      description: "Path or glob to notes",
       required: true,
     },
   },
@@ -39,7 +40,7 @@ export const get: CommandDef = {
       .get({ name: argv.project })
       .then(Client.unwrap)
       .catch(() => {
-        consola.error(`Project not found: ${pc.cyan(argv.project)}`);
+        consola.error(`Project not found: ${theme.command(argv.project)}`);
         process.exit(1);
       });
 
@@ -80,6 +81,50 @@ export const get: CommandDef = {
       case "json":
         console.log(JSON.stringify(notes, null, 2));
         break;
+      case "tree": {
+        type TreeNode = {
+          name: string;
+          isDir: boolean;
+          children: Map<string, TreeNode>;
+        };
+        const root: TreeNode = { name: "", isDir: true, children: new Map() };
+
+        for (const note of notes) {
+          const parts = note.path.split("/");
+          let current = root;
+          for (let i = 0; i < parts.length; i++) {
+            const part = parts[i]!;
+            const isLast = i === parts.length - 1;
+            if (!current.children.has(part)) {
+              current.children.set(part, {
+                name: part,
+                isDir: !isLast,
+                children: new Map(),
+              });
+            }
+            current = current.children.get(part)!;
+          }
+        }
+
+        function printTree(node: TreeNode, indent: string = ""): void {
+          const sorted = Array.from(node.children.entries()).sort((a, b) => {
+            if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
+            return a[0].localeCompare(b[0]);
+          });
+
+          for (const [name, child] of sorted) {
+            if (child.isDir) {
+              console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
+              printTree(child, indent + "  ");
+            } else {
+              console.log(`${theme.dim(indent)}${name}`);
+            }
+          }
+        }
+
+        printTree(root);
+        break;
+      }
       case "table": {
         const oneLine = (s: string) => s.replace(/\n/g, " ");
         table(
@@ -97,7 +142,7 @@ export const get: CommandDef = {
         for (let i = 0; i < notes.length; i++) {
           const note = notes[i]!;
           if (notes.length > 1) {
-            console.log(pc.cyan(note.path));
+            console.log(theme.command(note.path));
           }
           console.log(note.content);
           if (i < notes.length - 1) console.log("");
