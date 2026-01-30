@@ -7,13 +7,9 @@ export const FileStatus = z.enum(["added", "modified", "removed", "ok"]);
 
 export type FileStatus = z.infer<typeof FileStatus>;
 
-////////////////
+///////////////
 // SSE EVENTS //
-////////////////
-//
-// these are the base events we can emit; any given API call could emit
-// any subset of these
-//
+///////////////
 export const InitEvent = z.discriminatedUnion("action", [
   z.object({
     tag: z.literal("init"),
@@ -57,61 +53,54 @@ export const ModelEvent = z.discriminatedUnion("action", [
   }),
 ]);
 
-export const ScanEvent = z.discriminatedUnion("action", [
+export const ScanEvent = z.union([
   z.object({
-    tag: z.literal("scan"),
-    action: z.literal("start"),
-    total: z.number(),
+    tag: z.literal("scan.start"),
+    numFiles: z.number(),
   }),
   z.object({
-    tag: z.literal("scan"),
-    action: z.literal("progress"),
+    tag: z.literal("scan.progress"),
     path: z.string(),
     status: FileStatus,
   }),
   z.object({
-    tag: z.literal("scan"),
-    action: z.literal("done"),
+    tag: z.literal("scan.done"),
+    numFiles: z.number(),
   }),
 ]);
 
-export const EmbedEvent = z.discriminatedUnion("action", [
+export const EmbedEvent = z.union([
   z.object({
-    tag: z.literal("embed"),
-    action: z.literal("start"),
-    totalDocs: z.number(),
-    totalChunks: z.number(),
-    totalBytes: z.number(),
+    tag: z.literal("embed.start"),
+    numFiles: z.number(),
+    numChunks: z.number(),
+    numBytes: z.number(),
   }),
   z.object({
-    tag: z.literal("embed"),
-    action: z.literal("progress"),
-    filesProcessed: z.number(),
-    totalFiles: z.number(),
-    bytesProcessed: z.number(),
-    totalBytes: z.number(),
+    tag: z.literal("embed.progress"),
+    numFiles: z.number(),
+    numChunks: z.number(),
+    numBytes: z.number(),
+    numFilesProcessed: z.number(),
+    numBytesProcessed: z.number(),
   }),
   z.object({
-    tag: z.literal("embed"),
-    action: z.literal("done"),
+    tag: z.literal("embed.done"),
+    numFiles: z.number(),
   }),
 ]);
 
 export const Event = z.union([InitEvent, ModelEvent, ScanEvent, EmbedEvent]);
 
 export type InitEvent = z.infer<typeof InitEvent>;
+export type ModelEvent = z.infer<typeof ModelEvent>;
 export type ScanEvent = z.infer<typeof ScanEvent>;
 export type EmbedEvent = z.infer<typeof EmbedEvent>;
-export type ModelEvent = z.infer<typeof ModelEvent>;
 export type Event = z.infer<typeof Event>;
-
 
 /////////
 // API //
 /////////
-//
-// simple input and output types for API functions
-//
 export const SearchInput = z.object({
   directory: z.string().describe("Project root directory"),
   query: z.string().describe("Search query text"),
@@ -125,31 +114,26 @@ export const SearchResult = z
   })
   .meta({ ref: "SearchResult" });
 
+export const IndexInput = z.object({
+  directory: z.string().describe("Root directory to scan"),
+  glob: z.string().optional().describe("Glob pattern to match"),
+  project: z.number().describe("Project id"),
+});
+
 export type SearchInput = z.infer<typeof SearchInput>;
 export type SearchResult = z.infer<typeof SearchResult>;
-
+export type IndexInput = z.infer<typeof IndexInput>;
 
 /////////////
 // SSE API //
 /////////////
-//
-// input and output types for API functions that stream over SSE; the input
-// types are analagous to non-streaming SSE functions, but obviously there's
-// no singular type that is returned.
-//
-// rather, the "output" type is just a union of all events it can emit
-//
 export const InitInput = z.object({
   directory: z.string().describe("Project root directory"),
 });
 export const InitEvents = z.union([InitEvent, ModelEvent]);
 
-export const IndexInput = z.object({
-  directory: z.string().describe("Project root directory"),
-});
 export const IndexEvents = z.union([ScanEvent, EmbedEvent]);
 
 export type InitInput = z.infer<typeof InitInput>;
-export type IndexInput = z.infer<typeof IndexInput>;
 export type InitEvents = z.infer<typeof InitEvents>;
 export type IndexEvents = z.infer<typeof IndexEvents>;

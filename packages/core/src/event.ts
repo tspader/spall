@@ -36,7 +36,7 @@ export namespace Bus {
   }
 
   export function render(event: Event): string {
-    if (event.tag == "model") {
+    if ("action" in event && event.tag == "model") {
       switch (event.action) {
         case "download":
           return `Downloading ${pc.cyan(event.model)}`;
@@ -52,6 +52,10 @@ export namespace Bus {
       }
     }
 
-    return event.action;
+    if ("action" in event) {
+      return event.action;
+    }
+
+    return event.tag;
   }
 }

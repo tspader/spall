@@ -193,6 +193,29 @@ export const ProjectRoutes = lazy(() =>
       },
     )
     .post(
+      "/index",
+      describeRoute({
+        summary: "Index a directory",
+        description: "Scan a directory and embed all matching notes.",
+        operationId: "note.index",
+        responses: {
+          200: {
+            description: "Event stream",
+            content: {
+              "text/event-stream": {
+                schema: resolver(EventUnion),
+              },
+            },
+          },
+        },
+      }),
+      validator("json", Note.index.schema),
+      async (context) => {
+        const body = context.req.valid("json");
+        return Sse.stream(context, Note.index, body);
+      },
+    )
+    .post(
       "/note",
       describeRoute({
         summary: "Add a note",

@@ -1,10 +1,4 @@
-import {
-  mkdirSync,
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  rmSync,
-} from "fs";
+import { mkdirSync, existsSync, readFileSync, writeFileSync, rmSync } from "fs";
 import { join } from "path";
 
 import { Config } from "@spall/core/config";
@@ -13,7 +7,7 @@ type LockData = { pid: number; port: number | null };
 
 export namespace Cache {
   export function ensure(): void {
-    const dir = Config.get().dirs.cache;
+    const dir = Config.get().dirs.data;
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
@@ -22,7 +16,7 @@ export namespace Cache {
 
 export namespace Lock {
   export function path(): string {
-    return join(Config.get().dirs.cache, "server.lock");
+    return join(Config.get().dirs.data, "server.lock");
   }
 
   export function read(): LockData | null {
@@ -57,7 +51,7 @@ export namespace Lock {
   }
 
   export function remove(): void {
-    rmSync(path(), { force: true })
+    rmSync(path(), { force: true });
   }
 }
 
@@ -135,7 +129,7 @@ export async function ensure(): Promise<string> {
   }
 
   // do our best to invoke the server regardless of how we're installed
-  const script = join(import.meta.dir, "serve.ts")
+  const script = join(import.meta.dir, "serve.ts");
   Bun.spawn([process.execPath, script], {
     stdin: "ignore",
     stdout: "ignore",

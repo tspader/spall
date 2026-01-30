@@ -1,8 +1,9 @@
-import { readFileSync } from "fs";
+import { readFileSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
 
 const CONFIG_PATH = join(homedir(), ".config", "spall", "spall.json");
+const PROJECT_CONFIG_NAME = ".spall/spall.json";
 
 export type ConfigSchema = {
   dirs: {
@@ -24,6 +25,14 @@ export type PartialConfig = {
   server?: Partial<ConfigSchema["server"]>;
 };
 
+export type ProjectConfigSchema = {
+  projects: string[];
+};
+
+export type PartialProjectConfig = {
+  projects?: string[];
+};
+
 function getDefaults(): ConfigSchema {
   return {
     dirs: {
@@ -41,6 +50,12 @@ function getDefaults(): ConfigSchema {
     server: {
       idleTimeout: 1,
     },
+  };
+}
+
+function getProjectDefaults(): ProjectConfigSchema {
+  return {
+    projects: ["default"],
   };
 }
 
@@ -76,5 +91,48 @@ export namespace Config {
 
   export function reset(): void {
     config = null;
+  }
+}
+
+export namespace ProjectConfig {
+  let config: ProjectConfigSchema | null = null;
+  let loadedFrom: string | null = null;
+
+  export function path(root: string): string {
+    return join(root, PROJECT_CONFIG_NAME);
+  }
+
+  export function load(root: string): ProjectConfigSchema {
+    if (config && loadedFrom === root) return config;
+
+    const defaults = getProjectDefaults();
+    const configPath = path(root);
+
+    try {
+      if (existsSync(configPath)) {
+        const fileConfig: PartialProjectConfig = JSON.parse(
+          readFileSync(configPath, "utf-8"),
+        );
+        config = {
+          projects: fileConfig.projects ?? defaults.projects,
+        };
+      } else {
+        config = defaults;
+      }
+    } catch {
+      config = defaults;
+    }
+
+    loadedFrom = root;
+    return config;
+  }
+
+  export function get(root: string): ProjectConfigSchema {
+    return load(root);
+  }
+
+  export function reset(): void {
+    config = null;
+    loadedFrom = null;
   }
 }

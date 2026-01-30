@@ -1,8 +1,8 @@
 import { z } from "zod";
 import { Database } from "bun:sqlite";
+import { Glob } from "bun";
 import { mkdirSync, existsSync } from "fs";
 import { join } from "path";
-import { Glob } from "bun";
 import * as sqliteVec from "sqlite-vec";
 import { Bus } from "./event";
 import { Sql } from "./sql";
@@ -17,13 +17,9 @@ export type Chunk = {
 };
 
 export type VSearchResult = {
-  key: string;
+  noteId: number;
+  chunkId: number;
   distance: number;
-};
-
-export type FileRecord = {
-  mtime: number;
-  embedded: boolean;
 };
 
 export type IndexResult = {
@@ -36,6 +32,15 @@ export type ScanResult = IndexResult & {
   unembedded: string[];
 };
 
+function canonicalPath(path: string): string {
+  // canonicalize to unix-ish note paths
+  let p = path.replace(/\\/g, "/");
+  p = p.replace(/\/+$/, "");
+  p = p.replace(/^\.\//, "");
+  p = p.replace(/^\//, "");
+  p = p.replace(/\/+/g, "/");
+  return p;
+}
 export namespace Store {
   export const Event = {
     Create: Bus.define("store.create", {
@@ -77,6 +82,11 @@ export namespace Store {
   const CHUNK_OVERLAP_TOKENS = 64;
   const DB_NAME = "spall.db";
 
+  function configure(database: Database): void {
+    sqliteVec.load(database);
+    database.run("PRAGMA foreign_keys = ON");
+  }
+
   export function path(): string {
     return join(Config.get().dirs.data, DB_NAME);
   }
@@ -90,37 +100,34 @@ export namespace Store {
 
   export function ensure(): Database {
     const dir = Config.get().dirs.data;
-    const path = join(dir, DB_NAME);
+    const dbPath = join(dir, DB_NAME);
 
     if (!existsSync(dir)) {
       mkdirSync(dir, { recursive: true });
     }
 
-    const dbExists = existsSync(path);
+    const dbExists = existsSync(dbPath);
 
     if (dbExists) {
-      db = new Database(path);
-      sqliteVec.load(db);
+      db = new Database(dbPath);
+      configure(db);
       return db;
     }
 
-    Bus.publish({ tag: "store.create", path: path });
-    db = new Database(path);
+    Bus.publish({ tag: "store.create", path: dbPath });
+    db = new Database(dbPath);
+    configure(db);
 
-    sqliteVec.load(db);
-
-    db.run(Sql.CREATE_FILES_TABLE);
     db.run(Sql.CREATE_META_TABLE);
-    db.run(Sql.CREATE_EMBEDDINGS_TABLE);
     db.run(Sql.CREATE_VECTORS_TABLE);
     db.run(Sql.CREATE_PROJECT_TABLE);
     db.run(Sql.CREATE_NOTES_TABLE);
+    db.run(Sql.CREATE_EMBEDDINGS_TABLE);
 
     db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
-
     db.run(Sql.INSERT_DEFAULT_PROJECT);
 
-    Bus.publish({ tag: "store.created", path: path });
+    Bus.publish({ tag: "store.created", path: dbPath });
 
     return db;
   }
@@ -132,7 +139,7 @@ export namespace Store {
     }
 
     db = new Database(p);
-    sqliteVec.load(db);
+    configure(db);
     return db;
   }
 
@@ -144,78 +151,18 @@ export namespace Store {
   }
 
   // ============================================
-  // File Operations
-  // ============================================
-
-  export function getFile(path: string): FileRecord | null {
-    const db = get();
-    const row = db.prepare(Sql.GET_FILE).get(path) as {
-      mtime: number;
-      embedded: number;
-    } | null;
-    return row ? { mtime: row.mtime, embedded: row.embedded === 1 } : null;
-  }
-
-  export function markEmbedded(path: string): void {
-    const db = get();
-    db.run(Sql.MARK_EMBEDDED, [path]);
-  }
-
-  export function markUnembedded(path: string): void {
-    const db = get();
-    db.run(Sql.MARK_UNEMBEDDED, [path]);
-  }
-
-  export function listUnembeddedFiles(): string[] {
-    const db = get();
-    const rows = db.prepare(Sql.LIST_UNEMBEDDED_FILES).all() as {
-      path: string;
-    }[];
-    return rows.map((r) => r.path);
-  }
-
-  export function upsertFile(path: string, mtime: number): void {
-    const db = get();
-    db.run(Sql.UPSERT_FILE, [path, mtime]);
-  }
-
-  export function removeFile(path: string): void {
-    const db = get();
-
-    // Remove embeddings and vectors first
-    db.run(Sql.DELETE_EMBEDDINGS, [path]);
-    db.run(Sql.DELETE_VECTORS_BY_PREFIX, [path]);
-
-    // Remove file record
-    db.run(Sql.DELETE_FILE, [path]);
-  }
-
-  export function listAllFiles(): string[] {
-    const db = get();
-    const rows = db.prepare(Sql.LIST_ALL_FILES).all() as { path: string }[];
-    return rows.map((r) => r.path);
-  }
-
-  // ============================================
   // Chunking & Embedding
   // ============================================
 
-  /**
-   * Find a natural break point in the last 30% of text.
-   * Prefers: paragraph > sentence > line > word boundary.
-   * Returns the offset from the start of searchSlice, or -1 if none found.
-   */
   function findBreakPoint(text: string): number {
     const searchStart = Math.floor(text.length * 0.7);
     const searchSlice = text.slice(searchStart);
 
-    // Try paragraph break (double newline)
     const paragraphBreak = searchSlice.lastIndexOf("\n\n");
     if (paragraphBreak >= 0) {
       return searchStart + paragraphBreak + 2;
     }
 
-    // Try sentence end
     const sentenceEnd = Math.max(
       searchSlice.lastIndexOf(". "),
       searchSlice.lastIndexOf(".\n"),
@@ -228,13 +175,11 @@ export namespace Store {
       return searchStart + sentenceEnd + 2;
     }
 
-    // Try line break
     const lineBreak = searchSlice.lastIndexOf("\n");
     if (lineBreak >= 0) {
       return searchStart + lineBreak + 1;
     }
 
-    // No good break point found
     return -1;
   }
 
@@ -242,7 +187,6 @@ export namespace Store {
     const allTokens = await Model.tokenize(text);
     const totalTokens = allTokens.length;
 
-    // Small enough to be a single chunk
     if (totalTokens <= CHUNK_TOKENS) {
       return [{ text, pos: 0 }];
     }
@@ -257,7 +201,6 @@ export namespace Store {
       const chunkTokens = allTokens.slice(tokenPos, chunkEnd);
       let chunkText = await Model.detokenize(chunkTokens);
 
-      // Find a natural break point if not at end of document
       if (chunkEnd < totalTokens) {
         const breakOffset = findBreakPoint(chunkText);
         if (breakOffset > 0) {
@@ -265,36 +208,71 @@ export namespace Store {
         }
       }
 
-      // Approximate character position based on token position
       const charPos = Math.floor(tokenPos * avgCharsPerToken);
       chunks.push({ text: chunkText, pos: charPos });
 
       if (chunkEnd >= totalTokens) break;
-
-      // Advance by step tokens
       tokenPos += step;
     }
 
     return chunks;
   }
 
-  export function clearEmbeddings(key: string): void {
-    const db = get();
-    db.run(Sql.DELETE_EMBEDDINGS, [key]);
-    db.run(Sql.DELETE_VECTORS_BY_PREFIX, [key]);
+  function getHash(content: string): string {
+    return Bun.hash(content).toString(16);
   }
 
-  export function embed(
-    key: string,
-    seq: number,
-    pos: number,
-    vector: number[],
-  ): void {
+  export function clearNoteEmbeddings(noteId: number): void {
     const db = get();
-    const chunkKey = `${key}:${seq}`;
+    const statements = {
+      deleteVectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
+      deleteEmbeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
+    };
 
-    db.run(Sql.INSERT_EMBEDDING, [key, seq, pos]);
-    db.run(Sql.INSERT_VECTOR, [chunkKey, new Float32Array(vector)]);
+    db.transaction(() => {
+      statements.deleteVectors.run(noteId);
+      statements.deleteEmbeddings.run(noteId);
+    })();
+  }
+
+  export function saveNoteEmbeddings(
+    noteId: number,
+    chunks: Chunk[],
+    vectors: number[][],
+  ): void {
+    if (chunks.length !== vectors.length) {
+      throw new Error(
+        `Mismatched chunks/vectors: ${chunks.length} chunks, ${vectors.length} vectors`,
+      );
+    }
+
+    const db = get();
+    const statements = {
+      deleteVectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
+      deleteEmbeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
+      insertEmbedding: db.prepare(Sql.INSERT_EMBEDDING),
+      insertVector: db.prepare(Sql.INSERT_VECTOR),
+    };
+
+    db.transaction(() => {
+      statements.deleteVectors.run(noteId);
+      statements.deleteEmbeddings.run(noteId);
+
+      for (let i = 0; i < chunks.length; i++) {
+        const chunk = chunks[i]!;
+        const vector = vectors[i]!;
+        const inserted = statements.insertEmbedding.get(
+          noteId,
+          i,
+          chunk.pos,
+        ) as { id: number };
+
+        statements.insertVector.run(
+          String(inserted.id),
+          new Float32Array(vector),
+        );
+      }
+    })();
   }
 
   export function vsearch(
@@ -306,12 +284,13 @@ export namespace Store {
       .prepare(Sql.SEARCH_VECTORS)
       .all(new Float32Array(queryVector), limit) as {
       key: string;
+      note_id: number;
       distance: number;
     }[];
 
-    // Parse chunk keys back to file keys
     return rows.map((row) => ({
-      key: row.key.split(":")[0]!,
+      noteId: row.note_id,
+      chunkId: Number(row.key),
       distance: row.distance,
     }));
   }
@@ -322,8 +301,13 @@ export namespace Store {
 
   const BATCH_SIZE = 16;
 
-  export async function scan(dir: string): Promise<ScanResult> {
-    const glob = new Glob("**/*.md");
+  export async function scan(
+    dir: string,
+    globPattern: string,
+    projectId: number,
+    prefix: string,
+  ): Promise<ScanResult> {
+    const glob = new Glob(globPattern);
 
     const files: string[] = [];
     for await (const file of glob.scan({ cwd: dir, absolute: false })) {
@@ -332,44 +316,76 @@ export namespace Store {
 
     await Bus.publish({ tag: "scan.start", numFiles: files.length });
 
-    const diskFiles = new Set<string>();
+    const db = get();
+    const canonicalPrefix = canonicalPath(prefix);
+    const existing = db
+      .prepare(Sql.LIST_NOTES_FOR_PROJECT_PREFIX)
+      .all(projectId, canonicalPrefix, canonicalPrefix, canonicalPrefix) as {
+      id: number;
+      path: string;
+      mtime: number;
+      content_hash: string;
+    }[];
+
+    const rows = new Map(
+      existing.map((r) => [
+        r.path,
+        {
+          id: r.id,
+          path: r.path,
+          mtime: r.mtime,
+          content_hash: r.content_hash,
+        },
+      ]),
+    );
+
+    const seen = new Set<string>();
     const added: string[] = [];
     const modified: string[] = [];
     const removed: string[] = [];
 
-    // Second pass: check each file's status
     for (const file of files) {
-      diskFiles.add(file);
+      const relative = canonicalPath(file);
+      const path = canonicalPrefix
+        ? `${canonicalPrefix}/${relative}`
+        : relative;
+      seen.add(path);
+
       const meta = Io.get(dir, file);
-      const existing = getFile(file);
+      const note = rows.get(path);
 
       let status: FileStatus;
-      if (!existing) {
-        upsertFile(file, meta.modTime);
-        added.push(file);
+      if (!note) {
+        added.push(path);
         status = "added";
-      } else if (meta.modTime > existing.mtime) {
-        upsertFile(file, meta.modTime);
-        clearEmbeddings(file);
-        markUnembedded(file);
-        modified.push(file);
-        status = "modified";
+      } else if (meta.modTime > note.mtime) {
+        const content = Io.read(dir, file);
+        const hash = getHash(content);
+        if (note.content_hash !== hash) {
+          modified.push(path);
+          status = "modified";
+        } else {
+          status = "ok";
+        }
       } else {
         status = "ok";
       }
 
-      await Bus.publish({ tag: "scan.progress", path: file, status: status });
+      await Bus.publish({
+        tag: "scan.progress",
+        path: path,
+        status: status,
+      });
     }
 
-    // Check for deleted files
-    const dbFiles = listAllFiles();
-    for (const file of dbFiles) {
-      if (!diskFiles.has(file)) {
-        removeFile(file);
-        removed.push(file);
+    for (const [path, row] of rows) {
+      if (!seen.has(path)) {
+        clearNoteEmbeddings(row.id);
+        db.run(Sql.DELETE_NOTE, [row.id]);
+        removed.push(row.path);
         await Bus.publish({
           tag: "scan.progress",
-          path: file,
+          path: row.path,
           status: "removed",
         });
       }
@@ -377,33 +393,79 @@ export namespace Store {
 
     await Bus.publish({ tag: "scan.done", numFiles: files.length });
 
-    const unembedded = listUnembeddedFiles();
+    const unembedded = [...added, ...modified].map((path) =>
+      canonicalPrefix ? path.slice(canonicalPrefix.length + 1) : path,
+    );
     return { added, modified, removed, unembedded };
   }
 
   export async function embedFiles(
     dir: string,
+    projectId: number,
     files: string[],
+    prefix: string,
   ): Promise<void> {
     if (files.length === 0) return;
 
     await Model.load();
 
     // tokenize and chunk each file
-    type ChunkWork = { key: string; seq: number; pos: number; text: string };
-    type FileWork = { key: string; size: number; chunks: ChunkWork[] };
+    type ChunkWork = {
+      noteId: number;
+      seq: number;
+      pos: number;
+      text: string;
+    };
+    type NoteWork = { noteId: number; size: number };
 
-    const work: FileWork[] = [];
+    const db = get();
+    const statements = {
+      getNote: db.prepare(Sql.GET_NOTE_BY_PATH),
+      insertNote: db.prepare(Sql.INSERT_NOTE),
+      updateNote: db.prepare(Sql.UPDATE_NOTE),
+      deleteEmbeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
+      deleteVectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
+      insertEmbedding: db.prepare(Sql.INSERT_EMBEDDING),
+      insertVector: db.prepare(Sql.INSERT_VECTOR),
+    };
+
+    const canonicalPrefix = canonicalPath(prefix);
+    const work: { note: NoteWork; chunks: ChunkWork[] }[] = [];
     for (const file of files) {
       const meta = Io.get(dir, file);
       const content = Io.read(dir, file);
       const chunks = await chunk(content);
+      const contentHash = getHash(content);
+      const rel = canonicalPath(file);
+      const notePath = canonicalPrefix ? `${canonicalPrefix}/${rel}` : rel;
+      const existing = statements.getNote.get(projectId, notePath) as {
+        id: number;
+      } | null;
+      let noteId: number;
+
+      if (existing) {
+        const updated = statements.updateNote.get(
+          content,
+          contentHash,
+          meta.modTime,
+          existing.id,
+        ) as { id: number };
+        noteId = updated.id;
+      } else {
+        const inserted = statements.insertNote.get(
+          projectId,
+          notePath,
+          content,
+          contentHash,
+          meta.modTime,
+        ) as { id: number };
+        noteId = inserted.id;
+      }
 
       work.push({
-        key: file,
-        size: meta.size,
+        note: { noteId, size: meta.size },
         chunks: chunks.map((c, seq) => ({
-          key: file,
+          noteId,
           seq,
           pos: c.pos,
           text: c.text,
@@ -412,30 +474,14 @@ export namespace Store {
     }
 
     const numFiles = work.length;
-    const numBytes = work.reduce((sum, file) => sum + file.size, 0);
-    const numChunks = work.reduce((sum, file) => sum + file.chunks.length, 0);
+    const numBytes = work.reduce((sum, entry) => sum + entry.note.size, 0);
+    const numChunks = work.reduce((sum, entry) => sum + entry.chunks.length, 0);
     await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes });
-
-    // prepare statements up front
-    const db = get();
-    const statements = {
-      embedding: {
-        delete: db.prepare(Sql.DELETE_EMBEDDINGS),
-        insert: db.prepare(Sql.INSERT_EMBEDDING),
-      },
-      vector: {
-        delete: db.prepare(Sql.DELETE_VECTORS_BY_PREFIX),
-        insert: db.prepare(Sql.INSERT_VECTOR),
-      },
-      file: {
-        markEmbedded: db.prepare(Sql.MARK_EMBEDDED),
-      },
-    };
 
     let numFilesProcessed = 0;
     let numBytesProcessed = 0;
     let pendingChunks: ChunkWork[] = [];
-    let pendingFiles: FileWork[] = [];
+    let pendingNotes: NoteWork[] = [];
 
     const flushBatch = async () => {
       if (pendingChunks.length === 0) return;
@@ -444,27 +490,29 @@ export namespace Store {
       const embeddings = await Model.embedBatch(texts);
 
       db.transaction(() => {
-        for (const file of pendingFiles) {
-          statements.embedding.delete.run(file.key);
-          statements.vector.delete.run(file.key);
+        for (const note of pendingNotes) {
+          statements.deleteEmbeddings.run(note.noteId);
+          statements.deleteVectors.run(note.noteId);
         }
 
         for (let j = 0; j < pendingChunks.length; j++) {
           const c = pendingChunks[j]!;
-          const chunkKey = `${c.key}:${c.seq}`;
-          statements.embedding.insert.run(c.key, c.seq, c.pos);
-          statements.vector.insert.run(
-            chunkKey,
+          const inserted = statements.insertEmbedding.get(
+            c.noteId,
+            c.seq,
+            c.pos,
+          ) as { id: number };
+          statements.insertVector.run(
+            String(inserted.id),
             new Float32Array(embeddings[j]!),
           );
         }
 
-        for (const file of pendingFiles) {
-          statements.file.markEmbedded.run(file.key);
-          numBytesProcessed += file.size;
+        for (const note of pendingNotes) {
+          numBytesProcessed += note.size;
         }
 
-        numFilesProcessed += pendingFiles.length;
+        numFilesProcessed += pendingNotes.length;
       })();
 
       await Bus.publish({
@@ -477,12 +525,12 @@ export namespace Store {
       });
 
       pendingChunks = [];
-      pendingFiles = [];
+      pendingNotes = [];
     };
 
-    for (const file of work) {
-      pendingChunks.push(...file.chunks);
-      pendingFiles.push(file);
+    for (const entry of work) {
+      pendingChunks.push(...entry.chunks);
+      pendingNotes.push(entry.note);
 
       if (pendingChunks.length >= BATCH_SIZE) {
         await flushBatch();

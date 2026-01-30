@@ -1,5 +1,5 @@
-import { join } from "path";
 import { readFileSync, statSync } from "fs";
+import { join } from "path";
 
 export namespace Io {
   export type CachedMetadata = {

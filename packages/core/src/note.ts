@@ -1,4 +1,5 @@
 import z from "zod";
+import { normalize } from "path";
 import { api } from "./api";
 import { Store } from "./store";
 import { Model } from "./model";
@@ -6,6 +7,7 @@ import { Sql } from "./sql";
 import { Project } from "./project";
 import { Bus } from "./event";
 import { Error } from "./error";
+import { Io } from "./io";
 
 export namespace Note {
   export const Id = z.coerce.number().brand<"NoteId">();
@@ -111,16 +113,9 @@ export namespace Note {
     };
 
     if (chunks.length > 0) {
-      const noteKey = `note:${inserted.id}`;
-
-      Store.clearEmbeddings(noteKey);
-
       const texts = chunks.map((c) => c.text);
       const embeddings = await Model.embedBatch(texts);
-
-      for (let i = 0; i < chunks.length; i++) {
-        Store.embed(noteKey, i, chunks[i]!.pos, embeddings[i]!);
-      }
+      Store.saveNoteEmbeddings(inserted.id, chunks, embeddings);
     }
 
     return {
@@ -153,17 +148,12 @@ export namespace Note {
       content_hash: string;
     };
 
-    const key = `note:${id}`;
-
-    Store.clearEmbeddings(key);
-
     if (chunks.length > 0) {
       const texts = chunks.map((c) => c.text);
       const embeddings = await Model.embedBatch(texts);
-
-      for (let i = 0; i < chunks.length; i++) {
-        Store.embed(key, i, chunks[i]!.pos, embeddings[i]!);
-      }
+      Store.saveNoteEmbeddings(id, chunks, embeddings);
+    } else {
+      Store.clearNoteEmbeddings(id);
     }
 
     return {
@@ -181,6 +171,7 @@ export namespace Note {
       path: z.string(),
     }),
     (input): Info => {
+      Store.ensure();
       const db = Store.get();
 
       const row = db
@@ -197,6 +188,7 @@ export namespace Note {
       id: Id,
     }),
     (input): Info => {
+      Store.ensure();
       const db = Store.get();
 
       const row = db.prepare(Sql.GET_NOTE).get(input.id);
@@ -251,6 +243,7 @@ export namespace Note {
       after: z.string().optional(),
     }),
     (input): Page => {
+      Store.ensure();
       Project.get({ id: input.project });
       const db = Store.get();
 
@@ -270,6 +263,41 @@ export namespace Note {
     },
   );
 
+  export const index = api(
+    z.object({
+      directory: z.string(),
+      glob: z.string().optional(),
+      project: Project.Id,
+    }),
+    async (input): Promise<void> => {
+      Store.ensure();
+      Io.clear();
+      const resolved = Project.get({ id: input.project });
+      const pattern = input.glob ?? "**/*.md";
+      const normalizedDir = normalize(input.directory).replace(/\\/g, "/");
+      let prefix = normalizedDir
+        .replace(/\/+$/, "")
+        .replace(/^\.\//, "")
+        .replace(/^\//, "");
+      if (prefix === ".") {
+        prefix = "";
+      }
+
+      const result = await Store.scan(
+        input.directory,
+        pattern,
+        resolved.id,
+        prefix,
+      );
+      await Store.embedFiles(
+        input.directory,
+        resolved.id,
+        result.unembedded,
+        prefix,
+      );
+    },
+  );
+
   export const add = api(
     z.object({
       project: Project.Id,
@@ -278,6 +306,7 @@ export namespace Note {
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<void> => {
+      Store.ensure();
       const project = Project.get({ id: input.project });
       const db = Store.get();
 
@@ -309,6 +338,7 @@ export namespace Note {
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<void> => {
+      Store.ensure();
       const db = Store.get();
 
       const cursor = db.prepare(Sql.GET_NOTE).get(input.id);
@@ -337,6 +367,7 @@ export namespace Note {
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<void> => {
+      Store.ensure();
       const db = Store.get();
 
       // Check if note exists at this path

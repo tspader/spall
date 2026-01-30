@@ -1,10 +1,4 @@
-export {
-  Store,
-  type Chunk,
-  type VSearchResult,
-  type FileRecord,
-  type IndexResult,
-} from "./store";
+export { Store, type Chunk, type VSearchResult } from "./store";
 export { Model, type Token } from "./model";
 export { Bus } from "./event";
 export { Sql } from "./sql";
@@ -12,17 +6,18 @@ export { Io } from "./io";
 export {
   Event,
   InitEvent,
+  ScanEvent,
   EmbedEvent,
   ModelEvent,
   InitInput,
   InitEvents,
-  SearchInput,
-  SearchResult,
   IndexInput,
   IndexEvents,
+  SearchInput,
+  SearchResult,
   FileStatus,
 } from "./schema";
-export { Config, type ConfigSchema } from "./config";
+export { Config, type ConfigSchema, ProjectConfig, type ProjectConfigSchema } from "./config";
 
 export { Project } from "./project";
 export { Note } from "./note";

@@ -7,6 +7,7 @@ import { Config } from "@spall/core/config";
 import { Model } from "@spall/core/model";
 import { App } from "./app";
 import { Lock } from "./lock";
+import { Store } from "@spall/core";
 
 export { Lock } from "./lock";
 export { ensure } from "./lock";
@@ -52,7 +53,6 @@ export namespace Server {
 
   const MAX_POLL_DURATION = 2000;
   const POLL_TIME = 50;
-
 
   export type Options = {
     persist: boolean;
@@ -146,6 +146,9 @@ export namespace Server {
         1000,
       force: request?.force ?? env.force ?? false,
     };
+
+    // initialize core store before serving requests
+    Store.ensure();
 
     // set module level fields
     persist = options.persist;

@@ -16,6 +16,7 @@ import type {
   NoteGetByIdResponses,
   NoteGetErrors,
   NoteGetResponses,
+  NoteIndexResponses,
   NoteListByPathErrors,
   NoteListByPathResponses,
   NoteListErrors,
@@ -206,6 +207,47 @@ export class Note extends HeyApiClient {
       ThrowOnError
     >({
       url: "/project/{id}/note/{path}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * Index a directory
+   *
+   * Scan a directory and embed all matching notes.
+   */
+  public index<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string;
+      glob?: string;
+      project?: number;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "directory" },
+            { in: "body", key: "glob" },
+            { in: "body", key: "project" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.post<
+      NoteIndexResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/project/index",
       ...options,
       ...params,
       headers: {

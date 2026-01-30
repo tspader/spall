@@ -246,7 +246,7 @@ export namespace Model {
 
       const llama = await ensureLlama();
       embedder.instance.model = await llama.loadModel({
-        modelPath: embedder.instance.path,
+        modelPath: embedder.instance.path
       });
     }
 
