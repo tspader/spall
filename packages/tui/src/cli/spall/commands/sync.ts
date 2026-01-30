@@ -61,7 +61,7 @@ export const sync: CommandDef = {
     let embedTotalBytes = 0;
     let embedTotalFiles = 0;
 
-    const { stream } = await client.note.index({
+    const { stream } = await client.sse.note.index({
       directory: dir,
       glob: argv.glob,
       project: project.id,

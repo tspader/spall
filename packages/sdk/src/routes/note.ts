@@ -2,8 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 
 import { lazy } from "../util";
-import { Sse } from "../sse";
-import { Note, EventUnion, Error } from "@spall/core";
+import { Note, Error } from "@spall/core";
 
 export const NoteRoutes = lazy(() =>
   new Hono()
@@ -47,10 +46,10 @@ export const NoteRoutes = lazy(() =>
         operationId: "note.update",
         responses: {
           200: {
-            description: "Event stream",
+            description: "Updated note",
             content: {
-              "text/event-stream": {
-                schema: resolver(EventUnion),
+              "application/json": {
+                schema: resolver(Note.Info),
               },
             },
           },
@@ -63,10 +62,15 @@ export const NoteRoutes = lazy(() =>
       async (context) => {
         const id = context.req.param("id");
         const body = context.req.valid("json");
-        return Sse.stream(context, Note.update, {
-          id: Note.Id.parse(id),
-          ...body,
-        });
+        try {
+          const result = await Note.update({
+            id: Note.Id.parse(id),
+            ...body,
+          });
+          return context.json(result);
+        } catch (error: any) {
+          return context.json({ error: Error.from(error) }, 404);
+        }
       },
     ),
 );

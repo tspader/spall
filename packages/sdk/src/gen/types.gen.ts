@@ -125,131 +125,15 @@ export type NoteUpsertErrors = {
 
 export type NoteUpsertResponses = {
   /**
-   * Event stream
+   * Created or updated note
    */
-  200:
-    | {
-        tag: "error";
-        error: {
-          code: string;
-          message: string;
-        };
-      }
-    | {
-        tag: "sse.connected";
-      }
-    | {
-        tag: "project.created";
-        info: {
-          id: number;
-          name: string;
-          dir: string;
-          noteCount: number;
-          createdAt: number;
-          updatedAt: number;
-        };
-      }
-    | {
-        tag: "project.updated";
-        foo: number;
-      }
-    | {
-        tag: "model.download";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.progress";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-        downloaded: number;
-        total: number;
-      }
-    | {
-        tag: "model.downloaded";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.load";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.failed";
-        error: string;
-      }
-    | {
-        tag: "store.create";
-        path: string;
-      }
-    | {
-        tag: "store.created";
-        path: string;
-      }
-    | {
-        tag: "scan.start";
-        numFiles: number;
-      }
-    | {
-        tag: "scan.progress";
-        path: string;
-        status: "added" | "modified" | "removed" | "ok";
-      }
-    | {
-        tag: "scan.done";
-        numFiles: number;
-      }
-    | {
-        tag: "embed.start";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-      }
-    | {
-        tag: "embed.progress";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-        numFilesProcessed: number;
-        numBytesProcessed: number;
-      }
-    | {
-        tag: "embed.done";
-        numFiles: number;
-      }
-    | {
-        tag: "note.created";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      }
-    | {
-        tag: "note.updated";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      };
+  200: {
+    id: number;
+    project: number;
+    path: string;
+    content: string;
+    contentHash: string;
+  };
 };
 
 export type NoteUpsertResponse = NoteUpsertResponses[keyof NoteUpsertResponses];
@@ -344,134 +228,10 @@ export type NoteIndexData = {
 
 export type NoteIndexResponses = {
   /**
-   * Event stream
+   * Index complete
    */
-  200:
-    | {
-        tag: "error";
-        error: {
-          code: string;
-          message: string;
-        };
-      }
-    | {
-        tag: "sse.connected";
-      }
-    | {
-        tag: "project.created";
-        info: {
-          id: number;
-          name: string;
-          dir: string;
-          noteCount: number;
-          createdAt: number;
-          updatedAt: number;
-        };
-      }
-    | {
-        tag: "project.updated";
-        foo: number;
-      }
-    | {
-        tag: "model.download";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.progress";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-        downloaded: number;
-        total: number;
-      }
-    | {
-        tag: "model.downloaded";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.load";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.failed";
-        error: string;
-      }
-    | {
-        tag: "store.create";
-        path: string;
-      }
-    | {
-        tag: "store.created";
-        path: string;
-      }
-    | {
-        tag: "scan.start";
-        numFiles: number;
-      }
-    | {
-        tag: "scan.progress";
-        path: string;
-        status: "added" | "modified" | "removed" | "ok";
-      }
-    | {
-        tag: "scan.done";
-        numFiles: number;
-      }
-    | {
-        tag: "embed.start";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-      }
-    | {
-        tag: "embed.progress";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-        numFilesProcessed: number;
-        numBytesProcessed: number;
-      }
-    | {
-        tag: "embed.done";
-        numFiles: number;
-      }
-    | {
-        tag: "note.created";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      }
-    | {
-        tag: "note.updated";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      };
+  200: unknown;
 };
-
-export type NoteIndexResponse = NoteIndexResponses[keyof NoteIndexResponses];
 
 export type NoteAddData = {
   body?: {
@@ -494,131 +254,15 @@ export type NoteAddErrors = {
 
 export type NoteAddResponses = {
   /**
-   * Event stream
+   * Created note
    */
-  200:
-    | {
-        tag: "error";
-        error: {
-          code: string;
-          message: string;
-        };
-      }
-    | {
-        tag: "sse.connected";
-      }
-    | {
-        tag: "project.created";
-        info: {
-          id: number;
-          name: string;
-          dir: string;
-          noteCount: number;
-          createdAt: number;
-          updatedAt: number;
-        };
-      }
-    | {
-        tag: "project.updated";
-        foo: number;
-      }
-    | {
-        tag: "model.download";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.progress";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-        downloaded: number;
-        total: number;
-      }
-    | {
-        tag: "model.downloaded";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.load";
-        info: {
-          id: number;
-          name: string;
-          path: string;
-        };
-      }
-    | {
-        tag: "model.failed";
-        error: string;
-      }
-    | {
-        tag: "store.create";
-        path: string;
-      }
-    | {
-        tag: "store.created";
-        path: string;
-      }
-    | {
-        tag: "scan.start";
-        numFiles: number;
-      }
-    | {
-        tag: "scan.progress";
-        path: string;
-        status: "added" | "modified" | "removed" | "ok";
-      }
-    | {
-        tag: "scan.done";
-        numFiles: number;
-      }
-    | {
-        tag: "embed.start";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-      }
-    | {
-        tag: "embed.progress";
-        numFiles: number;
-        numChunks: number;
-        numBytes: number;
-        numFilesProcessed: number;
-        numBytesProcessed: number;
-      }
-    | {
-        tag: "embed.done";
-        numFiles: number;
-      }
-    | {
-        tag: "note.created";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      }
-    | {
-        tag: "note.updated";
-        info: {
-          id: number;
-          project: number;
-          path: string;
-          content: string;
-          contentHash: string;
-        };
-      };
+  200: {
+    id: number;
+    project: number;
+    path: string;
+    content: string;
+    contentHash: string;
+  };
 };
 
 export type NoteAddResponse = NoteAddResponses[keyof NoteAddResponses];
@@ -676,6 +320,122 @@ export type NoteUpdateErrors = {
 
 export type NoteUpdateResponses = {
   /**
+   * Updated note
+   */
+  200: {
+    id: number;
+    project: number;
+    path: string;
+    content: string;
+    contentHash: string;
+  };
+};
+
+export type NoteUpdateResponse = NoteUpdateResponses[keyof NoteUpdateResponses];
+
+export type QueryCreateData = {
+  body?: {
+    projects: Array<number>;
+  };
+  path?: never;
+  query?: never;
+  url: "/query";
+};
+
+export type QueryCreateResponses = {
+  /**
+   * Query info
+   */
+  200: {
+    id: number;
+    projects: Array<number>;
+    createdAt: number;
+  };
+};
+
+export type QueryCreateResponse =
+  QueryCreateResponses[keyof QueryCreateResponses];
+
+export type QueryGetData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/query/{id}";
+};
+
+export type QueryGetErrors = {
+  /**
+   * Query not found
+   */
+  404: unknown;
+};
+
+export type QueryGetResponses = {
+  /**
+   * Query info
+   */
+  200: {
+    id: number;
+    projects: Array<number>;
+    createdAt: number;
+  };
+};
+
+export type QueryGetResponse = QueryGetResponses[keyof QueryGetResponses];
+
+export type QueryNotesData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: {
+    path?: string;
+    limit?: number;
+    after?: string;
+  };
+  url: "/query/{id}/notes";
+};
+
+export type QueryNotesErrors = {
+  /**
+   * Query not found
+   */
+  404: unknown;
+};
+
+export type QueryNotesResponses = {
+  /**
+   * Paginated notes
+   */
+  200: {
+    notes: Array<{
+      id: number;
+      project: number;
+      path: string;
+      content: string;
+      contentHash: string;
+    }>;
+    nextCursor: string | null;
+  };
+};
+
+export type QueryNotesResponse = QueryNotesResponses[keyof QueryNotesResponses];
+
+export type SseNoteIndexData = {
+  body?: {
+    directory: string;
+    glob?: string;
+    project: number;
+  };
+  path?: never;
+  query?: never;
+  url: "/sse/project/index";
+};
+
+export type SseNoteIndexResponses = {
+  /**
    * Event stream
    */
   200:
@@ -803,7 +563,440 @@ export type NoteUpdateResponses = {
       };
 };
 
-export type NoteUpdateResponse = NoteUpdateResponses[keyof NoteUpdateResponses];
+export type SseNoteIndexResponse =
+  SseNoteIndexResponses[keyof SseNoteIndexResponses];
+
+export type SseNoteAddData = {
+  body?: {
+    project: number;
+    path: string;
+    content: string;
+    dupe?: boolean;
+  };
+  path?: never;
+  query?: never;
+  url: "/sse/project/note";
+};
+
+export type SseNoteAddResponses = {
+  /**
+   * Event stream
+   */
+  200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
+    | {
+        tag: "sse.connected";
+      }
+    | {
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "project.updated";
+        foo: number;
+      }
+    | {
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+        downloaded: number;
+        total: number;
+      }
+    | {
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.failed";
+        error: string;
+      }
+    | {
+        tag: "store.create";
+        path: string;
+      }
+    | {
+        tag: "store.created";
+        path: string;
+      }
+    | {
+        tag: "scan.start";
+        numFiles: number;
+      }
+    | {
+        tag: "scan.progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan.done";
+        numFiles: number;
+      }
+    | {
+        tag: "embed.start";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+      }
+    | {
+        tag: "embed.progress";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
+        tag: "embed.done";
+        numFiles: number;
+      }
+    | {
+        tag: "note.created";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      }
+    | {
+        tag: "note.updated";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      };
+};
+
+export type SseNoteAddResponse = SseNoteAddResponses[keyof SseNoteAddResponses];
+
+export type SseNoteUpsertData = {
+  body?: {
+    content: string;
+    dupe?: boolean;
+  };
+  path: {
+    id: string;
+    path: string;
+  };
+  query?: never;
+  url: "/sse/project/{id}/note/{path}";
+};
+
+export type SseNoteUpsertResponses = {
+  /**
+   * Event stream
+   */
+  200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
+    | {
+        tag: "sse.connected";
+      }
+    | {
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "project.updated";
+        foo: number;
+      }
+    | {
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+        downloaded: number;
+        total: number;
+      }
+    | {
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.failed";
+        error: string;
+      }
+    | {
+        tag: "store.create";
+        path: string;
+      }
+    | {
+        tag: "store.created";
+        path: string;
+      }
+    | {
+        tag: "scan.start";
+        numFiles: number;
+      }
+    | {
+        tag: "scan.progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan.done";
+        numFiles: number;
+      }
+    | {
+        tag: "embed.start";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+      }
+    | {
+        tag: "embed.progress";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
+        tag: "embed.done";
+        numFiles: number;
+      }
+    | {
+        tag: "note.created";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      }
+    | {
+        tag: "note.updated";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      };
+};
+
+export type SseNoteUpsertResponse =
+  SseNoteUpsertResponses[keyof SseNoteUpsertResponses];
+
+export type SseNoteUpdateData = {
+  body?: {
+    content: string;
+    dupe?: boolean;
+  };
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/sse/note/{id}";
+};
+
+export type SseNoteUpdateResponses = {
+  /**
+   * Event stream
+   */
+  200:
+    | {
+        tag: "error";
+        error: {
+          code: string;
+          message: string;
+        };
+      }
+    | {
+        tag: "sse.connected";
+      }
+    | {
+        tag: "project.created";
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "project.updated";
+        foo: number;
+      }
+    | {
+        tag: "model.download";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.progress";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+        downloaded: number;
+        total: number;
+      }
+    | {
+        tag: "model.downloaded";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.load";
+        info: {
+          id: number;
+          name: string;
+          path: string;
+        };
+      }
+    | {
+        tag: "model.failed";
+        error: string;
+      }
+    | {
+        tag: "store.create";
+        path: string;
+      }
+    | {
+        tag: "store.created";
+        path: string;
+      }
+    | {
+        tag: "scan.start";
+        numFiles: number;
+      }
+    | {
+        tag: "scan.progress";
+        path: string;
+        status: "added" | "modified" | "removed" | "ok";
+      }
+    | {
+        tag: "scan.done";
+        numFiles: number;
+      }
+    | {
+        tag: "embed.start";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+      }
+    | {
+        tag: "embed.progress";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
+        tag: "embed.done";
+        numFiles: number;
+      }
+    | {
+        tag: "note.created";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      }
+    | {
+        tag: "note.updated";
+        info: {
+          id: number;
+          project: number;
+          path: string;
+          content: string;
+          contentHash: string;
+        };
+      };
+};
+
+export type SseNoteUpdateResponse =
+  SseNoteUpdateResponses[keyof SseNoteUpdateResponses];
 
 export type HealthData = {
   body?: never;

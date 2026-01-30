@@ -159,4 +159,30 @@ export namespace Sql {
     ORDER BY path
     LIMIT ?
   `;
+
+  export const CREATE_QUERIES_TABLE = `
+    CREATE TABLE IF NOT EXISTS queries (
+      id INTEGER PRIMARY KEY,
+      projects TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    )
+  `;
+
+  export const INSERT_QUERY = `
+    INSERT INTO queries (projects, created_at) VALUES (?, ?) RETURNING id, projects, created_at
+  `;
+
+  export const GET_QUERY = `
+    SELECT id, projects, created_at FROM queries WHERE id = ?
+  `;
+
+  export const LIST_QUERY_NOTES_PAGINATED = `
+    SELECT id, project_id, path, content, content_hash
+    FROM notes
+    WHERE project_id IN (SELECT value FROM json_each(?))
+      AND path GLOB ?
+      AND path > ?
+    ORDER BY path
+    LIMIT ?
+  `;
 }

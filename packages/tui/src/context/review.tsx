@@ -321,25 +321,17 @@ export function ReviewProvider(props: ReviewProviderProps) {
       const shortFile = file.split("/").pop() ?? file;
       const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${startRow}-${endRow}.md`;
 
-      const { stream } = await c.note.add({
+      const result = await c.note.add({
         project: pid,
         path,
         content,
         dupe: true,
       });
 
-      let noteId: number | null = null;
-      for await (const event of stream as AsyncGenerator<any>) {
-        if (event?.tag === "error") {
-          return null;
-        }
-        if (event.tag === "note.created") {
-          noteId = event.info.id;
-          break;
-        }
+      if (result.error || !result.data) {
+        return null;
       }
-
-      if (noteId === null) return null;
+      const noteId = result.data.id;
 
       // Create review comment linking to the note
       const localComment = ReviewComment.create({
@@ -390,16 +382,13 @@ export function ReviewProvider(props: ReviewProviderProps) {
     if (!comment) return;
 
     // Update the note via SDK
-    const { stream } = await c.note.update({
+    const result = await c.note.update({
       id: comment.noteId.toString(),
       content,
       dupe: true,
     });
 
-    for await (const event of stream as AsyncGenerator<any>) {
-      if (event?.tag === "error") return;
-      if (event.tag === "note.updated") break;
-    }
+    if (result.error) return;
 
     // Update local state
     setComments((prev) =>

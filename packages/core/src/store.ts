@@ -123,6 +123,7 @@ export namespace Store {
     db.run(Sql.CREATE_PROJECT_TABLE);
     db.run(Sql.CREATE_NOTES_TABLE);
     db.run(Sql.CREATE_EMBEDDINGS_TABLE);
+    db.run(Sql.CREATE_QUERIES_TABLE);
 
     db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
     db.run(Sql.INSERT_DEFAULT_PROJECT);

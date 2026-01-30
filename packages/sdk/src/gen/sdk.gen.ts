@@ -28,6 +28,15 @@ import type {
   ProjectCreateResponses,
   ProjectGetResponses,
   ProjectListResponses,
+  QueryCreateResponses,
+  QueryGetErrors,
+  QueryGetResponses,
+  QueryNotesErrors,
+  QueryNotesResponses,
+  SseNoteAddResponses,
+  SseNoteIndexResponses,
+  SseNoteUpdateResponses,
+  SseNoteUpsertResponses,
 } from "./types.gen";
 
 export type Options<
@@ -201,7 +210,7 @@ export class Note extends HeyApiClient {
         },
       ],
     );
-    return (options?.client ?? this.client).sse.put<
+    return (options?.client ?? this.client).put<
       NoteUpsertResponses,
       NoteUpsertErrors,
       ThrowOnError
@@ -242,7 +251,7 @@ export class Note extends HeyApiClient {
         },
       ],
     );
-    return (options?.client ?? this.client).sse.post<
+    return (options?.client ?? this.client).post<
       NoteIndexResponses,
       unknown,
       ThrowOnError
@@ -285,7 +294,7 @@ export class Note extends HeyApiClient {
         },
       ],
     );
-    return (options?.client ?? this.client).sse.post<
+    return (options?.client ?? this.client).post<
       NoteAddResponses,
       NoteAddErrors,
       ThrowOnError
@@ -352,7 +361,7 @@ export class Note extends HeyApiClient {
         },
       ],
     );
-    return (options?.client ?? this.client).sse.put<
+    return (options?.client ?? this.client).put<
       NoteUpdateResponses,
       NoteUpdateErrors,
       ThrowOnError
@@ -459,6 +468,280 @@ export class Project extends HeyApiClient {
   }
 }
 
+export class Query extends HeyApiClient {
+  /**
+   * Create a query
+   *
+   * Create a query scope for aggregating notes across multiple projects.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      projects?: Array<number>;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "body", key: "projects" }] }],
+    );
+    return (options?.client ?? this.client).post<
+      QueryCreateResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/query",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * Get a query
+   *
+   * Get a query by ID.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "path", key: "id" }] }],
+    );
+    return (options?.client ?? this.client).get<
+      QueryGetResponses,
+      QueryGetErrors,
+      ThrowOnError
+    >({
+      url: "/query/{id}",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Query notes
+   *
+   * List notes across all projects in a query with keyset pagination.
+   */
+  public notes<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      path?: string;
+      limit?: number;
+      after?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "path" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "after" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      QueryNotesResponses,
+      QueryNotesErrors,
+      ThrowOnError
+    >({
+      url: "/query/{id}/notes",
+      ...options,
+      ...params,
+    });
+  }
+}
+
+export class Note2 extends HeyApiClient {
+  /**
+   * Index a directory (SSE)
+   *
+   * Scan a directory and embed all matching notes. Streams progress events.
+   */
+  public index<ThrowOnError extends boolean = false>(
+    parameters?: {
+      directory?: string;
+      glob?: string;
+      project?: number;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "directory" },
+            { in: "body", key: "glob" },
+            { in: "body", key: "project" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.post<
+      SseNoteIndexResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/sse/project/index",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * Add a note (SSE)
+   *
+   * Add a note to a project and embed it. Streams progress events.
+   */
+  public add<ThrowOnError extends boolean = false>(
+    parameters?: {
+      project?: number;
+      path?: string;
+      content?: string;
+      dupe?: boolean;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "body", key: "project" },
+            { in: "body", key: "path" },
+            { in: "body", key: "content" },
+            { in: "body", key: "dupe" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.post<
+      SseNoteAddResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/sse/project/note",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * Upsert a note (SSE)
+   *
+   * Create or update a note by path. Streams progress events.
+   */
+  public upsert<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      path: string;
+      content?: string;
+      dupe?: boolean;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "path", key: "path" },
+            { in: "body", key: "content" },
+            { in: "body", key: "dupe" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.put<
+      SseNoteUpsertResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/sse/project/{id}/note/{path}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * Update a note (SSE)
+   *
+   * Update a note's content by ID. Re-embeds the content. Streams progress events.
+   */
+  public update<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      content?: string;
+      dupe?: boolean;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "body", key: "content" },
+            { in: "body", key: "dupe" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).sse.put<
+      SseNoteUpdateResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/sse/note/{id}",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+}
+
+export class Sse extends HeyApiClient {
+  private _note?: Note2;
+  get note(): Note2 {
+    return (this._note ??= new Note2({ client: this.client }));
+  }
+}
+
 export class SpallClient extends HeyApiClient {
   public static readonly __registry = new HeyApiRegistry<SpallClient>();
 
@@ -505,5 +788,15 @@ export class SpallClient extends HeyApiClient {
   private _project?: Project;
   get project(): Project {
     return (this._project ??= new Project({ client: this.client }));
+  }
+
+  private _query?: Query;
+  get query(): Query {
+    return (this._query ??= new Query({ client: this.client }));
+  }
+
+  private _sse?: Sse;
+  get sse(): Sse {
+    return (this._sse ??= new Sse({ client: this.client }));
   }
 }

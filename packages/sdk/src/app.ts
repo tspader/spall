@@ -6,6 +6,8 @@ import { z } from "zod";
 import { Server } from "./server";
 import { ProjectRoutes } from "./routes/project";
 import { NoteRoutes } from "./routes/note";
+import { QueryRoutes } from "./routes/query";
+import { SseRoutes } from "./routes/sse";
 import { Sse } from "./sse";
 import { EventUnion } from "@spall/core";
 
@@ -15,6 +17,7 @@ export namespace App {
 
   export function ensure() {
     if (loaded) return;
+    loaded = true;
 
     app
       .use(async (_, next) => {
@@ -28,6 +31,8 @@ export namespace App {
       .use(logger())
       .route("/project", ProjectRoutes())
       .route("/note", NoteRoutes())
+      .route("/query", QueryRoutes())
+      .route("/sse", SseRoutes())
       .get(
         "/health",
         describeRoute({

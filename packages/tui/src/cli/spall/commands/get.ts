@@ -1,5 +1,6 @@
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
+import { ProjectConfig } from "@spall/core";
 import { table, type CommandDef, defaultTheme as theme } from "@spall/tui/cli/shared";
 
 export const get: CommandDef = {
@@ -15,8 +16,7 @@ export const get: CommandDef = {
     project: {
       alias: "p",
       type: "string",
-      description: "Project name",
-      default: "default",
+      description: "Project name(s), comma-separated",
     },
     max: {
       alias: "n",
@@ -32,13 +32,27 @@ export const get: CommandDef = {
   handler: async (argv) => {
     const client = await Client.connect();
 
-    const project = await client.project
-      .get({ name: argv.project })
-      .then(Client.unwrap)
-      .catch(() => {
-        consola.error(`Project not found: ${theme.command(argv.project)}`);
-        process.exit(1);
-      });
+    // resolve project names to IDs
+    const projectNames: string[] = argv.project
+      ? argv.project.split(",").map((s: string) => s.trim())
+      : ProjectConfig.load(process.cwd()).projects;
+
+    const projectIds: number[] = [];
+    for (const name of projectNames) {
+      const project = await client.project
+        .get({ name })
+        .then(Client.unwrap)
+        .catch(() => {
+          consola.error(`Project not found: ${theme.command(name)}`);
+          process.exit(1);
+        });
+      projectIds.push(project.id);
+    }
+
+    // create query
+    const query = await client.query
+      .create({ projects: projectIds })
+      .then(Client.unwrap);
 
     type NoteInfo = {
       id: number;
@@ -53,9 +67,9 @@ export const get: CommandDef = {
     const limit = argv.max ?? Infinity;
 
     while (notes.length < limit) {
-      const page: Page = await client.note
-        .listByPath({
-          id: String(project.id),
+      const page: Page = await client.query
+        .notes({
+          id: String(query.id),
           path: argv.path,
           limit: Math.min(100, limit - notes.length),
           after: cursor,

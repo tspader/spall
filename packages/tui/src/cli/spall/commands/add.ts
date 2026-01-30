@@ -121,7 +121,7 @@ export const add: CommandDef = {
         process.exit(1);
       }
 
-      const { stream } = await client.note.update({
+      const { stream } = await client.sse.note.update({
         id: existing.id.toString(),
         content: argv.text,
         dupe: argv.dupe,
@@ -149,7 +149,7 @@ export const add: CommandDef = {
         `Updated note ${theme.primary(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
       );
     } else {
-      const { stream } = await client.note.add({
+      const { stream } = await client.sse.note.add({
         path: argv.path,
         content: argv.text,
         project: project.id,

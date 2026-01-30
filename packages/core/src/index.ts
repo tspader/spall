@@ -21,6 +21,7 @@ export { Config, type ConfigSchema, ProjectConfig, type ProjectConfigSchema } fr
 
 export { Project } from "./project";
 export { Note } from "./note";
+export { Query } from "./query";
 export { Error } from "./error";
 
 import { z } from "zod";

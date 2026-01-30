@@ -2,8 +2,7 @@ import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 
 import { lazy } from "../util";
-import { Sse } from "../sse";
-import { Project, Note, EventUnion, Error } from "@spall/core";
+import { Project, Note, Error } from "@spall/core";
 
 export const ProjectRoutes = lazy(() =>
   new Hono()
@@ -200,19 +199,15 @@ export const ProjectRoutes = lazy(() =>
         operationId: "note.index",
         responses: {
           200: {
-            description: "Event stream",
-            content: {
-              "text/event-stream": {
-                schema: resolver(EventUnion),
-              },
-            },
+            description: "Index complete",
           },
         },
       }),
       validator("json", Note.index.schema),
       async (context) => {
         const body = context.req.valid("json");
-        return Sse.stream(context, Note.index, body);
+        await Note.index(body);
+        return context.body(null, 204);
       },
     )
     .post(
@@ -224,10 +219,10 @@ export const ProjectRoutes = lazy(() =>
         operationId: "note.add",
         responses: {
           200: {
-            description: "Event stream",
+            description: "Created note",
             content: {
-              "text/event-stream": {
-                schema: resolver(EventUnion),
+              "application/json": {
+                schema: resolver(Note.Info),
               },
             },
           },
@@ -239,7 +234,12 @@ export const ProjectRoutes = lazy(() =>
       validator("json", Note.add.schema),
       async (context) => {
         const body = context.req.valid("json");
-        return Sse.stream(context, Note.add, body);
+        try {
+          const result = await Note.add(body);
+          return context.json(result);
+        } catch (error: any) {
+          return context.json({ error: Error.from(error) }, 404);
+        }
       },
     )
     .put(
@@ -251,10 +251,10 @@ export const ProjectRoutes = lazy(() =>
         operationId: "note.upsert",
         responses: {
           200: {
-            description: "Event stream",
+            description: "Created or updated note",
             content: {
-              "text/event-stream": {
-                schema: resolver(EventUnion),
+              "application/json": {
+                schema: resolver(Note.Info),
               },
             },
           },
@@ -268,11 +268,16 @@ export const ProjectRoutes = lazy(() =>
         const id = context.req.param("id");
         const path = context.req.param("path");
         const body = context.req.valid("json");
-        return Sse.stream(context, Note.upsert, {
-          project: Project.Id.parse(id),
-          path,
-          ...body,
-        });
+        try {
+          const result = await Note.upsert({
+            project: Project.Id.parse(id),
+            path,
+            ...body,
+          });
+          return context.json(result);
+        } catch (error: any) {
+          return context.json({ error: Error.from(error) }, 404);
+        }
       },
     ),
 );

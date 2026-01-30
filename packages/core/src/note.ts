@@ -31,7 +31,7 @@ export namespace Note {
     });
   }
 
-  const Row = z
+  export const Row = z
     .object({
       id: z.number(),
       project_id: z.number(),
@@ -305,7 +305,7 @@ export namespace Note {
       content: z.string(),
       dupe: z.boolean().optional(),
     }),
-    async (input): Promise<void> => {
+    async (input): Promise<Info> => {
       Store.ensure();
       const project = Project.get({ id: input.project });
       const db = Store.get();
@@ -328,6 +328,7 @@ export namespace Note {
       );
 
       await Bus.publish({ tag: "note.created", info });
+      return info;
     },
   );
 
@@ -337,7 +338,7 @@ export namespace Note {
       content: z.string(),
       dupe: z.boolean().optional(),
     }),
-    async (input): Promise<void> => {
+    async (input): Promise<Info> => {
       Store.ensure();
       const db = Store.get();
 
@@ -349,13 +350,14 @@ export namespace Note {
 
       if (hash === row.contentHash) {
         await Bus.publish({ tag: "note.updated", info: row });
-        return;
+        return row;
       }
 
       checkDupe(row.project, hash, input.dupe, input.id);
 
       const info = await updateNote(input.id, input.content, hash);
       await Bus.publish({ tag: "note.updated", info });
+      return info;
     },
   );
 
@@ -366,7 +368,7 @@ export namespace Note {
       content: z.string(),
       dupe: z.boolean().optional(),
     }),
-    async (input): Promise<void> => {
+    async (input): Promise<Info> => {
       Store.ensure();
       const db = Store.get();
 
@@ -378,14 +380,14 @@ export namespace Note {
       if (existing) {
         // Update existing note
         const existingNote = Row.parse(existing);
-        await update({
+        return await update({
           id: existingNote.id,
           content: input.content,
           dupe: input.dupe,
         });
       } else {
         // Create new note
-        await add(input);
+        return await add(input);
       }
     },
   );
