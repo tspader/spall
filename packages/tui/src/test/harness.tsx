@@ -7,6 +7,7 @@ import { createCliRenderer, engine, type CliRenderer } from "@opentui/core";
 import { createMockKeys } from "@opentui/core/testing";
 import type { JSX } from "@opentui/solid";
 import { db } from "../store";
+import { Client } from "@spall/sdk/client";
 
 export namespace Test {
   export namespace Repo {
@@ -190,9 +191,27 @@ export namespace Test {
     return keyMap[key.toLowerCase()] || key;
   }
 
+  async function cleanupTestProjects(): Promise<void> {
+    try {
+      const client = await Client.connect();
+      const projects = await client.project.list({}).then((r) => r.data ?? []);
+      const testProjects = projects.filter((p) =>
+        p.name.startsWith("spall-test-"),
+      );
+      for (const project of testProjects) {
+        await client.project.delete({ id: String(project.id) });
+      }
+    } catch {
+      // Ignore errors - server might not be running
+    }
+  }
+
   export async function create(config: Config): Promise<Harness> {
     // Ensure db is initialized for tests
     db.init();
+
+    // Clean up any orphaned test projects from previous runs
+    await cleanupTestProjects();
 
     const repo = Repo.create(config.repo);
 

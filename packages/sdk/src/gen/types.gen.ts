@@ -17,8 +17,13 @@ export type NoteListErrors = {
   /**
    * Project not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteListError = NoteListErrors[keyof NoteListErrors];
 
 export type NoteListResponses = {
   /**
@@ -49,8 +54,14 @@ export type NoteListByPathErrors = {
   /**
    * Project not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteListByPathError =
+  NoteListByPathErrors[keyof NoteListByPathErrors];
 
 export type NoteListByPathResponses = {
   /**
@@ -85,8 +96,13 @@ export type NoteGetErrors = {
   /**
    * Project or note not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteGetError = NoteGetErrors[keyof NoteGetErrors];
 
 export type NoteGetResponses = {
   /**
@@ -120,8 +136,13 @@ export type NoteUpsertErrors = {
   /**
    * Project not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteUpsertError = NoteUpsertErrors[keyof NoteUpsertErrors];
 
 export type NoteUpsertResponses = {
   /**
@@ -147,6 +168,18 @@ export type ProjectGetData = {
   };
   url: "/project";
 };
+
+export type ProjectGetErrors = {
+  /**
+   * Project not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type ProjectGetError = ProjectGetErrors[keyof ProjectGetErrors];
 
 export type ProjectGetResponses = {
   /**
@@ -198,6 +231,18 @@ export type ProjectListData = {
   url: "/project/list";
 };
 
+export type ProjectListErrors = {
+  /**
+   * Server error
+   */
+  500: {
+    code: string;
+    message: string;
+  };
+};
+
+export type ProjectListError = ProjectListErrors[keyof ProjectListErrors];
+
 export type ProjectListResponses = {
   /**
    * List of projects
@@ -214,6 +259,37 @@ export type ProjectListResponses = {
 
 export type ProjectListResponse =
   ProjectListResponses[keyof ProjectListResponses];
+
+export type ProjectDeleteData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/project/{id}";
+};
+
+export type ProjectDeleteErrors = {
+  /**
+   * Project not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type ProjectDeleteError = ProjectDeleteErrors[keyof ProjectDeleteErrors];
+
+export type ProjectDeleteResponses = {
+  /**
+   * Project deleted successfully
+   */
+  204: void;
+};
+
+export type ProjectDeleteResponse =
+  ProjectDeleteResponses[keyof ProjectDeleteResponses];
 
 export type NoteSyncData = {
   body?: {
@@ -249,8 +325,13 @@ export type NoteAddErrors = {
   /**
    * Project not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteAddError = NoteAddErrors[keyof NoteAddErrors];
 
 export type NoteAddResponses = {
   /**
@@ -280,8 +361,13 @@ export type NoteGetByIdErrors = {
   /**
    * Note not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteGetByIdError = NoteGetByIdErrors[keyof NoteGetByIdErrors];
 
 export type NoteGetByIdResponses = {
   /**
@@ -315,8 +401,13 @@ export type NoteUpdateErrors = {
   /**
    * Note not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type NoteUpdateError = NoteUpdateErrors[keyof NoteUpdateErrors];
 
 export type NoteUpdateResponses = {
   /**
@@ -341,6 +432,18 @@ export type QueryCreateData = {
   query?: never;
   url: "/query";
 };
+
+export type QueryCreateErrors = {
+  /**
+   * Query not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type QueryCreateError = QueryCreateErrors[keyof QueryCreateErrors];
 
 export type QueryCreateResponses = {
   /**
@@ -369,8 +472,13 @@ export type QueryGetErrors = {
   /**
    * Query not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type QueryGetError = QueryGetErrors[keyof QueryGetErrors];
 
 export type QueryGetResponses = {
   /**
@@ -402,8 +510,13 @@ export type QueryNotesErrors = {
   /**
    * Query not found
    */
-  404: unknown;
+  404: {
+    code: string;
+    message: string;
+  };
 };
+
+export type QueryNotesError = QueryNotesErrors[keyof QueryNotesErrors];
 
 export type QueryNotesResponses = {
   /**

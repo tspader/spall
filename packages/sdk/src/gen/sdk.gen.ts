@@ -26,8 +26,13 @@ import type {
   NoteUpsertErrors,
   NoteUpsertResponses,
   ProjectCreateResponses,
+  ProjectDeleteErrors,
+  ProjectDeleteResponses,
+  ProjectGetErrors,
   ProjectGetResponses,
+  ProjectListErrors,
   ProjectListResponses,
+  QueryCreateErrors,
   QueryCreateResponses,
   QueryGetErrors,
   QueryGetResponses,
@@ -404,7 +409,7 @@ export class Project extends HeyApiClient {
     );
     return (options?.client ?? this.client).get<
       ProjectGetResponses,
-      unknown,
+      ProjectGetErrors,
       ThrowOnError
     >({
       url: "/project",
@@ -462,9 +467,35 @@ export class Project extends HeyApiClient {
   ) {
     return (options?.client ?? this.client).get<
       ProjectListResponses,
-      unknown,
+      ProjectListErrors,
       ThrowOnError
     >({ url: "/project/list", ...options });
+  }
+
+  /**
+   * Delete project
+   *
+   * Delete a project and all associated notes by ID.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "path", key: "id" }] }],
+    );
+    return (options?.client ?? this.client).delete<
+      ProjectDeleteResponses,
+      ProjectDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/project/{id}",
+      ...options,
+      ...params,
+    });
   }
 }
 
@@ -486,7 +517,7 @@ export class Query extends HeyApiClient {
     );
     return (options?.client ?? this.client).post<
       QueryCreateResponses,
-      unknown,
+      QueryCreateErrors,
       ThrowOnError
     >({
       url: "/query",

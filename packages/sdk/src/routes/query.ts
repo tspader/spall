@@ -22,6 +22,14 @@ export const QueryRoutes = lazy(() =>
               },
             },
           },
+          404: {
+            description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
         },
       }),
       validator("json", Query.create.schema),
@@ -31,7 +39,7 @@ export const QueryRoutes = lazy(() =>
           const result = Query.create(body);
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 404);
+          return c.json(Error.from(error), 404);
         }
       },
     )
@@ -52,6 +60,11 @@ export const QueryRoutes = lazy(() =>
           },
           404: {
             description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -61,7 +74,7 @@ export const QueryRoutes = lazy(() =>
           const result = Query.get({ id: Query.Id.parse(id) });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 404);
+          return c.json(Error.from(error), 404);
         }
       },
     )
@@ -83,6 +96,11 @@ export const QueryRoutes = lazy(() =>
           },
           404: {
             description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -97,7 +115,7 @@ export const QueryRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 404);
+          return c.json(Error.from(error), 404);
         }
       },
     ),

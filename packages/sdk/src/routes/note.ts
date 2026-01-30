@@ -23,6 +23,11 @@ export const NoteRoutes = lazy(() =>
           },
           404: {
             description: "Note not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -34,7 +39,7 @@ export const NoteRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 404);
+          return c.json(Error.from(error), 404);
         }
       },
     )
@@ -55,6 +60,11 @@ export const NoteRoutes = lazy(() =>
           },
           404: {
             description: "Note not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -69,7 +79,7 @@ export const NoteRoutes = lazy(() =>
           });
           return context.json(result);
         } catch (error: any) {
-          return context.json({ error: Error.from(error) }, 404);
+          return context.json(Error.from(error), 404);
         }
       },
     ),

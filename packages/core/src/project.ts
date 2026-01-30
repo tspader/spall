@@ -138,4 +138,25 @@ export namespace Project {
       return project;
     },
   );
+
+  export const remove = api(
+    z.object({
+      id: Id,
+    }),
+    async (input): Promise<void> => {
+      Store.ensure();
+      const db = Store.get();
+
+      // Verify project exists
+      const existing = db
+        .prepare(Sql.GET_PROJECT_BY_ID)
+        .get(input.id) as Row | null;
+      if (!existing) {
+        throw new NotFoundError(`Project not found: id=${input.id}`);
+      }
+
+      // Delete project (cascades to notes, embeddings, vectors via FK constraints)
+      db.prepare(Sql.DELETE_PROJECT).run(input.id);
+    },
+  );
 }

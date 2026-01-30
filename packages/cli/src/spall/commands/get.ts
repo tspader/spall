@@ -37,8 +37,8 @@ export const get: CommandDef = {
       ? [argv.project]
       : ProjectConfig.load(process.cwd()).projects;
 
-    const allProjects = await client.project.list().then(Client.unwrap);
-    const byName = new Map(allProjects.map((p) => [p.name, p.id]));
+    const projects = await client.project.list().then(Client.unwrap);
+    const byName = new Map(projects.map((p) => [p.name, p.id]));
 
     const projectIds = projectNames.map((name) => {
       const id = byName.get(name);

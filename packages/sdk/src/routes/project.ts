@@ -23,6 +23,11 @@ export const ProjectRoutes = lazy(() =>
           },
           404: {
             description: "Project not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -35,7 +40,7 @@ export const ProjectRoutes = lazy(() =>
             return c.json(result);
           })
           .catch((error: any) => {
-            return c.json({ error: Error.from(error) }, 404);
+            return c.json(Error.from(error), 404);
           });
 
         return result;
@@ -59,6 +64,11 @@ export const ProjectRoutes = lazy(() =>
           },
           404: {
             description: "Project not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -73,7 +83,7 @@ export const ProjectRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 404);
+          return c.json(Error.from(error), 404);
         }
       },
     )
@@ -94,6 +104,11 @@ export const ProjectRoutes = lazy(() =>
           },
           404: {
             description: "Project or note not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -107,7 +122,7 @@ export const ProjectRoutes = lazy(() =>
           });
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 404);
+          return c.json(Error.from(error), 404);
         }
       },
     )
@@ -151,6 +166,14 @@ export const ProjectRoutes = lazy(() =>
               },
             },
           },
+          500: {
+            description: "Server error",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
         },
       }),
       async (c) => {
@@ -158,7 +181,7 @@ export const ProjectRoutes = lazy(() =>
           const result = await Project.list({});
           return c.json(result);
         } catch (error: any) {
-          return c.json({ error: Error.from(error) }, 500);
+          return c.json(Error.from(error), 500);
         }
       },
     )
@@ -178,6 +201,14 @@ export const ProjectRoutes = lazy(() =>
               },
             },
           },
+          404: {
+            description: "Project not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
         },
       }),
       validator("query", Project.get.schema),
@@ -187,7 +218,37 @@ export const ProjectRoutes = lazy(() =>
           const result = await Project.get(query);
           return context.json(result);
         } catch (error: any) {
-          return context.json({ error: Error.from(error) }, 404);
+          return context.json(Error.from(error), 404);
+        }
+      },
+    )
+    .delete(
+      "/:id",
+      describeRoute({
+        summary: "Delete project",
+        description: "Delete a project and all associated notes by ID.",
+        operationId: "project.delete",
+        responses: {
+          204: {
+            description: "Project deleted successfully",
+          },
+          404: {
+            description: "Project not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
+        },
+      }),
+      async (context) => {
+        try {
+          const id = context.req.param("id");
+          await Project.remove({ id: Project.Id.parse(id) });
+          return context.body(null, 204);
+        } catch (error: any) {
+          return context.json(Error.from(error), 404);
         }
       },
     )
@@ -195,7 +256,8 @@ export const ProjectRoutes = lazy(() =>
       "/sync",
       describeRoute({
         summary: "Sync a directory as notes",
-        description: "Scan a directory, add matching notes to path, remove non-matches",
+        description:
+          "Scan a directory, add matching notes to path, remove non-matches",
         operationId: "note.sync",
         responses: {
           200: {
@@ -228,6 +290,11 @@ export const ProjectRoutes = lazy(() =>
           },
           404: {
             description: "Project not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -238,7 +305,7 @@ export const ProjectRoutes = lazy(() =>
           const result = await Note.add(body);
           return context.json(result);
         } catch (error: any) {
-          return context.json({ error: Error.from(error) }, 404);
+          return context.json(Error.from(error), 404);
         }
       },
     )
@@ -260,6 +327,11 @@ export const ProjectRoutes = lazy(() =>
           },
           404: {
             description: "Project not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
           },
         },
       }),
@@ -276,7 +348,7 @@ export const ProjectRoutes = lazy(() =>
           });
           return context.json(result);
         } catch (error: any) {
-          return context.json({ error: Error.from(error) }, 404);
+          return context.json(Error.from(error), 404);
         }
       },
     ),

@@ -144,6 +144,10 @@ export namespace Sql {
     SELECT id, name, dir, created_at, updated_at FROM projects
   `;
 
+  export const DELETE_PROJECT = `
+    DELETE FROM projects WHERE id = ?
+  `;
+
   export const UPDATE_NOTE = `
     UPDATE notes SET content = ?, content_hash = ?, mtime = ? WHERE id = ? RETURNING id, project_id, path, content, content_hash
   `;
