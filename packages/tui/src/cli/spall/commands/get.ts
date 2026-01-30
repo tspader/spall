@@ -1,7 +1,6 @@
-import pc from "picocolors";
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { table, type CommandDef, type Theme, defaultTheme as theme } from "@spall/tui/cli/shared";
+import { table, type CommandDef, defaultTheme as theme } from "@spall/tui/cli/shared";
 
 export const get: CommandDef = {
   description: "Get note(s) by path or glob",
