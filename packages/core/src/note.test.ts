@@ -187,7 +187,7 @@ describe("Note index", () => {
     writeFileSync(join(source, "a.md"), "alpha");
     writeFileSync(join(source, "b.txt"), "beta");
 
-    await Note.index({
+    await Note.sync({
       directory: source,
       glob: "**/*.md",
       project: PROJECT_ID,
@@ -201,14 +201,14 @@ describe("Note index", () => {
     ).toThrow(/not found/i);
   });
 
-  test("index deletes missing files only under prefix", async () => {
+  test("sync deletes missing files only under prefix", async () => {
     const root = join(tmpDir, "import");
     const source = join(root, "foo", "bar");
     mkdirSync(source, { recursive: true });
     writeFileSync(join(source, "a.md"), "alpha");
     writeFileSync(join(source, "b.md"), "beta");
 
-    await Note.index({ directory: source, project: PROJECT_ID });
+    await Note.sync({ directory: source, project: PROJECT_ID });
 
     await Note.add({
       project: PROJECT_ID,
@@ -223,7 +223,7 @@ describe("Note index", () => {
     rmSync(join(source, "b.md"));
     writeFileSync(join(source, "c.md"), "gamma");
 
-    await Note.index({ directory: source, project: PROJECT_ID });
+    await Note.sync({ directory: source, project: PROJECT_ID });
 
     const prefix = toPrefix(source);
     expect(

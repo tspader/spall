@@ -49,6 +49,15 @@ export namespace Note {
       }),
     );
 
+  export const Page = z.object({
+    notes: Info.array(),
+    nextCursor: z.string().nullable(),
+  });
+  export type Page = z.infer<typeof Page>;
+
+  ////////////
+  // ERRORS //
+  ////////////
   export class NotFoundError extends Error.SpallError {
     constructor(message: string) {
       super("note.not_found", message);
@@ -73,6 +82,9 @@ export namespace Note {
     }
   }
 
+  /////////////
+  // HELPERS //
+  /////////////
   function getHash(content: string): string {
     return Bun.hash(content).toString(16);
   }
@@ -165,6 +177,20 @@ export namespace Note {
     };
   }
 
+  function getPrefix(dir: string): string {
+    const prefix = normalize(dir)
+      .replace(/\\/g, "/")
+      .replace(/\/+$/, "")
+      .replace(/^\.\//, "")
+      .replace(/^\//, "");
+
+    if (prefix === ".") {
+      return "";
+    }
+
+    return prefix;
+  }
+
   export const get = api(
     z.object({
       project: Project.Id,
@@ -229,12 +255,6 @@ export namespace Note {
     },
   );
 
-  export const Page = z.object({
-    notes: Info.array(),
-    nextCursor: z.string().nullable(),
-  });
-  export type Page = z.infer<typeof Page>;
-
   export const listByPath = api(
     z.object({
       project: Project.Id,
@@ -263,7 +283,7 @@ export namespace Note {
     },
   );
 
-  export const index = api(
+  export const sync = api(
     z.object({
       directory: z.string(),
       glob: z.string().optional(),
@@ -274,16 +294,9 @@ export namespace Note {
       Io.clear();
       const resolved = Project.get({ id: input.project });
       const pattern = input.glob ?? "**/*.md";
-      const normalizedDir = normalize(input.directory).replace(/\\/g, "/");
-      let prefix = normalizedDir
-        .replace(/\/+$/, "")
-        .replace(/^\.\//, "")
-        .replace(/^\//, "");
-      if (prefix === ".") {
-        prefix = "";
-      }
+      const prefix = getPrefix(input.directory)
 
-      const result = await Store.scan(
+      const files = await Store.scan(
         input.directory,
         pattern,
         resolved.id,
@@ -292,7 +305,7 @@ export namespace Note {
       await Store.embedFiles(
         input.directory,
         resolved.id,
-        result.unembedded,
+        files.unembedded,
         prefix,
       );
     },

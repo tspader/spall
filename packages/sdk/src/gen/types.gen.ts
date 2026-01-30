@@ -215,7 +215,7 @@ export type ProjectListResponses = {
 export type ProjectListResponse =
   ProjectListResponses[keyof ProjectListResponses];
 
-export type NoteIndexData = {
+export type NoteSyncData = {
   body?: {
     directory: string;
     glob?: string;
@@ -223,10 +223,10 @@ export type NoteIndexData = {
   };
   path?: never;
   query?: never;
-  url: "/project/index";
+  url: "/project/sync";
 };
 
-export type NoteIndexResponses = {
+export type NoteSyncResponses = {
   /**
    * Index complete
    */
@@ -423,7 +423,7 @@ export type QueryNotesResponses = {
 
 export type QueryNotesResponse = QueryNotesResponses[keyof QueryNotesResponses];
 
-export type SseNoteIndexData = {
+export type SseNoteSyncData = {
   body?: {
     directory: string;
     glob?: string;
@@ -431,10 +431,10 @@ export type SseNoteIndexData = {
   };
   path?: never;
   query?: never;
-  url: "/sse/project/index";
+  url: "/sse/project/sync";
 };
 
-export type SseNoteIndexResponses = {
+export type SseNoteSyncResponses = {
   /**
    * Event stream
    */
@@ -563,8 +563,8 @@ export type SseNoteIndexResponses = {
       };
 };
 
-export type SseNoteIndexResponse =
-  SseNoteIndexResponses[keyof SseNoteIndexResponses];
+export type SseNoteSyncResponse =
+  SseNoteSyncResponses[keyof SseNoteSyncResponses];
 
 export type SseNoteAddData = {
   body?: {

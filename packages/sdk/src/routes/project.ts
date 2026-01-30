@@ -192,21 +192,21 @@ export const ProjectRoutes = lazy(() =>
       },
     )
     .post(
-      "/index",
+      "/sync",
       describeRoute({
-        summary: "Index a directory",
-        description: "Scan a directory and embed all matching notes.",
-        operationId: "note.index",
+        summary: "Sync a directory as notes",
+        description: "Scan a directory, add matching notes to path, remove non-matches",
+        operationId: "note.sync",
         responses: {
           200: {
             description: "Index complete",
           },
         },
       }),
-      validator("json", Note.index.schema),
+      validator("json", Note.sync.schema),
       async (context) => {
         const body = context.req.valid("json");
-        await Note.index(body);
+        await Note.sync(body);
         return context.body(null, 204);
       },
     )

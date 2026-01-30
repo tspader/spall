@@ -16,11 +16,11 @@ import type {
   NoteGetByIdResponses,
   NoteGetErrors,
   NoteGetResponses,
-  NoteIndexResponses,
   NoteListByPathErrors,
   NoteListByPathResponses,
   NoteListErrors,
   NoteListResponses,
+  NoteSyncResponses,
   NoteUpdateErrors,
   NoteUpdateResponses,
   NoteUpsertErrors,
@@ -34,7 +34,7 @@ import type {
   QueryNotesErrors,
   QueryNotesResponses,
   SseNoteAddResponses,
-  SseNoteIndexResponses,
+  SseNoteSyncResponses,
   SseNoteUpdateResponses,
   SseNoteUpsertResponses,
 } from "./types.gen";
@@ -227,11 +227,11 @@ export class Note extends HeyApiClient {
   }
 
   /**
-   * Index a directory
+   * Sync a directory as notes
    *
-   * Scan a directory and embed all matching notes.
+   * Scan a directory, add matching notes to path, remove non-matches
    */
-  public index<ThrowOnError extends boolean = false>(
+  public sync<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string;
       glob?: string;
@@ -252,11 +252,11 @@ export class Note extends HeyApiClient {
       ],
     );
     return (options?.client ?? this.client).post<
-      NoteIndexResponses,
+      NoteSyncResponses,
       unknown,
       ThrowOnError
     >({
-      url: "/project/index",
+      url: "/project/sync",
       ...options,
       ...params,
       headers: {
@@ -571,7 +571,7 @@ export class Note2 extends HeyApiClient {
    *
    * Scan a directory and embed all matching notes. Streams progress events.
    */
-  public index<ThrowOnError extends boolean = false>(
+  public sync<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string;
       glob?: string;
@@ -592,11 +592,11 @@ export class Note2 extends HeyApiClient {
       ],
     );
     return (options?.client ?? this.client).sse.post<
-      SseNoteIndexResponses,
+      SseNoteSyncResponses,
       unknown,
       ThrowOnError
     >({
-      url: "/sse/project/index",
+      url: "/sse/project/sync",
       ...options,
       ...params,
       headers: {

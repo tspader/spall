@@ -39,15 +39,6 @@ describe("Query", () => {
     rmSync(tmpDir, { recursive: true });
   });
 
-  function createProject(name: string): Project.Info {
-    const db = Store.get();
-    const now = Date.now();
-    db.prepare(
-      "INSERT INTO projects (name, dir, created_at, updated_at) VALUES (?, ?, ?, ?)",
-    ).run(name, "", now, now);
-    return Project.get({ name });
-  }
-
   async function addNote(
     project: Project.Id,
     path: string,
@@ -89,7 +80,7 @@ describe("Query", () => {
   });
 
   test("notes aggregates across multiple projects", async () => {
-    const p2 = createProject("second");
+    const p2 = await Project.create({ dir: tmpDir, name: "second" });
 
     await addNote(PROJECT_ID, "default.md", "from default");
     await addNote(p2.id, "second.md", "from second");
@@ -103,8 +94,8 @@ describe("Query", () => {
   });
 
   test("notes excludes projects not in the query", async () => {
-    const p2 = createProject("second");
-    const p3 = createProject("third");
+    const p2 = await Project.create({ dir: tmpDir, name: "second" });
+    const p3 = await Project.create({ dir: tmpDir, name: "third" });
 
     await addNote(PROJECT_ID, "a.md", "a");
     await addNote(p2.id, "b.md", "b");
@@ -162,7 +153,7 @@ describe("Query", () => {
     });
 
     test("pagination works across multiple projects", async () => {
-      const p2 = createProject("second");
+      const p2 = await Project.create({ dir: tmpDir, name: "second" });
 
       // notes sort by path globally: a.md, b.md, c.md, d.md
       await addNote(PROJECT_ID, "a.md", "a");
@@ -194,7 +185,7 @@ describe("Query", () => {
     });
 
     test("full drain collects all notes", async () => {
-      const p2 = createProject("second");
+      const p2 = await Project.create({ dir: tmpDir, name: "second" });
 
       for (let i = 0; i < 5; i++) {
         await addNote(PROJECT_ID, `default-${i}.md`, `d${i}`);

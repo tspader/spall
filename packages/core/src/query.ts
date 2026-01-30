@@ -83,14 +83,14 @@ export namespace Query {
       const db = Store.get();
 
       const query = get({ id: input.id });
-      const projectsJson = JSON.stringify(query.projects);
+      const projects = JSON.stringify(query.projects);
       const path = input.path ?? "*";
       const limit = input.limit ?? 100;
       const after = input.after ?? "";
 
       const rows = db
         .prepare(Sql.LIST_QUERY_NOTES_PAGINATED)
-        .all(projectsJson, path, after, limit) as unknown[];
+        .all(projects, path, after, limit) as unknown[];
 
       const notes = rows.map((r) => Note.Row.parse(r));
       const nextCursor =

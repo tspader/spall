@@ -476,11 +476,11 @@
         }
       }
     },
-    "/project/index": {
+    "/project/sync": {
       "post": {
-        "operationId": "note.index",
-        "summary": "Index a directory",
-        "description": "Scan a directory and embed all matching notes.",
+        "operationId": "note.sync",
+        "summary": "Sync a directory as notes",
+        "description": "Scan a directory, add matching notes to path, remove non-matches",
         "responses": {
           "200": {
             "description": "Index complete"
@@ -924,9 +924,9 @@
         ]
       }
     },
-    "/sse/project/index": {
+    "/sse/project/sync": {
       "post": {
-        "operationId": "sse.note.index",
+        "operationId": "sse.note.sync",
         "summary": "Index a directory (SSE)",
         "description": "Scan a directory and embed all matching notes. Streams progress events.",
         "responses": {

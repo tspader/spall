@@ -8,12 +8,12 @@ import { Project, Note, EventUnion } from "@spall/core";
 export const SseRoutes = lazy(() =>
   new Hono()
     .post(
-      "/project/index",
+      "/project/sync",
       describeRoute({
         summary: "Index a directory (SSE)",
         description:
           "Scan a directory and embed all matching notes. Streams progress events.",
-        operationId: "sse.note.index",
+        operationId: "sse.note.sync",
         responses: {
           200: {
             description: "Event stream",
@@ -25,10 +25,10 @@ export const SseRoutes = lazy(() =>
           },
         },
       }),
-      validator("json", Note.index.schema),
+      validator("json", Note.sync.schema),
       async (context) => {
         const body = context.req.valid("json");
-        return Sse.stream(context, Note.index, body);
+        return Sse.stream(context, Note.sync, body);
       },
     )
     .post(
