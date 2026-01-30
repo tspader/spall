@@ -2,7 +2,7 @@ import { Show, For, createMemo, createEffect, Index } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { Git } from "../lib/git";
-import { parseFileDiff } from "../lib/diff";
+import { getHunkIndexForRow, parseFileDiff } from "../lib/diff";
 import { useTheme } from "../context/theme";
 
 function getFiletype(filename: string): string {
@@ -84,6 +84,9 @@ export interface DiffPanelProps {
   entry: Accessor<Git.Entry | undefined>;
   hunkCount: Accessor<number>;
   selectedHunkIndex: Accessor<number>;
+  selectionMode: Accessor<"hunk" | "line">;
+  selectedRange: Accessor<{ startRow: number; endRow: number } | null>;
+  cursorRow: Accessor<number>;
   focused: Accessor<boolean>;
 }
 
@@ -96,6 +99,14 @@ export function DiffPanel(props: DiffPanelProps) {
     const hunkCount = props.hunkCount();
 
     if (hunkCount === 0) return entry.file;
+    if (props.selectionMode() === "line") {
+      const range = props.selectedRange();
+      if (range && range.startRow !== range.endRow) {
+        return `[lines ${range.startRow}-${range.endRow}]`;
+      }
+      const row = range?.startRow ?? props.cursorRow();
+      return `[line ${row}]`;
+    }
     if (props.focused()) {
       return `[hunk ${props.selectedHunkIndex() + 1}/${hunkCount}]`;
     }
@@ -133,9 +144,10 @@ export function DiffPanel(props: DiffPanelProps) {
       <Show when={props.entry()}>
         {(() => {
           const entry = props.entry()!;
-          const hunks = createMemo(
-            () => parseFileDiff(entry.content, entry.file).hunks,
+          const model = createMemo(() =>
+            parseFileDiff(entry.content, entry.file),
           );
+          const hunks = createMemo(() => model().hunks);
           const filetype = getFiletype(entry.file);
 
           let scrollbox: ScrollBoxRenderable | null = null;
@@ -146,15 +158,51 @@ export function DiffPanel(props: DiffPanelProps) {
             const hunkList = hunks();
             if (!scrollbox || hunkList.length === 0) return;
 
-            // Calculate scroll position: rows before this hunk
-            // plus separator lines (1 line between each hunk)
             let scrollLine = 0;
+            if (props.selectionMode() === "line") {
+              const row = props.cursorRow();
+              const rowHunkIndex = getHunkIndexForRow(
+                entry.content,
+                entry.file,
+                row,
+              );
+              const separatorOffset = rowHunkIndex ? rowHunkIndex : 0;
+              scrollLine = Math.max(0, row - 1 + separatorOffset);
+              const scrollTop = scrollbox.scrollTop;
+              const viewportHeight = scrollbox.viewport.height;
+              if (scrollLine < scrollTop) {
+                scrollbox.scrollTo(scrollLine);
+              } else if (scrollLine >= scrollTop + viewportHeight) {
+                scrollbox.scrollTo(scrollLine - viewportHeight + 1);
+              }
+              return;
+            }
+
             if (hunkIdx > 0) {
               const prev = hunkList[Math.min(hunkIdx - 1, hunkList.length - 1)];
               if (prev) scrollLine = prev.endRow + hunkIdx;
             }
 
-            scrollbox.scrollTo(scrollLine);
+            const activeHunk = hunkList[hunkIdx];
+            if (!activeHunk) return;
+            const scrollTop = scrollbox.scrollTop;
+            const viewportHeight = scrollbox.viewport.height;
+            const separatorOffset = hunkIdx;
+            const hunkTop = Math.max(
+              0,
+              activeHunk.startRow - 1 + separatorOffset,
+            );
+            const hunkBottom = Math.max(
+              0,
+              activeHunk.endRow - 1 + separatorOffset,
+            );
+            const viewportBottom = scrollTop + viewportHeight - 1;
+
+            if (hunkTop < scrollTop) {
+              scrollbox.scrollTo(hunkTop);
+            } else if (hunkBottom > viewportBottom) {
+              scrollbox.scrollTo(scrollLine);
+            }
           });
 
           return (
@@ -170,7 +218,18 @@ export function DiffPanel(props: DiffPanelProps) {
                   {(hunk, i) => {
                     const isFocused = () =>
                       props.focused() && props.selectedHunkIndex() === i;
-                    const indicatorColor = () => {
+                    const indicatorColor = (row: number) => {
+                      if (props.selectionMode() === "line") {
+                        const range = props.selectedRange();
+                        if (
+                          range &&
+                          row >= range.startRow &&
+                          row <= range.endRow
+                        ) {
+                          return theme.primary;
+                        }
+                        return theme.indicatorDefault;
+                      }
                       if (isFocused()) return theme.primary;
                       return theme.indicatorDefault;
                     };
@@ -195,11 +254,14 @@ export function DiffPanel(props: DiffPanelProps) {
                                 (_, j) => j,
                               )}
                             >
-                              {(j) => (
-                                <text height={1} fg={indicatorColor()}>
-                                  ▌
-                                </text>
-                              )}
+                              {(j) => {
+                                const row = hunk().startRow + j;
+                                return (
+                                  <text height={1} fg={indicatorColor(row)}>
+                                    ▌
+                                  </text>
+                                );
+                              }}
                             </For>
                             {/* <text height={1} fg={indicatorColor()}> */}
                             {/*   {"\u2594"} */}

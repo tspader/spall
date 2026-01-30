@@ -319,7 +319,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
     if (c && pid) {
       const name = repoName(root);
       const shortFile = file.split("/").pop() ?? file;
-      const path = `review/${name}/${head}/${patch.seq}/${shortFile}:${startRow}-${endRow}.md`;
+      const path = `review/${name}/${head}/${patch.seq}/${shortFile}_${startRow}-${endRow}.md`;
 
       const result = await c.note.add({
         project: pid,

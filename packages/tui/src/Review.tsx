@@ -27,6 +27,7 @@ import { type Command, matchAny } from "./lib/keybind";
 
 type FocusPanel = "sidebar" | "diff" | "editor";
 type SidebarMode = "files" | "comments";
+type SelectionMode = "hunk" | "line";
 
 type EditorAnchor = {
   file: string;
@@ -95,6 +96,12 @@ function App(props: AppProps) {
   const [focusPanel, setFocusPanel] = createSignal<FocusPanel>("sidebar");
   const [sidebarMode, setSidebarMode] = createSignal<SidebarMode>("files");
   const [selectedHunkIndex, setSelectedHunkIndex] = createSignal(0);
+  const [selectionMode, setSelectionMode] = createSignal<SelectionMode>("hunk");
+  const [selectedRange, setSelectedRange] = createSignal<{
+    startRow: number;
+    endRow: number;
+  } | null>(null);
+  const [cursorRow, setCursorRow] = createSignal(1);
   const [editorAnchor, setEditorAnchor] = createSignal<EditorAnchor | null>(
     null,
   );
@@ -109,19 +116,19 @@ function App(props: AppProps) {
   };
 
   // Hunk count for the selected entry (computed from diff content)
-  const hunkCount = createMemo(() => {
+  const diffModel = createMemo(() => {
     const entry = selectedEntry();
-    if (!entry) return 0;
-    // Count @@ markers in the diff content
-    const matches = entry.content.match(/^@@/gm);
-    return matches?.length ?? 0;
+    if (!entry) return { hunks: [], totalRows: 0 };
+    return parseFileDiff(entry.content, entry.file);
   });
+
+  const hunkCount = createMemo(() => diffModel().hunks.length);
+  const totalRows = createMemo(() => diffModel().totalRows);
 
   const selectedHunkRange = createMemo(() => {
     const entry = selectedEntry();
     if (!entry) return null;
-    const hunks = parseFileDiff(entry.content, entry.file).hunks;
-    const hunk = hunks[selectedHunkIndex()];
+    const hunk = diffModel().hunks[selectedHunkIndex()];
     if (!hunk) return null;
     return { startRow: hunk.startRow, endRow: hunk.endRow };
   });
@@ -130,7 +137,15 @@ function App(props: AppProps) {
   createEffect(() => {
     selectedFileIndex();
     setSelectedHunkIndex(0);
+    setSelectionMode("hunk");
+    setSelectedRange(null);
+    setCursorRow(1);
   });
+
+  const clampRow = (row: number) => {
+    const max = Math.max(1, totalRows());
+    return Math.min(Math.max(1, row), max);
+  };
 
   // Helper functions for commands
   const navigateUp = () => {
@@ -141,7 +156,17 @@ function App(props: AppProps) {
       } else {
         setSelectedCommentIndex((i) => Math.max(0, i - 1));
       }
-    } else if (panel === "diff") {
+      return;
+    }
+
+    if (panel === "diff" && selectionMode() === "line") {
+      const next = clampRow(cursorRow() - 1);
+      setCursorRow(next);
+      setSelectedRange({ startRow: next, endRow: next });
+      return;
+    }
+
+    if (panel === "diff") {
       setSelectedHunkIndex((i: number) => Math.max(0, i - 1));
     }
   };
@@ -155,14 +180,25 @@ function App(props: AppProps) {
         const maxIndex = review.comments().length - 1;
         setSelectedCommentIndex((i) => Math.min(maxIndex, i + 1));
       }
-    } else if (panel === "diff") {
+      return;
+    }
+
+    if (panel === "diff" && selectionMode() === "line") {
+      const next = clampRow(cursorRow() + 1);
+      setCursorRow(next);
+      setSelectedRange({ startRow: next, endRow: next });
+      return;
+    }
+
+    if (panel === "diff") {
       setSelectedHunkIndex((i: number) => Math.min(hunkCount() - 1, i + 1));
     }
   };
 
   const openCommentEditor = () => {
     const entry = selectedEntry();
-    const range = selectedHunkRange();
+    const range =
+      selectionMode() === "line" ? selectedRange() : selectedHunkRange();
     if (!entry || !range) return;
 
     const existing = review.getCommentForRange(
@@ -182,6 +218,60 @@ function App(props: AppProps) {
 
   const toggleSidebarMode = () => {
     setSidebarMode((m) => (m === "files" ? "comments" : "files"));
+  };
+
+  const toggleHunkSelection = () => {
+    const range = selectedHunkRange();
+    if (!range) return;
+    if (selectedRange()) {
+      setSelectedRange(null);
+      return;
+    }
+    setSelectionMode("hunk");
+    setSelectedRange(range);
+  };
+
+  const toggleLineMode = () => {
+    if (totalRows() === 0) return;
+    if (selectionMode() === "hunk") {
+      const range = selectedRange() ?? selectedHunkRange();
+      const row = clampRow(range?.startRow ?? 1);
+      setSelectionMode("line");
+      setCursorRow(row);
+      setSelectedRange({ startRow: row, endRow: row });
+      return;
+    }
+    const entry = selectedEntry();
+    const range = selectedRange();
+    if (entry && range) {
+      const hunkIndex =
+        getHunkIndexForRow(entry.content, entry.file, range.startRow) ?? 0;
+      setSelectedHunkIndex(hunkIndex);
+    }
+    setSelectionMode("hunk");
+    setSelectedRange(null);
+  };
+
+  const extendSelectionDown = () => {
+    if (selectionMode() !== "line") return;
+    const range = selectedRange() ?? {
+      startRow: cursorRow(),
+      endRow: cursorRow(),
+    };
+    const next = clampRow(range.endRow + 1);
+    setSelectedRange({ startRow: range.startRow, endRow: next });
+    setCursorRow(next);
+  };
+
+  const extendSelectionUp = () => {
+    if (selectionMode() !== "line") return;
+    const range = selectedRange() ?? {
+      startRow: cursorRow(),
+      endRow: cursorRow(),
+    };
+    const next = clampRow(range.startRow - 1);
+    setSelectedRange({ startRow: next, endRow: range.endRow });
+    setCursorRow(next);
   };
 
   // Define all commands with structured keybinds
@@ -216,25 +306,13 @@ function App(props: AppProps) {
     },
 
     {
-      id: "workspace",
-      title: "workspace",
-      category: "movement",
-      keybinds: [{ name: "w" }],
-      isActive: () =>
-        focusPanel() !== "editor" && review.activePatchId() !== null,
-      onExecute: () => {
-        review.setActivePatch(null);
-      },
-    },
-
-    {
       id: "quit",
       title: "quit",
       category: "movement",
       keybinds: [
         { name: "c", ctrl: true },
         { name: "d", ctrl: true },
-        { name: "q" },
+        { name: "q", ctrl: true },
       ],
       isActive: () => focusPanel() !== "editor",
       onExecute: () => exit(),
@@ -262,7 +340,50 @@ function App(props: AppProps) {
       onExecute: () => {
         setFocusPanel("diff");
         setSelectedHunkIndex(0);
+        setSelectionMode("hunk");
+        setSelectedRange(null);
       },
+    },
+    {
+      id: "select-lines",
+      title: "select by lines",
+      category: "selection",
+      keybinds: [{ name: "a" }],
+      isActive: () => focusPanel() === "diff" && totalRows() > 0,
+      onExecute: toggleLineMode,
+    },
+    {
+      id: "toggle-hunk-selection",
+      title: "toggle hunk selection",
+      category: "selection",
+      keybinds: [{ name: "space" }],
+      isActive: () =>
+        focusPanel() === "diff" &&
+        selectionMode() === "hunk" &&
+        selectedHunkRange() !== null,
+      onExecute: toggleHunkSelection,
+    },
+    {
+      id: "extend-down",
+      title: "extend selection down",
+      category: "selection",
+      keybinds: [
+        { name: "j", shift: true },
+        { name: "down", shift: true },
+      ],
+      isActive: () => focusPanel() === "diff" && selectionMode() === "line",
+      onExecute: extendSelectionDown,
+    },
+    {
+      id: "extend-up",
+      title: "extend selection up",
+      category: "selection",
+      keybinds: [
+        { name: "k", shift: true },
+        { name: "up", shift: true },
+      ],
+      isActive: () => focusPanel() === "diff" && selectionMode() === "line",
+      onExecute: extendSelectionUp,
     },
     {
       id: "open-comment",
@@ -314,7 +435,10 @@ function App(props: AppProps) {
       title: "comment",
       category: "actions",
       keybinds: [{ name: "c" }],
-      isActive: () => focusPanel() === "diff" && hunkCount() > 0,
+      isActive: () =>
+        focusPanel() === "diff" &&
+        ((selectionMode() === "hunk" && selectedHunkRange() !== null) ||
+          (selectionMode() === "line" && selectedRange() !== null)),
       onExecute: openCommentEditor,
     },
   ];
@@ -358,7 +482,13 @@ function App(props: AppProps) {
           <text fg="brightBlack">collapse/expand</text>
         </box>
       </Show>
-      <Show when={focusPanel() === "diff"}>
+      <Show
+        when={
+          focusPanel() === "diff" &&
+          ((selectionMode() === "hunk" && selectedHunkRange() !== null) ||
+            (selectionMode() === "line" && selectedRange()))
+        }
+      >
         <box flexDirection="row">
           <text>c </text>
           <text fg="brightBlack">comment</text>
@@ -370,14 +500,36 @@ function App(props: AppProps) {
           <text fg="brightBlack">workspace</text>
         </box>
       </Show>
-      <box flexDirection="row">
-        <text>esc </text>
-        <text fg="brightBlack">back</text>
-      </box>
-      <box flexDirection="row">
-        <text>q </text>
-        <text fg="brightBlack">quit</text>
-      </box>
+      <Show when={focusPanel() === "editor"}>
+        <box flexDirection="row">
+          <text>enter </text>
+          <text fg="brightBlack">submit</text>
+        </box>
+        <box flexDirection="row">
+          <text>C-j </text>
+          <text fg="brightBlack">newline</text>
+        </box>
+        <box flexDirection="row">
+          <text>C-e </text>
+          <text fg="brightBlack">editor</text>
+        </box>
+        <box flexDirection="row">
+          <text>esc </text>
+          <text fg="brightBlack">cancel</text>
+        </box>
+      </Show>
+      <Show when={focusPanel() !== "editor"}>
+        <box flexDirection="row">
+          <text>esc </text>
+          <text fg="brightBlack">back</text>
+        </box>
+      </Show>
+      <Show when={focusPanel() !== "editor"}>
+        <box flexDirection="row">
+          <text>C-q </text>
+          <text fg="brightBlack">quit</text>
+        </box>
+      </Show>
     </box>
   );
 
@@ -439,6 +591,9 @@ function App(props: AppProps) {
             entry={selectedEntry}
             hunkCount={hunkCount}
             selectedHunkIndex={selectedHunkIndex}
+            selectionMode={selectionMode}
+            selectedRange={selectedRange}
+            cursorRow={cursorRow}
             focused={() => focusPanel() === "diff"}
           />
 

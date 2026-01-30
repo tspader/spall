@@ -28,10 +28,10 @@ export function EditorPanel(props: EditorPanelProps) {
     : review.getCommentForRange(props.file, props.startRow, props.endRow);
   const initialContent = existingComment?.noteContent ?? "";
 
-  // Filename is file:range (e.g., "CommentList.tsx:rows-3-5.md")
+  // Filename is file_range (e.g., "CommentList.tsx_rows-3-5.md")
   const shortFile = props.file.split("/").pop() ?? props.file;
   const rangeLabel = `rows-${props.startRow}-${props.endRow}`;
-  const filename = `${shortFile}:${rangeLabel}.md`;
+  const filename = `${shortFile}_${rangeLabel}.md`;
 
   // Mark as initialized after first render to ignore the trigger key
   onMount(() => {
@@ -87,23 +87,18 @@ export function EditorPanel(props: EditorPanelProps) {
     const content = readFileSync(tmpFile, "utf-8");
     renderer.resume();
 
+    // If empty, treat as cancel
     if (!content.trim()) {
       props.onClose();
       return;
     }
 
-    if (existingComment) {
-      await review.updateComment(existingComment.id, content);
-    } else {
-      await review.createComment(
-        props.file,
-        props.startRow,
-        props.endRow,
-        content,
-      );
+    // Update textarea with edited content, let user manually submit
+    if (textareaRef) {
+      textareaRef.editBuffer.setText(content);
+      // Move cursor to end of content
+      textareaRef.cursorOffset = content.length;
     }
-
-    props.onClose();
   };
 
   const handleKeyDown = (e: KeyEvent) => {
@@ -113,10 +108,23 @@ export function EditorPanel(props: EditorPanelProps) {
       return;
     }
 
-    // Escape or Ctrl+Enter: submit and close
-    if (e.name === "escape" || (e.ctrl && e.name === "return")) {
+    // Escape: close without saving
+    if (e.name === "escape") {
+      e.preventDefault();
+      props.onClose();
+      return;
+    }
+
+    // Enter: submit
+    if (e.name === "return") {
       e.preventDefault();
       submit();
+      return;
+    }
+
+    if (e.name === "j" && e.ctrl) {
+      e.preventDefault();
+      textareaRef?.editBuffer.newLine();
       return;
     }
 

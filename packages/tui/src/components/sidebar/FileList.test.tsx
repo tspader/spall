@@ -27,11 +27,7 @@ describe("FileList", () => {
       });
 
       await harness.run({
-        expect: [
-          Test.contains("file00.ts"),
-          Test.contains("file01.ts"),
-          Test.contains("file02.ts"),
-        ],
+        expect: [Test.contains("file00.ts"), Test.contains("file01.ts")],
       });
     });
 

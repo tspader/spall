@@ -35,34 +35,41 @@ export function ServerProvider(props: ParentProps) {
 
     const connect = async () => {
       while (!shutdown) {
-        const connectedClient = await Client.connect(abortController.signal);
-        const health = await connectedClient.health();
+        try {
+          const connectedClient = await Client.connect(abortController.signal);
+          const health = await connectedClient.health();
 
-        if (!health.response.ok) {
-          throw new Error("Health check failed");
-        }
+          if (!health?.response?.ok) {
+            throw new Error("Health check failed");
+          }
 
-        // Connected successfully
-        setUrl(health.response.url.replace("/health", ""));
-        setConnected(true);
-        setClient(connectedClient);
+          // Connected successfully
+          setUrl(health.response.url.replace("/health", ""));
+          setConnected(true);
+          setClient(connectedClient);
 
-        // Subscribe to events
-        const { stream } = await connectedClient.events({
-          onSseError: () => {
-            setConnected(false)
-            setEvent("reconnecting")
-            setClient(null)
-          },
-          sseMaxRetryAttempts: 0
-        });
+          // Subscribe to events
+          const { stream } = await connectedClient.events({
+            onSseError: () => {
+              setConnected(false);
+              setEvent("reconnecting");
+              setClient(null);
+            },
+            sseMaxRetryAttempts: 0,
+          });
 
-        for await (const e of stream) {
-          setEvent(e.tag || "");
+          for await (const e of stream) {
+            setEvent(e.tag || "");
+          }
+        } catch {
+          setConnected(false);
+          setClient(null);
+          setUrl(null);
+          await Bun.sleep(100);
         }
       }
     };
-    connect();
+    void connect();
 
     // const connectLoop = async () => {
     //   while (!shutdown) {

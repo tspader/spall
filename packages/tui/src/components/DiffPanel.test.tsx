@@ -34,7 +34,7 @@ describe("DiffPanel", () => {
   });
 
   describe("hunk selection", () => {
-    it("toggles hunk selection with space", async () => {
+    it("shows comment action in hunk mode", async () => {
       harness = await Test.create({
         render,
         repo: { modified: ["file.ts"] },
@@ -43,19 +43,7 @@ describe("DiffPanel", () => {
       // Enter diff panel
       await harness.run({
         keys: ["return"],
-        expect: [Test.contains("[hunk 1/1]"), Test.notContains("c comment")],
-      });
-
-      // Select hunk
-      await harness.run({
-        keys: ["space"],
-        expect: [Test.contains("c comment")],
-      });
-
-      // Toggle off
-      await harness.run({
-        keys: ["space"],
-        expect: [Test.notContains("c comment")],
+        expect: [Test.contains("[hunk 1/1]"), Test.contains("c comment")],
       });
     });
   });
@@ -64,7 +52,15 @@ describe("DiffPanel", () => {
     it("switches between hunk and line mode with 'a'", async () => {
       harness = await Test.create({
         render,
-        repo: { modified: ["file.ts"] },
+        repo: {
+          files: [
+            {
+              path: "file.ts",
+              status: "added",
+              content: "line1\nline2\nline3\n",
+            },
+          ],
+        },
       });
 
       await harness.run({
@@ -88,7 +84,15 @@ describe("DiffPanel", () => {
     it("extends line selection with Shift+j", async () => {
       harness = await Test.create({
         render,
-        repo: { modified: ["file.ts"] },
+        repo: {
+          files: [
+            {
+              path: "file.ts",
+              status: "added",
+              content: "line1\nline2\nline3\n",
+            },
+          ],
+        },
       });
 
       // Enter diff, switch to line mode
