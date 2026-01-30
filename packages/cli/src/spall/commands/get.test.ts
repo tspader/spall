@@ -30,10 +30,15 @@ function mockClient(calls: Call[], allNotes: NoteInfo[] = makeNotes(1)) {
 
   return {
     project: {
-      get(params: any) {
-        calls.push({ method: "project.get", args: params });
-        const name = params.name ?? "default";
-        return Promise.resolve(ok({ id: name === "default" ? 1 : 2, name }));
+      list() {
+        calls.push({ method: "project.list", args: {} });
+        return Promise.resolve(
+          ok([
+            { id: 1, name: "default", dir: "", noteCount: 0, createdAt: 0, updatedAt: 0 },
+            { id: 2, name: "docs", dir: "", noteCount: 0, createdAt: 0, updatedAt: 0 },
+            { id: 3, name: "other", dir: "", noteCount: 0, createdAt: 0, updatedAt: 0 },
+          ]),
+        );
       },
     },
     query: {
@@ -85,10 +90,8 @@ describe("spall get", () => {
 
     await get.handler!({ path: "*", output: "json" });
 
-    const projectGets = calls.filter((c) => c.method === "project.get");
-    expect(projectGets).toHaveLength(2);
-    expect(projectGets[0]!.args.name).toBe("default");
-    expect(projectGets[1]!.args.name).toBe("docs");
+    const listCalls = calls.filter((c) => c.method === "project.list");
+    expect(listCalls).toHaveLength(1);
 
     const creates = calls.filter((c) => c.method === "query.create");
     expect(creates).toHaveLength(1);
@@ -108,29 +111,25 @@ describe("spall get", () => {
 
     await get.handler!({ path: "*", project: "docs", output: "json" });
 
-    const projectGets = calls.filter((c) => c.method === "project.get");
-    expect(projectGets).toHaveLength(1);
-    expect(projectGets[0]!.args.name).toBe("docs");
-
     const creates = calls.filter((c) => c.method === "query.create");
+    expect(creates).toHaveLength(1);
     expect(creates[0]!.args.projects).toEqual([2]);
   });
 
-  test("supports comma-separated --project", async () => {
-    await get.handler!({ path: "*", project: "default, docs", output: "json" });
+  test("--project selects a single project by name", async () => {
+    await get.handler!({ path: "*", project: "other", output: "json" });
 
-    const projectGets = calls.filter((c) => c.method === "project.get");
-    expect(projectGets).toHaveLength(2);
-    expect(projectGets[0]!.args.name).toBe("default");
-    expect(projectGets[1]!.args.name).toBe("docs");
+    const creates = calls.filter((c) => c.method === "query.create");
+    expect(creates).toHaveLength(1);
+    expect(creates[0]!.args.projects).toEqual([3]);
   });
 
   test("falls back to ['default'] with no config file", async () => {
     await get.handler!({ path: "*", output: "json" });
 
-    const projectGets = calls.filter((c) => c.method === "project.get");
-    expect(projectGets).toHaveLength(1);
-    expect(projectGets[0]!.args.name).toBe("default");
+    const creates = calls.filter((c) => c.method === "query.create");
+    expect(creates).toHaveLength(1);
+    expect(creates[0]!.args.projects).toEqual([1]);
   });
 
   test("--max limits total notes returned", async () => {

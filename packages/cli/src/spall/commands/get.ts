@@ -34,20 +34,20 @@ export const get: CommandDef = {
 
     // resolve project names to IDs
     const projectNames: string[] = argv.project
-      ? argv.project.split(",").map((s: string) => s.trim())
+      ? [argv.project]
       : ProjectConfig.load(process.cwd()).projects;
 
-    const projectIds: number[] = [];
-    for (const name of projectNames) {
-      const project = await client.project
-        .get({ name })
-        .then(Client.unwrap)
-        .catch(() => {
-          consola.error(`Project not found: ${theme.command(name)}`);
-          process.exit(1);
-        });
-      projectIds.push(project.id);
-    }
+    const allProjects = await client.project.list().then(Client.unwrap);
+    const byName = new Map(allProjects.map((p) => [p.name, p.id]));
+
+    const projectIds = projectNames.map((name) => {
+      const id = byName.get(name);
+      if (id === undefined) {
+        consola.error(`Project not found: ${theme.command(name)}`);
+        process.exit(1);
+      }
+      return id;
+    });
 
     // create query
     const query = await client.query
