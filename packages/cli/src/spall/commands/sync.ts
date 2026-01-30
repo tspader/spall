@@ -6,7 +6,7 @@ import {
   CLEAR,
   type CommandDef,
   defaultTheme as theme,
-} from "@spall/tui/cli/shared";
+} from "@spall/cli/shared";
 
 const BAR_WIDTH = 20;
 

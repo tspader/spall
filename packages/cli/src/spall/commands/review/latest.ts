@@ -1,9 +1,9 @@
 import { db, Repo, Review } from "@spall/tui/store";
 import { Git } from "@spall/tui/lib/git";
-import { table, type CommandDef } from "@spall/tui/cli/shared";
+import { table, type CommandDef } from "@spall/cli/shared";
 
-export const list: CommandDef = {
-  description: "List reviews for the current repo",
+export const latest: CommandDef = {
+  description: "Get the latest review for the current repo",
   options: {
     path: {
       alias: "p",
@@ -29,28 +29,28 @@ export const list: CommandDef = {
 
     const repo = Repo.getByPath(root);
     if (!repo) {
-      console.log("No reviews found.");
-      return;
+      console.error("No reviews found.");
+      process.exit(1);
     }
 
-    const reviews = Review.list(repo.id);
-    if (reviews.length === 0) {
-      console.log("No reviews found.");
-      return;
+    const review = Review.latest(repo.id);
+    if (!review) {
+      console.error("No reviews found.");
+      process.exit(1);
     }
 
     switch (argv.output) {
       case "json":
-        console.log(JSON.stringify(reviews, null, 2));
+        console.log(JSON.stringify(review, null, 2));
         break;
       default:
         table(
           ["id", "commit", "name", "created"],
           [
-            reviews.map((r) => String(r.id)),
-            reviews.map((r) => r.commitSha.slice(0, 7)),
-            reviews.map((r) => r.name ?? ""),
-            reviews.map((r) => new Date(r.createdAt).toISOString()),
+            [String(review.id)],
+            [review.commitSha.slice(0, 7)],
+            [review.name ?? ""],
+            [new Date(review.createdAt).toISOString()],
           ],
         );
     }

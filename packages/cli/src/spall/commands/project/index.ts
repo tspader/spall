@@ -1,4 +1,4 @@
-import type { CommandDef } from "@spall/tui/cli/shared";
+import type { CommandDef } from "@spall/cli/shared";
 import { create } from "./create";
 import { list } from "./list";
 

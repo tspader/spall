@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { build, type CliDef } from "@spall/tui/cli/shared";
+import { build, type CliDef } from "@spall/cli/shared";
 import { project, review, add, serve, get, sync, tui } from "./commands";
 
 const cliDef: CliDef = {

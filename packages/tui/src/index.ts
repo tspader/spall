@@ -1,2 +1,2 @@
-#!/usr/bin/env bun
-import "./cli/spall";
+export { tui } from "./App";
+export type { TuiOptions } from "./App";

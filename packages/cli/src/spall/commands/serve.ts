@@ -1,5 +1,5 @@
 import { Config } from "@spall/core/config";
-import type { CommandDef } from "@spall/tui/cli/shared";
+import type { CommandDef } from "@spall/cli/shared";
 
 export const serve: CommandDef = {
   description: "Start the spall server",

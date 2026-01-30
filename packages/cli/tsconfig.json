@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "."
+  },
+  "include": ["src"],
+  "exclude": ["**/*.test.ts"],
+  "references": [{ "path": "../core" }, { "path": "../sdk" }, { "path": "../tui" }]
+}

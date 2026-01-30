@@ -1,6 +1,6 @@
 import { db, Repo, Review } from "@spall/tui/store";
 import { Git } from "@spall/tui/lib/git";
-import { table, type CommandDef } from "@spall/tui/cli/shared";
+import { table, type CommandDef } from "@spall/cli/shared";
 
 export const create: CommandDef = {
   description: "Create a review for the current repo and commit",

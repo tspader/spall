@@ -1,16 +1,17 @@
 {
-  "name": "@spall/tui",
+  "name": "@spall/cli",
   "version": "0.0.1",
   "type": "module",
   "main": "src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./app": "./src/App.tsx",
-    "./store": "./src/store/index.ts",
-    "./lib/git": "./src/lib/git.ts"
+    "./shared": "./src/shared/index.ts"
+  },
+  "bin": {
+    "spall": "src/spall/index.ts",
+    "spallm": "src/spallm/index.ts"
   },
   "scripts": {
-    "tui": "bun src/App.tsx",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
@@ -23,6 +24,7 @@
     "@opentui/core": "0.1.75",
     "@opentui/solid": "0.1.75",
     "@spall/core": "workspace:*",
+    "@spall/tui": "workspace:*",
     "@spall/sdk": "workspace:*",
     "consola": "catalog:",
     "diff": "^8.0.3",

@@ -1,4 +1,4 @@
-import type { CommandDef } from "@spall/tui/cli/shared";
+import type { CommandDef } from "@spall/cli/shared";
 
 export const review: CommandDef = {
   description: "Review commands (JSON output for LLM consumption)",

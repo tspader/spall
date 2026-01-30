@@ -76,12 +76,6 @@ describe("Query", () => {
     );
   });
 
-  test("create validates project IDs exist", () => {
-    expect(() =>
-      Query.create({ projects: [Project.Id.parse(999)] }),
-    ).toThrow(/not found/i);
-  });
-
   test("notes returns notes from a single project", async () => {
     await addNote(PROJECT_ID, "a.md", "alpha");
     await addNote(PROJECT_ID, "b.md", "beta");

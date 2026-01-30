@@ -1,7 +1,7 @@
 import { db, Repo, Review, ReviewComment } from "@spall/tui/store";
 import { Git } from "@spall/tui/lib/git";
 import { Client } from "@spall/sdk/client";
-import { table, type CommandDef } from "@spall/tui/cli/shared";
+import { table, type CommandDef } from "@spall/cli/shared";
 
 export const comments: CommandDef = {
   description: "List comments for a review",

@@ -1,7 +1,7 @@
 import pc from "picocolors";
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { CLEAR, type CommandDef, defaultTheme } from "@spall/tui/cli/shared";
+import { CLEAR, type CommandDef, defaultTheme } from "@spall/cli/shared";
 
 const BAR_WIDTH = 20;
 const theme = defaultTheme;

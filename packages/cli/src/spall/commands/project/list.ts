@@ -1,6 +1,6 @@
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { table, type CommandDef } from "@spall/tui/cli/shared";
+import { table, type CommandDef } from "@spall/cli/shared";
 
 export const list: CommandDef = {
   description: "List all projects",

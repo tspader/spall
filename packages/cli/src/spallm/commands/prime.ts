@@ -1,4 +1,4 @@
-import type { CommandDef } from "@spall/tui/cli/shared";
+import type { CommandDef } from "@spall/cli/shared";
 
 export const prime: CommandDef = {
   description: "Output LLM workflow context",
