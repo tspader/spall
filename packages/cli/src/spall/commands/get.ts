@@ -79,20 +79,26 @@ export const get: CommandDef = {
     const notes: NoteInfo[] = [];
     let cursor: string | undefined = undefined;
 
-    const rowBudget = showAll
-      ? Infinity
-      : output === "table" || output === "list"
-        ? Math.max(1, (process.stdout.rows ?? 24) - 3)
-        : Infinity;
+    const termRows = process.stdout.rows ?? 24;
 
-    const limit = Math.min(argv.max ?? Infinity, rowBudget);
+    const maxTableRows = showAll ? Infinity : Math.max(1, termRows - 4);
+    const maxTreeRows = showAll ? Infinity : Math.max(1, termRows - 3);
 
-    while (notes.length < limit) {
+    const fetchLimit = Math.min(
+      argv.max ?? Infinity,
+      output === "table"
+        ? maxTableRows + 1
+        : output === "tree"
+          ? maxTreeRows + 1
+          : Infinity,
+    );
+
+    while (notes.length < fetchLimit) {
       const page: Page = await client.query
         .notes({
           id: String(query.id),
           path: argv.path,
-          limit: Math.min(100, limit - notes.length),
+          limit: Math.min(100, fetchLimit - notes.length),
           after: cursor,
         })
         .then(Client.unwrap);
@@ -119,6 +125,9 @@ export const get: CommandDef = {
           children: Map<string, TreeNode>;
           notes: NoteInfo[]; // For leaf nodes, store the actual notes
         };
+        const truncated = !showAll && notes.length > maxTreeRows;
+        const notesForTree = truncated ? notes.slice(0, maxTreeRows) : notes;
+
         const root: TreeNode = {
           name: "",
           isDir: true,
@@ -126,7 +135,7 @@ export const get: CommandDef = {
           notes: [],
         };
 
-        for (const note of notes) {
+        for (const note of notesForTree) {
           const parts = note.path.split("/");
           let current = root;
           for (let i = 0; i < parts.length; i++) {
@@ -216,12 +225,11 @@ export const get: CommandDef = {
         }
 
         printTree(root);
+        if (truncated) console.log(theme.dim("..."));
         break;
       }
       case "table": {
-        const maxRows = showAll
-          ? notes.length
-          : Math.max(1, (process.stdout.rows ?? 24) - 3);
+        const maxRows = showAll ? notes.length : maxTableRows;
 
         table(
           ["path", "id", "content"],

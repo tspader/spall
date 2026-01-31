@@ -197,7 +197,7 @@ export function table(
 
   // Show ellipsis if rows were truncated
   if (numRows > maxRows) {
-    console.log(theme.dim("..."));
+    console.log(theme.dim("(...truncated)"));
   }
 }
 

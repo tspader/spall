@@ -159,6 +159,84 @@ describe("spall get", () => {
     expect(fileLine!.length).toBeLessThanOrEqual(40);
   });
 
+  test("tree output prints ... when truncated by terminal height", async () => {
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
+    const originalLog = console.log;
+    const originalRows = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "rows",
+    );
+    const lines: string[] = [];
+    console.log = (...args: any[]) => {
+      lines.push(args.join(" "));
+    };
+
+    Object.defineProperty(process.stdout, "rows", {
+      value: 6,
+      configurable: true,
+    });
+
+    (Client as any).connect = async () => mockClient(calls, makeNotes(10));
+    await get.handler!({ path: "*", output: "tree" });
+
+    console.log = originalLog;
+    if (originalRows) {
+      Object.defineProperty(process.stdout, "rows", originalRows);
+    } else {
+      delete (process.stdout as any).rows;
+    }
+
+    const printed = lines.map(stripAnsi);
+    expect(printed).toContain("...");
+  });
+
+  test("table output prints ... when truncated by terminal height", async () => {
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
+    const originalLog = console.log;
+    const originalRows = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "rows",
+    );
+    const originalColumns = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "columns",
+    );
+
+    const lines: string[] = [];
+    console.log = (...args: any[]) => {
+      lines.push(args.join(" "));
+    };
+
+    Object.defineProperty(process.stdout, "rows", {
+      value: 6,
+      configurable: true,
+    });
+    Object.defineProperty(process.stdout, "columns", {
+      value: 80,
+      configurable: true,
+    });
+
+    (Client as any).connect = async () => mockClient(calls, makeNotes(10));
+    await get.handler!({ path: "*", output: "table" });
+
+    console.log = originalLog;
+    if (originalRows) {
+      Object.defineProperty(process.stdout, "rows", originalRows);
+    } else {
+      delete (process.stdout as any).rows;
+    }
+    if (originalColumns) {
+      Object.defineProperty(process.stdout, "columns", originalColumns);
+    } else {
+      delete (process.stdout as any).columns;
+    }
+
+    const printed = lines.map(stripAnsi);
+    expect(printed).toContain("...");
+  });
+
   test("uses ProjectConfig projects when --project not specified", async () => {
     mkdirSync(join(tmpDir, ".spall"), { recursive: true });
     writeFileSync(
