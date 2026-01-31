@@ -8,6 +8,7 @@
         "@tsconfig/bun": "catalog:",
         "prettier": "catalog:",
         "typescript": "catalog:",
+        "zod-to-json-schema": "^3.25.1",
       },
     },
     "packages/cli": {
@@ -45,6 +46,7 @@
         "picocolors": "catalog:",
         "sqlite-vec": "^0.1.7-alpha.2",
         "zod": "catalog:",
+        "zod-to-json-schema": "^3.23.5",
       },
       "devDependencies": {
         "@types/bun": "catalog:",
@@ -77,10 +79,6 @@
     "packages/tui": {
       "name": "@spall/tui",
       "version": "0.0.1",
-      "bin": {
-        "spall": "src/cli/spall/index.ts",
-        "spallm": "src/cli/llm/index.ts",
-      },
       "dependencies": {
         "@opentui/core": "0.1.75",
         "@opentui/solid": "0.1.75",
@@ -952,6 +950,8 @@
     "yoga-layout": ["yoga-layout@3.2.1", "", {}, "sha512-0LPOt3AxKqMdFBZA3HBAt/t/8vIKq7VaQYbuA8WxCgung+p9TVyKRYdpvCb80HcdTN2NkbIKbhNwKUfm3tQywQ=="],
 
     "zod": ["zod@4.3.6", "", {}, "sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg=="],
+
+    "zod-to-json-schema": ["zod-to-json-schema@3.25.1", "", { "peerDependencies": { "zod": "^3.25 || ^4" } }, "sha512-pM/SU9d3YAggzi6MtR4h7ruuQlqKtad8e9S0fmxcMi+ueAK5Korys/aWcV9LIIHTVbj01NdzxcnXSN+O74ZIVA=="],
 
     "@babel/core/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 

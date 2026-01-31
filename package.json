@@ -26,6 +26,7 @@
   "devDependencies": {
     "@tsconfig/bun": "catalog:",
     "prettier": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "zod-to-json-schema": "^3.25.1"
   }
 }

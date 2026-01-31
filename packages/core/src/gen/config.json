@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "dirs": {
+      "type": "object",
+      "properties": {
+        "cache": {
+          "type": "string",
+          "description": "Directory for cached data like downloaded models"
+        },
+        "data": {
+          "type": "string",
+          "description": "Directory for persistent data like databases"
+        }
+      },
+      "required": [
+        "cache",
+        "data"
+      ],
+      "additionalProperties": false
+    },
+    "models": {
+      "type": "object",
+      "properties": {
+        "embedding": {
+          "type": "string",
+          "description": "Model URI for embeddings (e.g., hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf)"
+        },
+        "reranker": {
+          "type": "string",
+          "description": "Model URI for reranking (e.g., hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf)"
+        }
+      },
+      "required": [
+        "embedding",
+        "reranker"
+      ],
+      "additionalProperties": false
+    },
+    "server": {
+      "type": "object",
+      "properties": {
+        "idleTimeout": {
+          "type": "number",
+          "description": "Minutes to wait after last client disconnects before shutting down"
+        }
+      },
+      "required": [
+        "idleTimeout"
+      ],
+      "additionalProperties": false
+    },
+    "embedding": {
+      "type": "object",
+      "properties": {
+        "poolSize": {
+          "type": "number",
+          "description": "Number of concurrent embedding operations"
+        }
+      },
+      "required": [
+        "poolSize"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "dirs",
+    "models",
+    "server",
+    "embedding"
+  ],
+  "additionalProperties": false
+}

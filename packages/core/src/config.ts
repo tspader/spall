@@ -1,32 +1,57 @@
 import { readFileSync, existsSync } from "fs";
 import { homedir } from "os";
 import { join } from "path";
+import { z } from "zod";
 
 const CONFIG_PATH = join(homedir(), ".config", "spall", "spall.json");
 const PROJECT_CONFIG_NAME = ".spall/spall.json";
 
-export type ConfigSchema = {
-  dirs: {
-    cache: string;
-    data: string;
-  };
-  models: {
-    embedding: string;
-    reranker: string;
-  };
-  server: {
-    idleTimeout: number;
-  };
-};
+// Zod schemas for runtime validation
+export const ConfigSchemaZod = z.object({
+  dirs: z.object({
+    cache: z
+      .string()
+      .describe("Directory for cached data like downloaded models"),
+    data: z.string().describe("Directory for persistent data like databases"),
+  }),
+  models: z.object({
+    embedding: z
+      .string()
+      .describe(
+        "Model URI for embeddings (e.g., hf:ggml-org/embeddinggemma-300M-GGUF/embeddinggemma-300M-Q8_0.gguf)",
+      ),
+    reranker: z
+      .string()
+      .describe(
+        "Model URI for reranking (e.g., hf:ggml-org/Qwen3-Reranker-0.6B-Q8_0-GGUF/qwen3-reranker-0.6b-q8_0.gguf)",
+      ),
+  }),
+  server: z.object({
+    idleTimeout: z
+      .number()
+      .describe(
+        "Minutes to wait after last client disconnects before shutting down",
+      ),
+  }),
+  embedding: z.object({
+    poolSize: z.number().describe("Number of concurrent embedding operations"),
+  }),
+});
 
+export const ProjectConfigSchemaZod = z.object({
+  projects: z.array(z.string()).describe("List of project names"),
+});
+
+// TypeScript types inferred from Zod schemas
+export type ConfigSchema = z.infer<typeof ConfigSchemaZod>;
+export type ProjectConfigSchema = z.infer<typeof ProjectConfigSchemaZod>;
+
+// Partial types for the set() functions
 export type PartialConfig = {
   dirs?: Partial<ConfigSchema["dirs"]>;
   models?: Partial<ConfigSchema["models"]>;
   server?: Partial<ConfigSchema["server"]>;
-};
-
-export type ProjectConfigSchema = {
-  projects: string[];
+  embedding?: Partial<ConfigSchema["embedding"]>;
 };
 
 export type PartialProjectConfig = {
@@ -50,6 +75,9 @@ function getDefaults(): ConfigSchema {
     server: {
       idleTimeout: 1,
     },
+    embedding: {
+      poolSize: 4,
+    },
   };
 }
 
@@ -61,6 +89,16 @@ function getProjectDefaults(): ProjectConfigSchema {
 
 export namespace Config {
   let config: ConfigSchema | null = null;
+  let customConfigPath: string | null = null;
+
+  // For testing only - allows overriding the config file path
+  export function _setConfigPath(path: string | null): void {
+    customConfigPath = path;
+  }
+
+  function getConfigPath(): string {
+    return customConfigPath ?? CONFIG_PATH;
+  }
 
   export function set(values: PartialConfig): void {
     const defaults = getDefaults();
@@ -68,6 +106,7 @@ export namespace Config {
       dirs: { ...defaults.dirs, ...values.dirs },
       models: { ...defaults.models, ...values.models },
       server: { ...defaults.server, ...values.server },
+      embedding: { ...defaults.embedding, ...values.embedding },
     };
   }
 
@@ -76,9 +115,11 @@ export namespace Config {
 
     let fileConfig: PartialConfig = {};
     try {
-      fileConfig = JSON.parse(readFileSync(CONFIG_PATH, "utf-8"));
+      const rawConfig = JSON.parse(readFileSync(getConfigPath(), "utf-8"));
+      // Validate the config file using Zod
+      fileConfig = ConfigSchemaZod.partial().parse(rawConfig);
     } catch {
-      // File doesn't exist or invalid JSON - use defaults
+      // File doesn't exist, invalid JSON, or validation failed - use defaults
     }
 
     set(fileConfig);
@@ -91,6 +132,7 @@ export namespace Config {
 
   export function reset(): void {
     config = null;
+    customConfigPath = null;
   }
 }
 
@@ -110,9 +152,10 @@ export namespace ProjectConfig {
 
     try {
       if (existsSync(configPath)) {
-        const fileConfig: PartialProjectConfig = JSON.parse(
-          readFileSync(configPath, "utf-8"),
-        );
+        const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
+        // Validate using Zod
+        const fileConfig: PartialProjectConfig =
+          ProjectConfigSchemaZod.partial().parse(rawConfig);
         config = {
           projects: fileConfig.projects ?? defaults.projects,
         };

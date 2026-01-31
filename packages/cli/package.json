@@ -12,6 +12,7 @@
     "spallm": "src/spallm/index.ts"
   },
   "scripts": {
+    "postinstall": "bun scripts/postinstall.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
