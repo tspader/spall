@@ -34,9 +34,30 @@ function mockClient(calls: Call[], allNotes: NoteInfo[] = makeNotes(1)) {
         calls.push({ method: "project.list", args: {} });
         return Promise.resolve(
           ok([
-            { id: 1, name: "default", dir: "", noteCount: 0, createdAt: 0, updatedAt: 0 },
-            { id: 2, name: "docs", dir: "", noteCount: 0, createdAt: 0, updatedAt: 0 },
-            { id: 3, name: "other", dir: "", noteCount: 0, createdAt: 0, updatedAt: 0 },
+            {
+              id: 1,
+              name: "default",
+              dir: "",
+              noteCount: 0,
+              createdAt: 0,
+              updatedAt: 0,
+            },
+            {
+              id: 2,
+              name: "docs",
+              dir: "",
+              noteCount: 0,
+              createdAt: 0,
+              updatedAt: 0,
+            },
+            {
+              id: 3,
+              name: "other",
+              dir: "",
+              noteCount: 0,
+              createdAt: 0,
+              updatedAt: 0,
+            },
           ]),
         );
       },
@@ -166,5 +187,26 @@ describe("spall get", () => {
     expect(notesCalls).toHaveLength(2);
     expect(notesCalls[0]!.args.limit).toBe(100);
     expect(notesCalls[1]!.args.limit).toBe(20);
+  });
+
+  test("--all flag is accepted", async () => {
+    // Just verify the handler accepts the --all flag without error
+    (Client as any).connect = async () => mockClient(calls, makeNotes(10));
+
+    // Should not throw
+    await get.handler!({ path: "*", all: true, output: "json" });
+
+    const notesCalls = calls.filter((c) => c.method === "query.notes");
+    expect(notesCalls.length).toBeGreaterThan(0);
+  });
+
+  test("--all with false value works", async () => {
+    (Client as any).connect = async () => mockClient(calls, makeNotes(10));
+
+    // Should not throw
+    await get.handler!({ path: "*", all: false, output: "json" });
+
+    const notesCalls = calls.filter((c) => c.method === "query.notes");
+    expect(notesCalls.length).toBeGreaterThan(0);
   });
 });

@@ -55,6 +55,7 @@ export const sync: CommandDef = {
     const scanCounts = { added: 0, modified: 0, removed: 0, ok: 0 };
     let embedTotalBytes = 0;
     let embedTotalFiles = 0;
+    let embedStartTime = 0;
 
     const { stream } = await client.sse.note.sync({
       directory: dir,
@@ -101,8 +102,14 @@ export const sync: CommandDef = {
         case "embed.start":
           embedTotalFiles = event.numFiles;
           embedTotalBytes = event.numBytes;
+          embedStartTime = performance.now();
+          const sizeStr = embedTotalBytes >= 1024 * 1024
+            ? `${(embedTotalBytes / (1024 * 1024)).toFixed(1)} MB`
+            : embedTotalBytes >= 1024
+              ? `${(embedTotalBytes / 1024).toFixed(1)} KB`
+              : `${embedTotalBytes} B`;
           consola.info(
-            `Embedding ${event.numChunks} chunks from ${event.numFiles} files`,
+            `Embedding ${event.numChunks} chunks from ${event.numFiles} files ${pc.dim(`(${sizeStr})`)}`,
           );
           break;
         case "embed.progress": {
@@ -111,8 +118,15 @@ export const sync: CommandDef = {
             : 0;
           const bar = renderProgressBar(percent);
           const percentStr = percent.toFixed(0).padStart(3);
+          const elapsed = (performance.now() - embedStartTime) / 1000;
+          const bps = elapsed > 0 ? event.numBytesProcessed / elapsed : 0;
+          const bpsStr = bps >= 1024 * 1024
+            ? `${(bps / (1024 * 1024)).toFixed(1)} MB/s`
+            : bps >= 1024
+              ? `${(bps / 1024).toFixed(1)} KB/s`
+              : `${bps.toFixed(0)} B/s`;
           process.stderr.write(
-            `\r${bar} ${pc.bold(percentStr + "%")} files ${event.numFilesProcessed}/${embedTotalFiles} ${CLEAR}`,
+            `\r${bar} ${pc.bold(percentStr + "%")} files ${event.numFilesProcessed}/${embedTotalFiles} ${pc.dim(`(${bpsStr})`)} ${CLEAR}`,
           );
           break;
         }

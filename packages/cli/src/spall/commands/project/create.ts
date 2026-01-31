@@ -8,15 +8,8 @@ export const create: CommandDef = {
   positionals: {
     name: {
       type: "string",
-      description: "Project name (defaults to directory name)",
-    },
-  },
-  options: {
-    dir: {
-      alias: "d",
-      type: "string",
-      description: "Project directory",
-      default: process.cwd(),
+      description: "Project name",
+      required: true,
     },
   },
   handler: async (argv) => {
@@ -24,13 +17,10 @@ export const create: CommandDef = {
 
     const result = await client.project
       .create({
-        dir: argv.dir,
         name: argv.name,
       })
       .then(Client.unwrap);
 
-    consola.success(
-      `Project ${pc.cyanBright(result.name)} (id: ${result.id})`,
-    );
+    consola.success(`Project ${pc.cyanBright(result.name)} (id: ${result.id})`);
   },
 };

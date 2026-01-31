@@ -1,7 +1,12 @@
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
 import { ProjectConfig } from "@spall/core";
-import { table, type CommandDef, defaultTheme as theme } from "@spall/cli/shared";
+import {
+  table,
+  type CommandDef,
+  defaultTheme as theme,
+  cleanEscapes,
+} from "@spall/cli/shared";
 
 export const get: CommandDef = {
   description: "Get note(s) by path or glob",
@@ -28,6 +33,11 @@ export const get: CommandDef = {
       type: "string",
       description: "Output format: list, tree, table, json",
     },
+    all: {
+      alias: "a",
+      type: "boolean",
+      description: "Print all results without limiting output",
+    },
   },
   handler: async (argv) => {
     const client = await Client.connect();
@@ -49,6 +59,10 @@ export const get: CommandDef = {
       return id;
     });
 
+    const output = argv.output ?? (argv.path === "*" ? "tree" : "list");
+
+    const showAll = argv.all === true;
+
     // create query
     const query = await client.query
       .create({ projects: projectIds })
@@ -64,7 +78,14 @@ export const get: CommandDef = {
     type Page = { notes: NoteInfo[]; nextCursor: string | null };
     const notes: NoteInfo[] = [];
     let cursor: string | undefined = undefined;
-    const limit = argv.max ?? Infinity;
+
+    const rowBudget = showAll
+      ? Infinity
+      : output === "table" || output === "list"
+        ? Math.max(1, (process.stdout.rows ?? 24) - 3)
+        : Infinity;
+
+    const limit = Math.min(argv.max ?? Infinity, rowBudget);
 
     while (notes.length < limit) {
       const page: Page = await client.query
@@ -87,7 +108,6 @@ export const get: CommandDef = {
       return;
     }
 
-    const output = argv.output ?? (argv.path === "*" ? "tree" : "list");
     switch (output) {
       case "json":
         console.log(JSON.stringify(notes, null, 2));
@@ -97,8 +117,14 @@ export const get: CommandDef = {
           name: string;
           isDir: boolean;
           children: Map<string, TreeNode>;
+          notes: NoteInfo[]; // For leaf nodes, store the actual notes
         };
-        const root: TreeNode = { name: "", isDir: true, children: new Map() };
+        const root: TreeNode = {
+          name: "",
+          isDir: true,
+          children: new Map(),
+          notes: [],
+        };
 
         for (const note of notes) {
           const parts = note.path.split("/");
@@ -111,11 +137,17 @@ export const get: CommandDef = {
                 name: part,
                 isDir: !isLast,
                 children: new Map(),
+                notes: [],
               });
             }
             current = current.children.get(part)!;
+            if (isLast) {
+              current.notes.push(note);
+            }
           }
         }
+
+        const MAX_NOTES_PER_LEAF = 3;
 
         function printTree(node: TreeNode, indent: string = ""): void {
           const sorted = Array.from(node.children.entries()).sort((a, b) => {
@@ -128,7 +160,36 @@ export const get: CommandDef = {
               console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
               printTree(child, indent + " ");
             } else {
-              console.log(`${theme.dim(indent)}${name}`);
+              // This is a leaf node (file), display notes at this path
+              const notesToShow = showAll
+                ? child.notes
+                : child.notes.slice(0, MAX_NOTES_PER_LEAF);
+
+              for (let i = 0; i < notesToShow.length; i++) {
+                const note = notesToShow[i]!;
+
+                if (notesToShow.length > 1 || child.notes.length > 1) {
+                  // Multiple notes at this path, show index
+                  const index = theme.dim(`[${i + 1}/${child.notes.length}] `);
+                  const prefix = indent + index + name;
+                  console.log(theme.dim(prefix));
+                } else {
+                  console.log(`${theme.dim(indent)}${name}`);
+                }
+
+                // Print truncated content preview
+                const contentIndent = indent + "  ";
+                const content = cleanEscapes(note.content);
+                console.log(`${theme.dim(contentIndent)}${theme.dim(content)}`);
+              }
+
+              // Show ellipsis if there are more notes
+              if (!showAll && child.notes.length > MAX_NOTES_PER_LEAF) {
+                const remaining = child.notes.length - MAX_NOTES_PER_LEAF;
+                console.log(
+                  `${theme.dim(indent)}  ${theme.dim(`( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`)}`,
+                );
+              }
             }
           }
         }
@@ -137,27 +198,67 @@ export const get: CommandDef = {
         break;
       }
       case "table": {
-        const oneLine = (s: string) => s.replace(/\n/g, " ");
+        const maxRows = showAll
+          ? notes.length
+          : Math.max(1, (process.stdout.rows ?? 24) - 3);
+
         table(
           ["path", "id", "content"],
           [
             notes.map((n) => n.path),
             notes.map((n) => String(n.id)),
-            notes.map((n) => oneLine(n.content)),
+            notes.map((n) => n.content),
           ],
-          { flex: [1, 0, 2] },
+          {
+            // id stays intact; content gets guaranteed room; path truncates from the start.
+            flex: [1, 0, 2],
+            noTruncate: [false, true, false],
+            min: [0, 0, 3],
+            truncate: ["start", "end", "middle"],
+            format: [
+              (s) => {
+                const bodyLen = s.trimEnd().length;
+                const body = s.slice(0, bodyLen);
+                const pad = s.slice(bodyLen);
+
+                const slash = body.lastIndexOf("/");
+                if (slash === -1) return theme.primary(body) + pad;
+
+                const prefix = body.slice(0, slash + 1);
+                const name = body.slice(slash + 1);
+                return theme.dim(prefix) + theme.primary(name) + pad;
+              },
+              (s) => theme.code(s),
+            ],
+            maxRows,
+          },
         );
         break;
       }
-      default:
-        for (let i = 0; i < notes.length; i++) {
+      default: {
+        const maxNotes = showAll
+          ? notes.length
+          : Math.max(1, (process.stdout.rows ?? 24) - 3);
+
+        for (let i = 0; i < Math.min(notes.length, maxNotes); i++) {
           const note = notes[i]!;
           if (notes.length > 1) {
             console.log(theme.command(note.path));
           }
           console.log(note.content);
-          if (i < notes.length - 1) console.log("");
+          if (i < Math.min(notes.length, maxNotes) - 1) console.log("");
         }
+
+        if (notes.length > maxNotes && !showAll) {
+          const remaining = notes.length - maxNotes;
+          console.log(
+            theme.dim(
+              `( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`,
+            ),
+          );
+        }
+        break;
+      }
     }
   },
 };
