@@ -542,7 +542,7 @@ function App(props: AppProps) {
     >
       <box flexGrow={1} flexDirection="row" gap={1}>
         <box
-          width={35}
+          width={40}
           flexDirection="column"
           gap={1}
           paddingTop={1}

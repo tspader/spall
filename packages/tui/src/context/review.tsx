@@ -184,7 +184,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
 
     try {
       // Get or create project for this repo
-      const result = await client.project.create({ dir: root });
+      const result = await client.project.create({ name: root });
       if (result.data) {
         setProjectId(result.data.id);
         setProjectName(result.data.name);

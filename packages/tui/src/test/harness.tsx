@@ -196,7 +196,7 @@ export namespace Test {
       const client = await Client.connect();
       const projects = await client.project.list({}).then((r) => r.data ?? []);
       const testProjects = projects.filter((p) =>
-        p.name.startsWith("spall-test-"),
+        p.name.includes("spall-test-"),
       );
       for (const project of testProjects) {
         await client.project.delete({ id: String(project.id) });
@@ -269,10 +269,12 @@ export namespace Test {
         }
       },
 
-      cleanup: () => {
+      cleanup: async () => {
         engine.detach();
         renderer.renderer.destroy();
         repo.cleanup();
+        // Clean up test projects created by this test
+        await cleanupTestProjects();
       },
 
       renderer,

@@ -5,8 +5,8 @@ import { Review } from "../Review";
 
 let harness: Test.Harness | null = null;
 
-afterEach(() => {
-  harness?.cleanup();
+afterEach(async () => {
+  await harness?.cleanup();
   harness = null;
 });
 
