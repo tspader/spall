@@ -25,14 +25,10 @@ import ocaml_wasm from "tree-sitter-wasms/out/tree-sitter-ocaml.wasm" with { typ
 import php_wasm from "tree-sitter-wasms/out/tree-sitter-php.wasm" with { type: "file" };
 import python_wasm from "tree-sitter-wasms/out/tree-sitter-python.wasm" with { type: "file" };
 import ql_wasm from "tree-sitter-wasms/out/tree-sitter-ql.wasm" with { type: "file" };
-import rescript_wasm from "tree-sitter-wasms/out/tree-sitter-rescript.wasm" with { type: "file" };
 import ruby_wasm from "tree-sitter-wasms/out/tree-sitter-ruby.wasm" with { type: "file" };
 import rust_wasm from "tree-sitter-wasms/out/tree-sitter-rust.wasm" with { type: "file" };
 import scala_wasm from "tree-sitter-wasms/out/tree-sitter-scala.wasm" with { type: "file" };
-import solidity_wasm from "tree-sitter-wasms/out/tree-sitter-solidity.wasm" with { type: "file" };
 import swift_wasm from "tree-sitter-wasms/out/tree-sitter-swift.wasm" with { type: "file" };
-import systemrdl_wasm from "tree-sitter-wasms/out/tree-sitter-systemrdl.wasm" with { type: "file" };
-import tlaplus_wasm from "tree-sitter-wasms/out/tree-sitter-tlaplus.wasm" with { type: "file" };
 import toml_wasm from "tree-sitter-wasms/out/tree-sitter-toml.wasm" with { type: "file" };
 import tsx_wasm from "tree-sitter-wasms/out/tree-sitter-tsx.wasm" with { type: "file" };
 import typescript_wasm from "tree-sitter-wasms/out/tree-sitter-typescript.wasm" with { type: "file" };
@@ -63,14 +59,10 @@ import ocaml_highlights from "./queries/ocaml.scm" with { type: "file" };
 import php_highlights from "./queries/php.scm" with { type: "file" };
 import python_highlights from "./queries/python.scm" with { type: "file" };
 import ql_highlights from "./queries/ql.scm" with { type: "file" };
-import rescript_highlights from "./queries/rescript.scm" with { type: "file" };
 import ruby_highlights from "./queries/ruby.scm" with { type: "file" };
 import rust_highlights from "./queries/rust.scm" with { type: "file" };
 import scala_highlights from "./queries/scala.scm" with { type: "file" };
-import solidity_highlights from "./queries/solidity.scm" with { type: "file" };
 import swift_highlights from "./queries/swift.scm" with { type: "file" };
-import systemrdl_highlights from "./queries/systemrdl.scm" with { type: "file" };
-import tlaplus_highlights from "./queries/tlaplus.scm" with { type: "file" };
 import toml_highlights from "./queries/toml.scm" with { type: "file" };
 import tsx_highlights from "./queries/tsx.scm" with { type: "file" };
 import typescript_highlights from "./queries/typescript.scm" with { type: "file" };
@@ -178,11 +170,6 @@ export const parsers = [
   },
   { filetype: "ql", wasm: ql_wasm, queries: { highlights: [ql_highlights] } },
   {
-    filetype: "rescript",
-    wasm: rescript_wasm,
-    queries: { highlights: [rescript_highlights] },
-  },
-  {
     filetype: "ruby",
     wasm: ruby_wasm,
     queries: { highlights: [ruby_highlights] },
@@ -198,24 +185,9 @@ export const parsers = [
     queries: { highlights: [scala_highlights] },
   },
   {
-    filetype: "solidity",
-    wasm: solidity_wasm,
-    queries: { highlights: [solidity_highlights] },
-  },
-  {
     filetype: "swift",
     wasm: swift_wasm,
     queries: { highlights: [swift_highlights] },
-  },
-  {
-    filetype: "systemrdl",
-    wasm: systemrdl_wasm,
-    queries: { highlights: [systemrdl_highlights] },
-  },
-  {
-    filetype: "tlaplus",
-    wasm: tlaplus_wasm,
-    queries: { highlights: [tlaplus_highlights] },
   },
   {
     filetype: "toml",

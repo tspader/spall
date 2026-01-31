@@ -170,12 +170,11 @@ export function ReviewProvider(props: ReviewProviderProps) {
 
   // React to server connection changes
   createEffect(async () => {
-    const c = server.client();
+    const client = server.client();
     const root = repoRoot();
-    const revId = reviewId();
+    const id = reviewId();
 
-    if (!c || !root) {
-      // Disconnected - reset project state but keep comments
+    if (!client || !root) {
       setProjectInitialized(false);
       return;
     }
@@ -185,7 +184,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
 
     try {
       // Get or create project for this repo
-      const result = await c.project.create({ dir: root });
+      const result = await client.project.create({ dir: root });
       if (result.data) {
         setProjectId(result.data.id);
         setProjectName(result.data.name);
@@ -193,8 +192,8 @@ export function ReviewProvider(props: ReviewProviderProps) {
       }
 
       // Load existing comments if we have a review
-      if (revId) {
-        await loadComments(revId, c);
+      if (id) {
+        await loadComments(id, client);
       }
 
       setProjectInitialized(true);

@@ -6,9 +6,7 @@ import { EmptyBorder } from "../HalfLineShadow";
 /** Static section title (for Server, Project, etc.) */
 function SectionTitle(props: { title: string }) {
   return (
-    <box
-      flexShrink={0}
-    >
+    <box flexShrink={0}>
       <text>
         <span style={{ bold: true }}>{props.title}</span>
       </text>
@@ -31,11 +29,11 @@ export function Title(props: { section: SidebarSection }) {
       flexShrink={0}
       border={["left"]}
       borderColor={isActive() ? theme.primary : theme.indicatorDefault}
+      backgroundColor={isActive() ? theme.backgroundElement : theme.backgroundPanel}
       customBorderChars={{
         ...EmptyBorder,
-        vertical: "▌"
+        vertical: "\u258C",
       }}
-
     >
       <text>
         <span style={{ bold: true }}>{title()}</span>

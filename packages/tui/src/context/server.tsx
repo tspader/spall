@@ -31,8 +31,6 @@ export function ServerProvider(props: ParentProps) {
   };
 
   onMount(() => {
-    const retries = 0;
-
     const connect = async () => {
       while (!shutdown) {
         try {
@@ -69,21 +67,8 @@ export function ServerProvider(props: ParentProps) {
         }
       }
     };
-    void connect();
 
-    // const connectLoop = async () => {
-    //   while (!shutdown) {
-    //     try {
-    //     } catch {
-    //       // Disconnected or failed to connect - immediately retry unless shutting down
-    //       setConnected(false);
-    //       setClient(null);
-    //       setUrl(null);
-    //     }
-    //   }
-    // };
-    //
-    // connectLoop();
+    connect();
   });
 
   onCleanup(() => {

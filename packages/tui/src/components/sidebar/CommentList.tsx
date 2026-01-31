@@ -44,15 +44,7 @@ export function CommentList(props: CommentListProps) {
 
   return (
     <box flexDirection="column">
-      <box flexDirection="row" flexShrink={0}>
-        <Title section="comments" />
-        <text fg={theme.textMuted}> ({commentCount()})</text>
-      </box>
-      <Show when={props.loading()}>
-        <box>
-          <text fg={theme.textMuted}>Loading...</text>
-        </box>
-      </Show>
+      <Title section="comments" />
 
       <Show when={!props.loading() && commentCount() === 0}>
         <box>

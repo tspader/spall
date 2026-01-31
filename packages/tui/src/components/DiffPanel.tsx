@@ -4,29 +4,26 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import { Git } from "../lib/git";
 import { getHunkIndexForRow, parseFileDiff } from "../lib/diff";
 import { useTheme } from "../context/theme";
+import { EmptyBorder } from "./HalfLineShadow";
 
 function getFiletype(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const extMap: Record<string, string> = {
-    // JavaScript/TypeScript
     ts: "typescript",
     tsx: "tsx",
     js: "javascript",
     jsx: "javascript",
     mjs: "javascript",
     cjs: "javascript",
-    // Web
     html: "html",
     htm: "html",
     css: "css",
     scss: "css",
     vue: "vue",
-    // Data formats
     json: "json",
     yaml: "yaml",
     yml: "yaml",
     toml: "toml",
-    // Systems languages
     c: "c",
     h: "c",
     cpp: "cpp",
@@ -37,7 +34,6 @@ function getFiletype(filename: string): string {
     rs: "rust",
     go: "go",
     zig: "zig",
-    // Scripting
     py: "python",
     rb: "ruby",
     lua: "lua",
@@ -45,35 +41,24 @@ function getFiletype(filename: string): string {
     bash: "bash",
     zsh: "bash",
     php: "php",
-    // JVM
     java: "java",
     kt: "kotlin",
     kts: "kotlin",
     scala: "scala",
-    // .NET
     cs: "c_sharp",
-    // Mobile
     swift: "swift",
     m: "objc",
     mm: "objc",
     dart: "dart",
-    // Functional
     ex: "elixir",
     exs: "elixir",
     elm: "elm",
     ml: "ocaml",
     mli: "ocaml",
     el: "elisp",
-    // Other
     sql: "ql",
-    res: "rescript",
-    resi: "rescript",
-    sol: "solidity",
-    tla: "tlaplus",
-    rdl: "systemrdl",
     erb: "embedded_template",
     ejs: "embedded_template",
-    // Markdown (uses opentui built-in)
     md: "markdown",
     mdx: "markdown",
   };
@@ -126,19 +111,28 @@ export function DiffPanel(props: DiffPanelProps) {
       {/* Title bar */}
       <box
         height={1}
-        paddingLeft={1}
         flexDirection="row"
         justifyContent="flex-start"
         gap={1}
+        backgroundColor={props.focused() ? theme.backgroundElement : theme.backgroundPanel}
+      border={["left"]}
+      borderColor={props.focused() ? theme.primary : theme.indicatorDefault}
+        customBorderChars={{
+          ...EmptyBorder,
+        vertical: "\u258C",
+      }}
+
       >
-        <text>
-          <span style={{ italic: true }}>
-            {props.entry() ? props.entry()!.file : "none"}
-          </span>
-        </text>
-        <text>
-          <span style={{ bold: true }}>{title()}</span>
-        </text>
+        <box paddingLeft={1} flexDirection="row" gap={1}>
+          <text>
+            <span style={{ italic: true }}>
+              {props.entry() ? props.entry()!.file : "none"}
+            </span>
+          </text>
+          <text>
+            <span style={{ bold: true }}>{title()}</span>
+          </text>
+        </box>
       </box>
 
       <Show when={props.entry()}>
