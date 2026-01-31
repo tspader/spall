@@ -13,7 +13,6 @@ export namespace Sql {
     CREATE TABLE IF NOT EXISTS projects (
       id INTEGER PRIMARY KEY,
       name TEXT NOT NULL UNIQUE,
-      dir TEXT NOT NULL,
       created_at INTEGER NOT NULL DEFAULT 0,
       updated_at INTEGER NOT NULL DEFAULT 0
     )
@@ -84,7 +83,7 @@ export namespace Sql {
   `;
 
   export const UPSERT_PROJECT = `
-    INSERT INTO projects (name, dir, created_at, updated_at) VALUES (?, ?, ?, ?)
+    INSERT INTO projects (name, created_at, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET updated_at = excluded.updated_at
     RETURNING id
   `;
@@ -94,7 +93,7 @@ export namespace Sql {
   `;
 
   export const INSERT_DEFAULT_PROJECT = `
-    INSERT OR IGNORE INTO projects (id, name, dir, created_at, updated_at) VALUES (1, 'default', '', strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000)
+    INSERT OR IGNORE INTO projects (id, name, created_at, updated_at) VALUES (1, 'default', strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000)
   `;
 
   export const INSERT_NOTE = `
@@ -110,11 +109,11 @@ export namespace Sql {
   `;
 
   export const GET_PROJECT_BY_NAME = `
-    SELECT id, name, dir, created_at, updated_at FROM projects WHERE name = ?
+    SELECT id, name, created_at, updated_at FROM projects WHERE name = ?
   `;
 
   export const GET_PROJECT_BY_ID = `
-    SELECT id, name, dir, created_at, updated_at FROM projects WHERE id = ?
+    SELECT id, name, created_at, updated_at FROM projects WHERE id = ?
   `;
 
   export const GET_NOTE_BY_PATH = `
@@ -141,7 +140,7 @@ export namespace Sql {
   `;
 
   export const LIST_PROJECTS = `
-    SELECT id, name, dir, created_at, updated_at FROM projects
+    SELECT id, name, created_at, updated_at FROM projects
   `;
 
   export const DELETE_PROJECT = `
@@ -174,6 +173,24 @@ export namespace Sql {
     WHERE project_id = ? AND path GLOB ? AND path > ?
     ORDER BY path
     LIMIT ?
+  `;
+
+  export const CREATE_FILES_TABLE = `
+    CREATE TABLE IF NOT EXISTS files (
+      id INTEGER PRIMARY KEY,
+      path TEXT NOT NULL UNIQUE,
+      content_hash TEXT NOT NULL,
+      mtime INTEGER NOT NULL
+    )
+  `;
+
+  export const GET_FILE_HASH = `
+    SELECT content_hash FROM files WHERE path = ? AND mtime = ?
+  `;
+
+  export const UPSERT_FILE_HASH = `
+    INSERT INTO files (path, content_hash, mtime) VALUES (?, ?, ?)
+    ON CONFLICT(path) DO UPDATE SET content_hash = excluded.content_hash, mtime = excluded.mtime
   `;
 
   export const CREATE_QUERIES_TABLE = `

@@ -124,6 +124,7 @@ export namespace Store {
     db.run(Sql.CREATE_PROJECT_TABLE);
     db.run(Sql.CREATE_NOTES_TABLE);
     db.run(Sql.CREATE_EMBEDDINGS_TABLE);
+    db.run(Sql.CREATE_FILES_TABLE);
     db.run(Sql.CREATE_QUERIES_TABLE);
 
     db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
@@ -222,6 +223,22 @@ export namespace Store {
 
   function getHash(content: string): string {
     return Bun.hash(content).toString(16);
+  }
+
+  function cachedHash(
+    absPath: string,
+    mtime: number,
+    content?: string,
+  ): string | null {
+    const db = get();
+    const row = db.prepare(Sql.GET_FILE_HASH).get(absPath, mtime) as {
+      content_hash: string;
+    } | null;
+    if (row) return row.content_hash;
+    if (content === undefined) return null;
+    const hash = getHash(content);
+    db.run(Sql.UPSERT_FILE_HASH, [absPath, hash, mtime]);
+    return hash;
   }
 
   export function clearNoteEmbeddings(noteId: number): void {
@@ -361,8 +378,10 @@ export namespace Store {
         added.push(path);
         status = "added";
       } else if (meta.modTime > note.mtime) {
-        const content = Io.read(dir, file);
-        const hash = getHash(content);
+        const absPath = join(dir, file);
+        const hash =
+          cachedHash(absPath, meta.modTime) ??
+          cachedHash(absPath, meta.modTime, Io.read(dir, file))!;
         if (note.content_hash !== hash) {
           modified.push(path);
           status = "modified";
@@ -437,7 +456,8 @@ export namespace Store {
       const meta = Io.get(dir, file);
       const content = Io.read(dir, file);
       const chunks = await chunk(content);
-      const contentHash = getHash(content);
+      const absPath = join(dir, file);
+      const contentHash = cachedHash(absPath, meta.modTime, content)!;
       const rel = canonicalPath(file);
       const notePath = canonicalPrefix ? `${canonicalPrefix}/${rel}` : rel;
       const existing = statements.getNote.get(projectId, notePath) as {
@@ -476,7 +496,7 @@ export namespace Store {
     }
 
     const numFiles = work.length;
-    const numBytes = work.reduce((sum, entry) => sum + entry.note.size, 0);
+    const numBytes = work.reduce((sum, entry) => sum + entry.chunks.reduce((s, c) => s + c.text.length, 0), 0);
     const numChunks = work.reduce((sum, entry) => sum + entry.chunks.length, 0);
     await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes });
 
@@ -508,10 +528,7 @@ export namespace Store {
             String(inserted.id),
             new Float32Array(embeddings[j]!),
           );
-        }
-
-        for (const note of pendingNotes) {
-          numBytesProcessed += note.size;
+          numBytesProcessed += c.text.length;
         }
 
         numFilesProcessed += pendingNotes.length;

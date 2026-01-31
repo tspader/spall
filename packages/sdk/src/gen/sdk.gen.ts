@@ -425,21 +425,13 @@ export class Project extends HeyApiClient {
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
-      dir?: string;
       name?: string;
     },
     options?: Options<never, ThrowOnError>,
   ) {
     const params = buildClientParams(
       [parameters],
-      [
-        {
-          args: [
-            { in: "body", key: "dir" },
-            { in: "body", key: "name" },
-          ],
-        },
-      ],
+      [{ args: [{ in: "body", key: "name" }] }],
     );
     return (options?.client ?? this.client).post<
       ProjectCreateResponses,

@@ -188,7 +188,6 @@ export type ProjectGetResponses = {
   200: {
     id: number;
     name: string;
-    dir: string;
     noteCount: number;
     createdAt: number;
     updatedAt: number;
@@ -199,8 +198,7 @@ export type ProjectGetResponse = ProjectGetResponses[keyof ProjectGetResponses];
 
 export type ProjectCreateData = {
   body?: {
-    dir: string;
-    name?: string;
+    name: string;
   };
   path?: never;
   query?: never;
@@ -214,7 +212,6 @@ export type ProjectCreateResponses = {
   200: {
     id: number;
     name: string;
-    dir: string;
     noteCount: number;
     createdAt: number;
     updatedAt: number;
@@ -250,7 +247,6 @@ export type ProjectListResponses = {
   200: Array<{
     id: number;
     name: string;
-    dir: string;
     noteCount: number;
     createdAt: number;
     updatedAt: number;
@@ -569,7 +565,6 @@ export type SseNoteSyncResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -580,7 +575,6 @@ export type SseNoteSyncResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -720,7 +714,6 @@ export type SseNoteAddResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -731,7 +724,6 @@ export type SseNoteAddResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -871,7 +863,6 @@ export type SseNoteUpsertResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -882,7 +873,6 @@ export type SseNoteUpsertResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -1022,7 +1012,6 @@ export type SseNoteUpdateResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -1033,7 +1022,6 @@ export type SseNoteUpdateResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -1184,7 +1172,6 @@ export type EventsResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;
@@ -1195,7 +1182,6 @@ export type EventsResponses = {
         info: {
           id: number;
           name: string;
-          dir: string;
           noteCount: number;
           createdAt: number;
           updatedAt: number;

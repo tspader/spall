@@ -1,5 +1,4 @@
 import z from "zod";
-import { basename } from "path";
 import { api } from "./api";
 import { Store } from "./store";
 import { Bus } from "./event";
@@ -20,7 +19,6 @@ export namespace Project {
   export const Info = z.object({
     id: Id,
     name: z.string(),
-    dir: z.string(),
     noteCount: z.number(),
     createdAt: z.number(),
     updatedAt: z.number(),
@@ -41,7 +39,6 @@ export namespace Project {
   type Row = {
     id: number;
     name: string;
-    dir: string;
     created_at: number;
     updated_at: number;
   };
@@ -83,7 +80,6 @@ export namespace Project {
       return {
         id: Id.parse(row.id),
         name: row.name,
-        dir: row.dir,
         noteCount: countNotes(db, row.id),
         createdAt: row.created_at,
         updatedAt: row.updated_at,
@@ -100,7 +96,6 @@ export namespace Project {
     return rows.map((row) => ({
       id: Id.parse(row.id),
       name: row.name,
-      dir: row.dir,
       noteCount: countNotes(db, row.id),
       createdAt: row.created_at,
       updatedAt: row.updated_at,
@@ -109,14 +104,13 @@ export namespace Project {
 
   export const create = api(
     z.object({
-      dir: z.string(),
-      name: z.string().optional(),
+      name: z.string(),
     }),
     async (input): Promise<Info> => {
       Store.ensure();
       const db = Store.get();
 
-      const name = input.name ?? basename(input.dir);
+      const name = input.name;
 
       // Check if project already exists
       const existing = db
@@ -128,9 +122,7 @@ export namespace Project {
 
       // Create new project
       const now = Date.now();
-      const row = db
-        .prepare(Sql.UPSERT_PROJECT)
-        .get(name, input.dir, now, now) as {
+      const row = db.prepare(Sql.UPSERT_PROJECT).get(name, now, now) as {
         id: number;
       };
 

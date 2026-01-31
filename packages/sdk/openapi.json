@@ -393,9 +393,6 @@
                     "name": {
                       "type": "string"
                     },
-                    "dir": {
-                      "type": "string"
-                    },
                     "noteCount": {
                       "type": "number"
                     },
@@ -409,7 +406,6 @@
                   "required": [
                     "id",
                     "name",
-                    "dir",
                     "noteCount",
                     "createdAt",
                     "updatedAt"
@@ -425,15 +421,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "dir": {
-                    "type": "string"
-                  },
                   "name": {
                     "type": "string"
                   }
                 },
                 "required": [
-                  "dir"
+                  "name"
                 ]
               }
             }
@@ -458,9 +451,6 @@
                     "name": {
                       "type": "string"
                     },
-                    "dir": {
-                      "type": "string"
-                    },
                     "noteCount": {
                       "type": "number"
                     },
@@ -474,7 +464,6 @@
                   "required": [
                     "id",
                     "name",
-                    "dir",
                     "noteCount",
                     "createdAt",
                     "updatedAt"
@@ -545,9 +534,6 @@
                       "name": {
                         "type": "string"
                       },
-                      "dir": {
-                        "type": "string"
-                      },
                       "noteCount": {
                         "type": "number"
                       },
@@ -561,7 +547,6 @@
                     "required": [
                       "id",
                       "name",
-                      "dir",
                       "noteCount",
                       "createdAt",
                       "updatedAt"
@@ -1273,9 +1258,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -1289,7 +1271,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -1317,9 +1298,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -1333,7 +1311,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -1839,9 +1816,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -1855,7 +1829,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -1883,9 +1856,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -1899,7 +1869,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -2409,9 +2378,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -2425,7 +2391,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -2453,9 +2418,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -2469,7 +2431,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -2989,9 +2950,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -3005,7 +2963,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -3033,9 +2990,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -3049,7 +3003,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -3580,9 +3533,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -3596,7 +3546,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"
@@ -3624,9 +3573,6 @@
                             "name": {
                               "type": "string"
                             },
-                            "dir": {
-                              "type": "string"
-                            },
                             "noteCount": {
                               "type": "number"
                             },
@@ -3640,7 +3586,6 @@
                           "required": [
                             "id",
                             "name",
-                            "dir",
                             "noteCount",
                             "createdAt",
                             "updatedAt"

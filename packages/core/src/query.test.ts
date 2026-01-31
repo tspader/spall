@@ -64,9 +64,7 @@ describe("Query", () => {
   });
 
   test("get throws for nonexistent query", () => {
-    expect(() => Query.get({ id: Query.Id.parse(999) })).toThrow(
-      /not found/i,
-    );
+    expect(() => Query.get({ id: Query.Id.parse(999) })).toThrow(/not found/i);
   });
 
   test("notes returns notes from a single project", async () => {
@@ -82,7 +80,7 @@ describe("Query", () => {
   });
 
   test("notes aggregates across multiple projects", async () => {
-    const p2 = await Project.create({ dir: tmpDir, name: "second" });
+    const p2 = await Project.create({ name: "second" });
 
     await addNote(PROJECT_ID, "default.md", "from default");
     await addNote(p2.id, "second.md", "from second");
@@ -96,8 +94,8 @@ describe("Query", () => {
   });
 
   test("notes excludes projects not in the query", async () => {
-    const p2 = await Project.create({ dir: tmpDir, name: "second" });
-    const p3 = await Project.create({ dir: tmpDir, name: "third" });
+    const p2 = await Project.create({ name: "second" });
+    const p3 = await Project.create({ name: "third" });
 
     await addNote(PROJECT_ID, "a.md", "a");
     await addNote(p2.id, "b.md", "b");
@@ -155,7 +153,7 @@ describe("Query", () => {
     });
 
     test("pagination works across multiple projects", async () => {
-      const p2 = await Project.create({ dir: tmpDir, name: "second" });
+      const p2 = await Project.create({ name: "second" });
 
       // notes sort by path globally: a.md, b.md, c.md, d.md
       await addNote(PROJECT_ID, "a.md", "a");
@@ -187,7 +185,7 @@ describe("Query", () => {
     });
 
     test("full drain collects all notes", async () => {
-      const p2 = await Project.create({ dir: tmpDir, name: "second" });
+      const p2 = await Project.create({ name: "second" });
 
       for (let i = 0; i < 5; i++) {
         await addNote(PROJECT_ID, `default-${i}.md`, `d${i}`);
@@ -258,7 +256,7 @@ describe("Project.remove", () => {
   });
 
   test("deletes project with notes, embeddings, and vectors", async () => {
-    const p = await Project.create({ dir: tmpDir, name: "deleteme" });
+    const p = await Project.create({ name: "deleteme" });
     await Note.add({ project: p.id, path: "a.md", content: "alpha" });
     await Note.add({ project: p.id, path: "b.md", content: "beta" });
 
@@ -299,8 +297,8 @@ describe("Project.remove", () => {
   });
 
   test("does not affect other projects", async () => {
-    const p1 = await Project.create({ dir: tmpDir, name: "keep" });
-    const p2 = await Project.create({ dir: tmpDir, name: "remove" });
+    const p1 = await Project.create({ name: "keep" });
+    const p2 = await Project.create({ name: "remove" });
 
     await Note.add({ project: p1.id, path: "keep.md", content: "keep this" });
     await Note.add({
