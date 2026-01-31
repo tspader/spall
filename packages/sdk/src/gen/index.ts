@@ -43,6 +43,7 @@ export type {
   NoteListResponse,
   NoteListResponses,
   NoteSyncData,
+  NoteSyncResponse,
   NoteSyncResponses,
   NoteUpdateData,
   NoteUpdateError,

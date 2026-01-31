@@ -156,6 +156,18 @@ export namespace Sql {
     DELETE FROM notes WHERE id = ?
   `;
 
+  export const DELETE_VECTORS_BY_PROJECT = `
+    DELETE FROM vectors WHERE key IN (
+      SELECT CAST(e.id AS TEXT) FROM embeddings e
+      JOIN notes n ON e.note_id = n.id
+      WHERE n.project_id = ?
+    )
+  `;
+
+  export const DELETE_NOTES_BY_PROJECT = `
+    DELETE FROM notes WHERE project_id = ?
+  `;
+
   export const LIST_NOTES_PAGINATED = `
     SELECT id, project_id, path, content, content_hash
     FROM notes

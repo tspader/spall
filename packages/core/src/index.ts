@@ -3,20 +3,7 @@ export { Model, type Token } from "./model";
 export { Bus } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
-export {
-  Event,
-  InitEvent,
-  ScanEvent,
-  EmbedEvent,
-  ModelEvent,
-  InitInput,
-  InitEvents,
-  IndexInput,
-  IndexEvents,
-  SearchInput,
-  SearchResult,
-  FileStatus,
-} from "./schema";
+export { FileStatus } from "./schema";
 export { Config, type ConfigSchema, ProjectConfig, type ProjectConfigSchema } from "./config";
 
 export { Project } from "./project";

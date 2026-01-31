@@ -32,13 +32,14 @@ export type ScanResult = IndexResult & {
   unembedded: string[];
 };
 
-function canonicalPath(path: string): string {
+export function canonicalPath(path: string): string {
   // canonicalize to unix-ish note paths
   let p = path.replace(/\\/g, "/");
   p = p.replace(/\/+$/, "");
   p = p.replace(/^\.\//, "");
   p = p.replace(/^\//, "");
   p = p.replace(/\/+/g, "/");
+  if (p === ".") return "";
   return p;
 }
 export namespace Store {
@@ -492,8 +493,8 @@ export namespace Store {
 
       db.transaction(() => {
         for (const note of pendingNotes) {
-          statements.deleteEmbeddings.run(note.noteId);
           statements.deleteVectors.run(note.noteId);
+          statements.deleteEmbeddings.run(note.noteId);
         }
 
         for (let j = 0; j < pendingChunks.length; j++) {

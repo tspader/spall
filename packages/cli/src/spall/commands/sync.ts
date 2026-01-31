@@ -1,20 +1,14 @@
-import consola from "consola";
 import pc from "picocolors";
+import consola from "consola";
 import { existsSync, statSync } from "fs";
 import { Client } from "@spall/sdk/client";
 import {
   CLEAR,
   type CommandDef,
   defaultTheme as theme,
+  renderProgressBar,
+  createModelProgressHandler,
 } from "@spall/cli/shared";
-
-const BAR_WIDTH = 20;
-
-function renderProgressBar(percent: number): string {
-  const filled = Math.round((percent / 100) * BAR_WIDTH);
-  const empty = BAR_WIDTH - filled;
-  return theme.primary("\u2588".repeat(filled) + "\u2591".repeat(empty));
-}
 
 export const sync: CommandDef = {
   description: "Sync a directory to a path in the database",
@@ -55,7 +49,8 @@ export const sync: CommandDef = {
       })
       .then(Client.unwrap);
 
-    let model = "";
+    const handleModelEvent = createModelProgressHandler();
+
     let scanTotal = 0;
     const scanCounts = { added: 0, modified: 0, removed: 0, ok: 0 };
     let embedTotalBytes = 0;
@@ -76,28 +71,9 @@ export const sync: CommandDef = {
         process.exit(1);
       }
 
+      handleModelEvent(event);
+
       switch (event?.tag) {
-        case "model.load":
-          consola.info(`Loading model ${theme.primary(event.info.name)}`);
-          break;
-        case "model.download":
-          model = event.info.name;
-          consola.info(`Downloading model ${theme.primary(event.info.name)}`);
-          break;
-        case "model.progress": {
-          const percent = (event.downloaded / event.total) * 100;
-          const bar = renderProgressBar(percent);
-          const percentStr = percent.toFixed(0).padStart(3);
-          process.stderr.write(
-            `\r${bar} ${pc.bold(percentStr + "%")} ${theme.primary(model)} ${CLEAR}`,
-          );
-          await Bun.sleep(10)
-          break;
-        }
-        case "model.downloaded":
-          process.stderr.write(`\r${CLEAR}`);
-          consola.success(`Downloaded ${theme.primary(event.info.name)}`);
-          break;
         case "scan.start":
           scanTotal = event.numFiles;
           consola.info(

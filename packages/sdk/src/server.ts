@@ -6,7 +6,7 @@ import { Bus } from "@spall/core/event";
 import { Config } from "@spall/core/config";
 import { Model } from "@spall/core/model";
 import { App } from "./app";
-import { Lock } from "./lock";
+import { Lock, isProcessAlive, checkHealth } from "./lock";
 import { Store } from "@spall/core";
 
 export { Lock } from "./lock";
@@ -33,15 +33,6 @@ function parseNumberEnv(value: string | undefined): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function isProcessAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export namespace Server {
   let server: Bun.Server;
   let persist = false;
@@ -50,9 +41,6 @@ export namespace Server {
   let timer: Timer;
   let idleTimeoutMs = 1000;
   let resolved: () => void;
-
-  const MAX_POLL_DURATION = 2000;
-  const POLL_TIME = 50;
 
   export type Options = {
     persist: boolean;
@@ -241,12 +229,4 @@ export namespace Server {
     resolved();
   }
 
-  async function checkHealth(port: number): Promise<boolean> {
-    try {
-      const response = await fetch(`http://127.0.0.1:${port}/health`);
-      return response.ok;
-    } catch {
-      return false;
-    }
-  }
 }

@@ -306,8 +306,10 @@ export type NoteSyncResponses = {
   /**
    * Index complete
    */
-  200: unknown;
+  204: void;
 };
+
+export type NoteSyncResponse = NoteSyncResponses[keyof NoteSyncResponses];
 
 export type NoteAddData = {
   body?: {
@@ -575,7 +577,14 @@ export type SseNoteSyncResponses = {
       }
     | {
         tag: "project.updated";
-        foo: number;
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
       }
     | {
         tag: "model.download";
@@ -719,7 +728,14 @@ export type SseNoteAddResponses = {
       }
     | {
         tag: "project.updated";
-        foo: number;
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
       }
     | {
         tag: "model.download";
@@ -863,7 +879,14 @@ export type SseNoteUpsertResponses = {
       }
     | {
         tag: "project.updated";
-        foo: number;
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
       }
     | {
         tag: "model.download";
@@ -1007,7 +1030,14 @@ export type SseNoteUpdateResponses = {
       }
     | {
         tag: "project.updated";
-        foo: number;
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
       }
     | {
         tag: "model.download";
@@ -1162,7 +1192,14 @@ export type EventsResponses = {
       }
     | {
         tag: "project.updated";
-        foo: number;
+        info: {
+          id: number;
+          name: string;
+          dir: string;
+          noteCount: number;
+          createdAt: number;
+          updatedAt: number;
+        };
       }
     | {
         tag: "model.download";

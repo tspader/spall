@@ -1,39 +1,11 @@
-import pc from "picocolors";
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { CLEAR, type CommandDef, defaultTheme } from "@spall/cli/shared";
-
-const BAR_WIDTH = 20;
-const theme = defaultTheme;
-
-function renderProgressBar(percent: number): string {
-  const filled = Math.round((percent / 100) * BAR_WIDTH);
-  const empty = BAR_WIDTH - filled;
-  return theme.primary("\u2588".repeat(filled) + "\u2591".repeat(empty));
-}
-
-function formatStreamError(e: unknown, path: string): string {
-  let code = "";
-  let msg = "";
-
-  if (e && typeof e === "object") {
-    code = (e as any).code ?? "";
-    msg = (e as any).message ?? String(e);
-  } else {
-    msg = String(e);
-  }
-
-  if (code === "note.exists") {
-    return `Note already exists at ${theme.primary(path)}. Use ${theme.option("--update")} if you meant to update the note.`;
-  }
-
-  if (code === "note.duplicate") {
-    return `Duplicate content detected for ${theme.primary(path)}. Use ${theme.option("--dupe")} to allow duplicates.`;
-  }
-
-  if (code) return `${code}: ${msg}`;
-  return msg;
-}
+import {
+  type CommandDef,
+  defaultTheme as theme,
+  createModelProgressHandler,
+  formatStreamError,
+} from "@spall/cli/shared";
 
 export const add: CommandDef = {
   description: "Add a note to the corpus",
@@ -78,31 +50,7 @@ export const add: CommandDef = {
       })
       .then(Client.unwrap);
 
-    let model = "";
-    const handleProgress = (event: any) => {
-      switch (event.tag) {
-        case "model.load":
-          consola.info(`Loading model ${theme.primary(event.info.name)}`);
-          break;
-        case "model.download":
-          model = event.info.name;
-          consola.info(`Downloading model ${theme.primary(event.info.name)}`);
-          break;
-        case "model.progress": {
-          const percent = (event.downloaded / event.total) * 100;
-          const bar = renderProgressBar(percent);
-          const percentStr = percent.toFixed(0).padStart(3);
-          process.stdout.write(
-            `\r${bar} ${pc.bold(percentStr + "%")} ${theme.primary(model)} ${CLEAR}`,
-          );
-          break;
-        }
-        case "model.downloaded":
-          process.stdout.write(`\r${CLEAR}`);
-          consola.success(`Downloaded ${theme.primary(event.info.name)}`);
-          break;
-      }
-    };
+    const handleProgress = createModelProgressHandler();
 
     const handleStreamError = (event: any) => {
       if (event?.tag !== "error") return false;

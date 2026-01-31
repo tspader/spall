@@ -260,7 +260,7 @@ export const ProjectRoutes = lazy(() =>
           "Scan a directory, add matching notes to path, remove non-matches",
         operationId: "note.sync",
         responses: {
-          200: {
+          204: {
             description: "Index complete",
           },
         },

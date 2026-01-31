@@ -1,7 +1,6 @@
 import z from "zod";
-import { normalize } from "path";
 import { api } from "./api";
-import { Store } from "./store";
+import { Store, canonicalPath } from "./store";
 import { Model } from "./model";
 import { Sql } from "./sql";
 import { Project } from "./project";
@@ -152,13 +151,7 @@ export namespace Note {
 
     const updated = db
       .prepare(Sql.UPDATE_NOTE)
-      .get(content, contentHash, Date.now(), id) as {
-      id: number;
-      project_id: number;
-      path: string;
-      content: string;
-      content_hash: string;
-    };
+      .get(content, contentHash, Date.now(), id);
 
     if (chunks.length > 0) {
       const texts = chunks.map((c) => c.text);
@@ -168,27 +161,7 @@ export namespace Note {
       Store.clearNoteEmbeddings(id);
     }
 
-    return {
-      id: Id.parse(updated.id),
-      project: Project.Id.parse(updated.project_id),
-      path: updated.path,
-      content: updated.content,
-      contentHash: updated.content_hash,
-    };
-  }
-
-  function getPrefix(dir: string): string {
-    const prefix = normalize(dir)
-      .replace(/\\/g, "/")
-      .replace(/\/+$/, "")
-      .replace(/^\.\//, "")
-      .replace(/^\//, "");
-
-    if (prefix === ".") {
-      return "";
-    }
-
-    return prefix;
+    return Row.parse(updated);
   }
 
   export const get = api(
@@ -267,7 +240,7 @@ export namespace Note {
       Project.get({ id: input.project });
       const db = Store.get();
 
-      const path = input.path ?? "";
+      const path = input.path ?? "*";
       const limit = input.limit ?? 100;
       const after = input.after ?? "";
 
@@ -294,7 +267,7 @@ export namespace Note {
       Io.clear();
       const resolved = Project.get({ id: input.project });
       const pattern = input.glob ?? "**/*.md";
-      const prefix = getPrefix(input.directory)
+      const prefix = canonicalPath(input.directory)
 
       const files = await Store.scan(
         input.directory,

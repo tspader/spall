@@ -55,7 +55,7 @@ export namespace Lock {
   }
 }
 
-function isProcessAlive(pid: number): boolean {
+export function isProcessAlive(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
@@ -64,7 +64,7 @@ function isProcessAlive(pid: number): boolean {
   }
 }
 
-async function checkHealth(port: number): Promise<boolean> {
+export async function checkHealth(port: number): Promise<boolean> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/health`);
     return response.ok;

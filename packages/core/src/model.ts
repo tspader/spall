@@ -182,7 +182,7 @@ export namespace Model {
               info: {
                 id: 0,
                 name: instance.name,
-                path: instance.path!,
+                path: instance.path ?? "",
               },
               downloaded: downloadedSize,
               total: totalSize,
@@ -198,7 +198,7 @@ export namespace Model {
           info: {
             id: 0,
             name: instance.name,
-            path: instance.path!,
+            path: instance.path ?? "",
           },
         });
       }

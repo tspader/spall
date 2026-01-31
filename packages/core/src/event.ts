@@ -1,8 +1,6 @@
 import { z } from "zod";
 
-import { type Event } from "./schema";
 import { type EventUnion } from "./index";
-import pc from "picocolors";
 
 export namespace Bus {
   export type Definition = ReturnType<typeof define>;
@@ -33,29 +31,5 @@ export namespace Bus {
     for (const subscription of subscriptions) {
       await subscription(event);
     }
-  }
-
-  export function render(event: Event): string {
-    if ("action" in event && event.tag == "model") {
-      switch (event.action) {
-        case "download":
-          return `Downloading ${pc.cyan(event.model)}`;
-        case "progress": {
-          const percent = (event.downloaded / event.total) * 100;
-          const percentStr = percent.toFixed(0).padStart(3);
-
-          return `${pc.cyan(event.model)} ${pc.bold(percentStr + "%")}`;
-        }
-        case "ready": {
-          return `Finished downloading ${pc.cyanBright(event.model)}`;
-        }
-      }
-    }
-
-    if ("action" in event) {
-      return event.action;
-    }
-
-    return event.tag;
   }
 }

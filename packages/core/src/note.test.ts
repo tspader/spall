@@ -137,6 +137,54 @@ describe("Note duplication rules", () => {
   });
 });
 
+describe("Note.listByPath defaults", () => {
+  let tmpDir: string;
+  let originalChunk: typeof Store.chunk;
+  let originalLoad: typeof Model.load;
+
+  beforeEach(() => {
+    Config.reset();
+    tmpDir = mkdtempSync(join(tmpdir(), "spall-listbypath-test-"));
+    Config.set({
+      dirs: { cache: tmpDir, data: tmpDir },
+      models: { embedding: "", reranker: "" },
+    });
+    Store.ensure();
+
+    originalChunk = Store.chunk;
+    originalLoad = Model.load;
+    (Store as any).chunk = async () => [];
+    (Model as any).load = async () => {};
+  });
+
+  afterEach(() => {
+    (Store as any).chunk = originalChunk;
+    (Model as any).load = originalLoad;
+
+    Store.close();
+    Config.reset();
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  test("listByPath with no path returns all notes", async () => {
+    await Note.add({
+      project: PROJECT_ID,
+      path: "a.md",
+      content: "alpha",
+      dupe: true,
+    });
+    await Note.add({
+      project: PROJECT_ID,
+      path: "b.md",
+      content: "beta",
+      dupe: true,
+    });
+
+    const page = Note.listByPath({ project: PROJECT_ID });
+    expect(page.notes).toHaveLength(2);
+  });
+});
+
 describe("Note index", () => {
   let tmpDir: string;
   let originalChunk: typeof Store.chunk;

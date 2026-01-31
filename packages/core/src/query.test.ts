@@ -4,10 +4,12 @@ import { join } from "path";
 import { tmpdir } from "os";
 import { Config } from "./config";
 import { Store } from "./store";
+import { Sql } from "./sql";
 import { Note } from "./note";
 import { Query } from "./query";
 import { Project } from "./project";
 import { Model } from "./model";
+import { Error as SpallError } from "./error";
 
 const PROJECT_ID = Project.Id.parse(1);
 
@@ -209,5 +211,108 @@ describe("Query", () => {
         expect(all[i]!.path > all[i - 1]!.path).toBe(true);
       }
     });
+  });
+});
+
+describe("Project.remove", () => {
+  let tmpDir: string;
+  let originalChunk: typeof Store.chunk;
+  let originalLoad: typeof Model.load;
+  let originalEmbedBatch: typeof Model.embedBatch;
+  let originalTokenize: typeof Model.tokenize;
+  let originalDetokenize: typeof Model.detokenize;
+
+  beforeEach(() => {
+    Config.reset();
+    tmpDir = mkdtempSync(join(tmpdir(), "spall-project-rm-test-"));
+    Config.set({
+      dirs: { cache: tmpDir, data: tmpDir },
+      models: { embedding: "", reranker: "" },
+    });
+    Store.ensure();
+
+    originalChunk = Store.chunk;
+    originalLoad = Model.load;
+    originalEmbedBatch = Model.embedBatch;
+    originalTokenize = Model.tokenize;
+    originalDetokenize = Model.detokenize;
+
+    (Store as any).chunk = async (text: string) => [{ text, pos: 0 }];
+    (Model as any).load = async () => {};
+    (Model as any).embedBatch = async (texts: string[]) =>
+      texts.map(() => new Array(Sql.EMBEDDING_DIMS).fill(0));
+    (Model as any).tokenize = async () => [0];
+    (Model as any).detokenize = async () => "";
+  });
+
+  afterEach(() => {
+    (Store as any).chunk = originalChunk;
+    (Model as any).load = originalLoad;
+    (Model as any).embedBatch = originalEmbedBatch;
+    (Model as any).tokenize = originalTokenize;
+    (Model as any).detokenize = originalDetokenize;
+
+    Store.close();
+    Config.reset();
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  test("deletes project with notes, embeddings, and vectors", async () => {
+    const p = await Project.create({ dir: tmpDir, name: "deleteme" });
+    await Note.add({ project: p.id, path: "a.md", content: "alpha" });
+    await Note.add({ project: p.id, path: "b.md", content: "beta" });
+
+    const db = Store.get();
+    const notesBefore = db
+      .prepare("SELECT COUNT(*) as c FROM notes WHERE project_id = ?")
+      .get(p.id) as { c: number };
+    expect(notesBefore.c).toBe(2);
+
+    await Project.remove({ id: p.id });
+
+    const notesAfter = db
+      .prepare("SELECT COUNT(*) as c FROM notes WHERE project_id = ?")
+      .get(p.id) as { c: number };
+    expect(notesAfter.c).toBe(0);
+
+    const embeddingsAfter = db
+      .prepare("SELECT COUNT(*) as c FROM embeddings")
+      .get() as { c: number };
+    expect(embeddingsAfter.c).toBe(0);
+
+    const vectorsAfter = db
+      .prepare("SELECT COUNT(*) as c FROM vectors")
+      .get() as { c: number };
+    expect(vectorsAfter.c).toBe(0);
+
+    expect(() => Project.get({ id: p.id })).toThrow(/not found/i);
+  });
+
+  test("NotFoundError has error code for Error.from()", () => {
+    try {
+      Project.get({ id: Project.Id.parse(999) });
+      expect.unreachable("should have thrown");
+    } catch (e) {
+      const info = SpallError.from(e);
+      expect(info.code).toBe("project.not_found");
+    }
+  });
+
+  test("does not affect other projects", async () => {
+    const p1 = await Project.create({ dir: tmpDir, name: "keep" });
+    const p2 = await Project.create({ dir: tmpDir, name: "remove" });
+
+    await Note.add({ project: p1.id, path: "keep.md", content: "keep this" });
+    await Note.add({
+      project: p2.id,
+      path: "remove.md",
+      content: "remove this",
+    });
+
+    await Project.remove({ id: p2.id });
+
+    const kept = Note.get({ project: p1.id, path: "keep.md" });
+    expect(kept.content).toBe("keep this");
+    expect(() => Project.get({ id: p2.id })).toThrow(/not found/i);
   });
 });

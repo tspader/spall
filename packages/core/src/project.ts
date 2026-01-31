@@ -4,14 +4,15 @@ import { api } from "./api";
 import { Store } from "./store";
 import { Bus } from "./event";
 import { Sql } from "./sql";
+import { Error } from "./error";
 
 export namespace Project {
   export const Id = z.coerce.number().brand<"ProjectId">();
   export type Id = z.infer<typeof Id>;
 
-  export class NotFoundError extends Error {
+  export class NotFoundError extends Error.SpallError {
     constructor(message: string) {
-      super(message);
+      super("project.not_found", message);
       this.name = "NotFoundError";
     }
   }
@@ -31,7 +32,7 @@ export namespace Project {
       info: Info,
     }),
     Updated: Bus.define("project.updated", {
-      foo: z.number(),
+      info: Info,
     }),
   };
 
@@ -155,8 +156,12 @@ export namespace Project {
         throw new NotFoundError(`Project not found: id=${input.id}`);
       }
 
-      // Delete project (cascades to notes, embeddings, vectors via FK constraints)
-      db.prepare(Sql.DELETE_PROJECT).run(input.id);
+      // Delete vectors first (references embeddings), then notes (cascades to embeddings), then project
+      db.transaction(() => {
+        db.prepare(Sql.DELETE_VECTORS_BY_PROJECT).run(input.id);
+        db.prepare(Sql.DELETE_NOTES_BY_PROJECT).run(input.id);
+        db.prepare(Sql.DELETE_PROJECT).run(input.id);
+      })();
     },
   );
 }

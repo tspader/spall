@@ -646,7 +646,7 @@
         "summary": "Sync a directory as notes",
         "description": "Scan a directory, add matching notes to path, remove non-matches",
         "responses": {
-          "200": {
+          "204": {
             "description": "Index complete"
           }
         },
@@ -1308,13 +1308,41 @@
                           "type": "string",
                           "const": "project.updated"
                         },
-                        "foo": {
-                          "type": "number"
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "dir": {
+                              "type": "string"
+                            },
+                            "noteCount": {
+                              "type": "number"
+                            },
+                            "createdAt": {
+                              "type": "number"
+                            },
+                            "updatedAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dir",
+                            "noteCount",
+                            "createdAt",
+                            "updatedAt"
+                          ]
                         }
                       },
                       "required": [
                         "tag",
-                        "foo"
+                        "info"
                       ]
                     },
                     {
@@ -1846,13 +1874,41 @@
                           "type": "string",
                           "const": "project.updated"
                         },
-                        "foo": {
-                          "type": "number"
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "dir": {
+                              "type": "string"
+                            },
+                            "noteCount": {
+                              "type": "number"
+                            },
+                            "createdAt": {
+                              "type": "number"
+                            },
+                            "updatedAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dir",
+                            "noteCount",
+                            "createdAt",
+                            "updatedAt"
+                          ]
                         }
                       },
                       "required": [
                         "tag",
-                        "foo"
+                        "info"
                       ]
                     },
                     {
@@ -2388,13 +2444,41 @@
                           "type": "string",
                           "const": "project.updated"
                         },
-                        "foo": {
-                          "type": "number"
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "dir": {
+                              "type": "string"
+                            },
+                            "noteCount": {
+                              "type": "number"
+                            },
+                            "createdAt": {
+                              "type": "number"
+                            },
+                            "updatedAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dir",
+                            "noteCount",
+                            "createdAt",
+                            "updatedAt"
+                          ]
                         }
                       },
                       "required": [
                         "tag",
-                        "foo"
+                        "info"
                       ]
                     },
                     {
@@ -2940,13 +3024,41 @@
                           "type": "string",
                           "const": "project.updated"
                         },
-                        "foo": {
-                          "type": "number"
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "dir": {
+                              "type": "string"
+                            },
+                            "noteCount": {
+                              "type": "number"
+                            },
+                            "createdAt": {
+                              "type": "number"
+                            },
+                            "updatedAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dir",
+                            "noteCount",
+                            "createdAt",
+                            "updatedAt"
+                          ]
                         }
                       },
                       "required": [
                         "tag",
-                        "foo"
+                        "info"
                       ]
                     },
                     {
@@ -3503,13 +3615,41 @@
                           "type": "string",
                           "const": "project.updated"
                         },
-                        "foo": {
-                          "type": "number"
+                        "info": {
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "number"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "dir": {
+                              "type": "string"
+                            },
+                            "noteCount": {
+                              "type": "number"
+                            },
+                            "createdAt": {
+                              "type": "number"
+                            },
+                            "updatedAt": {
+                              "type": "number"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "name",
+                            "dir",
+                            "noteCount",
+                            "createdAt",
+                            "updatedAt"
+                          ]
                         }
                       },
                       "required": [
                         "tag",
-                        "foo"
+                        "info"
                       ]
                     },
                     {
