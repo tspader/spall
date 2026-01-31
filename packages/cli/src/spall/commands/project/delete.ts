@@ -12,6 +12,11 @@ export const remove: CommandDef = {
     },
   },
   handler: async (argv) => {
+    if (argv.id === undefined || isNaN(Number(argv.id))) {
+      consola.error("Missing required argument: id");
+      process.exit(1);
+    }
+
     const client = await Client.connect();
 
     const result = await client.project.delete({ id: String(argv.id) });

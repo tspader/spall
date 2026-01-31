@@ -16,7 +16,7 @@ export const get: CommandDef = {
     project: {
       alias: "p",
       type: "string",
-      description: "Project name(s), comma-separated",
+      description: "Project name",
     },
     max: {
       alias: "n",
