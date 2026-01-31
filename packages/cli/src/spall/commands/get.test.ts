@@ -102,6 +102,63 @@ describe("spall get", () => {
     rmSync(tmpDir, { recursive: true });
   });
 
+  test("tree output prints content on same line and truncates to terminal width", async () => {
+    const stripAnsi = (s: string) => s.replace(/\x1b\[[0-9;]*m/g, "");
+
+    const originalLog = console.log;
+    const originalColumns = Object.getOwnPropertyDescriptor(
+      process.stdout,
+      "columns",
+    );
+
+    const lines: string[] = [];
+    console.log = (...args: any[]) => {
+      lines.push(args.join(" "));
+    };
+
+    Object.defineProperty(process.stdout, "columns", {
+      value: 40,
+      configurable: true,
+    });
+
+    (Client as any).connect = async () =>
+      mockClient(calls, [
+        {
+          id: 1,
+          project: 1,
+          path: "dir/file.md",
+          content: "abcdefghijklmnopqrstuvwxyz0123456789",
+          contentHash: "h",
+        },
+      ]);
+
+    await get.handler!({ path: "*", output: "tree", all: true });
+
+    console.log = originalLog;
+    if (originalColumns) {
+      Object.defineProperty(process.stdout, "columns", originalColumns);
+    } else {
+      delete (process.stdout as any).columns;
+    }
+
+    const printed = lines.map(stripAnsi);
+    const fileLine = printed.find((l) => l.includes("file.md"));
+    const fileLineRaw = lines.find((l) => l.includes("file.md"));
+    expect(fileLine).toBeTruthy();
+    expect(fileLineRaw).toBeTruthy();
+
+    // Filename is in primary color; content is printed plain after reset.
+    const marker = "\x1b[38;2;114;161;136mfile.md\x1b[39m ";
+    expect(fileLineRaw!).toContain(marker);
+    expect(
+      fileLineRaw!.slice(fileLineRaw!.indexOf(marker) + marker.length),
+    ).not.toMatch(/^\x1b\[/);
+    // Content preview is on same line and truncated with ... in the middle.
+    expect(fileLine!).toContain("file.md ");
+    expect(fileLine!).toContain("...");
+    expect(fileLine!.length).toBeLessThanOrEqual(40);
+  });
+
   test("uses ProjectConfig projects when --project not specified", async () => {
     mkdirSync(join(tmpDir, ".spall"), { recursive: true });
     writeFileSync(

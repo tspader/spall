@@ -149,6 +149,22 @@ export const get: CommandDef = {
 
         const MAX_NOTES_PER_LEAF = 3;
 
+        const ANSI_RE = /\x1b\[[0-9;]*m/g;
+        const termWidth = process.stdout.columns ?? 80;
+
+        function displayLen(s: string): number {
+          // Keep this consistent with what we print: ignore ANSI; replace tabs/newlines.
+          return cleanEscapes(s.replace(ANSI_RE, "")).length;
+        }
+
+        function truncateMiddle(s: string, max: number): string {
+          if (max <= 0) return "";
+          if (s.length <= max) return s;
+          if (max <= 3) return "...".slice(0, max);
+          const half = (max - 3) >> 1;
+          return s.slice(0, half + ((max - 3) & 1)) + "..." + s.slice(-half);
+        }
+
         function printTree(node: TreeNode, indent: string = ""): void {
           const sorted = Array.from(node.children.entries()).sort((a, b) => {
             if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
@@ -168,19 +184,24 @@ export const get: CommandDef = {
               for (let i = 0; i < notesToShow.length; i++) {
                 const note = notesToShow[i]!;
 
-                if (notesToShow.length > 1 || child.notes.length > 1) {
-                  // Multiple notes at this path, show index
-                  const index = theme.dim(`[${i + 1}/${child.notes.length}] `);
-                  const prefix = indent + index + name;
-                  console.log(theme.dim(prefix));
-                } else {
-                  console.log(`${theme.dim(indent)}${name}`);
-                }
+                const index =
+                  notesToShow.length > 1 || child.notes.length > 1
+                    ? `[${i + 1}/${child.notes.length}] `
+                    : "";
 
-                // Print truncated content preview
-                const contentIndent = indent + "  ";
+                const left = `${indent}${index}${name}`;
+                const leftStyled =
+                  theme.dim(indent + index) + theme.primary(name);
                 const content = cleanEscapes(note.content);
-                console.log(`${theme.dim(contentIndent)}${theme.dim(content)}`);
+
+                const contentBudget = termWidth - displayLen(left) - 1; // space between name and content
+
+                const preview =
+                  contentBudget > 0
+                    ? truncateMiddle(content, contentBudget)
+                    : "";
+
+                console.log(preview ? `${leftStyled} ${preview}` : leftStyled);
               }
 
               // Show ellipsis if there are more notes
