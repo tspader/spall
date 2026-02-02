@@ -12,7 +12,6 @@ import { Client, SpallClient } from "@spall/sdk/client";
 export interface ServerContextValue {
   url: Accessor<string | null>;
   connected: Accessor<boolean>;
-  event: Accessor<string>;
   client: Accessor<SpallClient | null>;
 }
 
@@ -21,44 +20,33 @@ const ServerContext = createContext<ServerContextValue>();
 export function ServerProvider(props: ParentProps) {
   const [url, setUrl] = createSignal<string | null>(null);
   const [connected, setConnected] = createSignal(false);
-  const [event, setEvent] = createSignal("");
   const [client, setClient] = createSignal<SpallClient | null>(null);
 
   let shutdown = false;
-  const abortController = new AbortController() as {
-    signal: AbortSignal;
-    abort: () => void;
-  };
+  const controller = new AbortController()
 
   onMount(() => {
     const connect = async () => {
       while (!shutdown) {
         try {
-          const connectedClient = await Client.connect(abortController.signal);
-          const health = await connectedClient.health();
+          const c = await Client.connect(controller.signal);
+          const health = await c.health();
 
           if (!health?.response?.ok) {
             throw new Error("Health check failed");
           }
 
-          // Connected successfully
           setUrl(health.response.url.replace("/health", ""));
           setConnected(true);
-          setClient(connectedClient);
+          setClient(c);
 
-          // Subscribe to events
-          const { stream } = await connectedClient.events({
+          const { stream } = await c.events({
             onSseError: () => {
               setConnected(false);
-              setEvent("reconnecting");
               setClient(null);
             },
             sseMaxRetryAttempts: 0,
           });
-
-          for await (const e of stream) {
-            setEvent(e.tag || "");
-          }
         } catch {
           setConnected(false);
           setClient(null);
@@ -73,13 +61,12 @@ export function ServerProvider(props: ParentProps) {
 
   onCleanup(() => {
     shutdown = true;
-    abortController.abort();
+    controller.abort();
   });
 
   const value: ServerContextValue = {
     url,
     connected,
-    event,
     client,
   };
 
