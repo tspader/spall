@@ -726,6 +726,7 @@ function App(props: AppProps) {
                 <PatchList
                   patches={review.patches}
                   activePatchId={review.activePatchId}
+                  workspaceEntries={review.workspaceEntries}
                   loading={review.patchesLoading}
                   selectedIndex={selectedPatchIndex}
                   focused={() =>

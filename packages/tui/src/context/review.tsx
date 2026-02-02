@@ -8,7 +8,6 @@ import {
   type ParentProps,
   type Accessor,
 } from "solid-js";
-import { Client, SpallClient } from "@spall/sdk/client";
 import { Git } from "../lib/git";
 import { parsePatchEntries } from "../lib/diff";
 import { Repo, Review as ReviewStore, Patch, ReviewComment } from "../store";
@@ -45,6 +44,7 @@ export interface ReviewContextValue {
   activePatchId: Accessor<number | null>;
 
   // Diff state
+  workspaceEntries: Accessor<Git.Entry[]>;
   entries: Accessor<Git.Entry[]>;
   loading: Accessor<boolean>;
 
@@ -89,6 +89,14 @@ function repoName(path: string): string {
   return segments[segments.length - 1] || "unknown";
 }
 
+function projectDbName(root: string): string {
+  const base = repoName(root).replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const h = Bun.hash(root);
+  const n = typeof h === "bigint" ? Number(h % 0xffffffffn) : h;
+  const suffix = Math.abs(n).toString(36).slice(0, 6);
+  return `spall-review-${base}-${suffix}`;
+}
+
 export function ReviewProvider(props: ReviewProviderProps) {
   const server = useServer();
 
@@ -131,11 +139,12 @@ export function ReviewProvider(props: ReviewProviderProps) {
     null,
   );
 
-  const pickFilePath = (list: Git.Entry[], preferred?: string | null) => {
-    if (preferred) {
-      if (list.some((e) => e.file === preferred)) return preferred;
-    }
-    return list[0]?.file ?? null;
+  const preserveSelectedFilePath = (
+    list: Git.Entry[],
+    preferred?: string | null,
+  ) => {
+    if (!preferred) return null;
+    return list.some((e) => e.file === preferred) ? preferred : null;
   };
 
   const setActivePatch = (
@@ -147,7 +156,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
       const ws = workspaceEntries();
       setEntries(ws);
       setSelectedFilePath(
-        pickFilePath(ws, preserveFilePath ?? selectedFilePath()),
+        preserveSelectedFilePath(ws, preserveFilePath ?? selectedFilePath()),
       );
       return;
     }
@@ -160,118 +169,35 @@ export function ReviewProvider(props: ReviewProviderProps) {
     setEntries(newEntries);
 
     setSelectedFilePath(
-      pickFilePath(newEntries, preserveFilePath ?? selectedFilePath()),
+      preserveSelectedFilePath(
+        newEntries,
+        preserveFilePath ?? selectedFilePath(),
+      ),
     );
   };
 
-  const loadLocalComments = (revId: number) => {
-    const local = ReviewComment.list(revId);
-    const base: CommentWithNote[] = local.map((c) => ({
-      id: c.id,
-      reviewId: c.review,
-      noteId: c.noteId,
-      file: c.file,
-      patchId: c.patchId,
-      startRow: c.startRow,
-      endRow: c.endRow,
-      createdAt: c.createdAt,
-      notePath: null,
-      noteContent: null,
-    }));
+  // gate hydration work that touches either database with:
+  // - a signal, to ensure data we use is ready
+  // - some plain booleans, to make sure we don't double-pull from the db
+  const [projectInitialized, setProjectInitialized] = createSignal(false);
+  let projectCreated = false;
+  let commentsHydrated = false;
 
-    // Merge so we don't drop already-hydrated note fields.
-    setComments((prev) => {
-      const prevById = new Map(prev.map((p) => [p.id, p] as const));
-      return base.map((b) => {
-        const existing = prevById.get(b.id);
-        if (!existing) return b;
-        return {
-          ...b,
-          notePath: existing.notePath,
-          noteContent: existing.noteContent,
-        };
-      });
-    });
-  };
-
-  // We treat reviewId as write-once (null -> id) for the lifetime of the app.
-  let commentsLoadedForReviewId: number | null = null;
-  let commentsHydratedOnce = false;
-  let projectInitInFlight = false;
-
-  const ensureLocalCommentsLoaded = (revId: number) => {
-    if (commentsLoadedForReviewId === revId) return;
-    commentsLoadedForReviewId = revId;
-    loadLocalComments(revId);
-  };
-
-  const hydrateCommentsOnce = async (client: SpallClient) => {
-    if (commentsHydratedOnce) return;
-
-    const pending = comments().filter(
-      (c) => c.notePath === null || c.noteContent === null,
-    );
-
-    // Even if there are no comments, consider hydration satisfied.
-    if (pending.length === 0) {
-      commentsHydratedOnce = true;
-      return;
-    }
-
-    setCommentsLoading(true);
-    try {
-      const results = await Promise.all(
-        pending.map(async (comment) => {
-          try {
-            const result = await client.note.getById({
-              id: comment.noteId.toString(),
-            });
-            if (!result.data) return null;
-            return {
-              id: comment.id,
-              notePath: result.data.path,
-              noteContent: result.data.content,
-            };
-          } catch {
-            return null;
-          }
-        }),
-      );
-
-      const byId = new Map(
-        results.filter(Boolean).map((r) => [r!.id, r!] as const),
-      );
-
-      setComments((prev) =>
-        prev.map((c) => {
-          const upd = byId.get(c.id);
-          return upd
-            ? { ...c, notePath: upd.notePath, noteContent: upd.noteContent }
-            : c;
-        }),
-      );
-    } finally {
-      setCommentsLoading(false);
-      commentsHydratedOnce = true;
-    }
-  };
-
-  // hydrate from spall when we successfully connect; we only expect to have
-  // one review loaded for the lifecycle of the app, so the reactivity here
-  // is just to correctly wait for all the dependent data
   createEffect(() => {
     const client = server.client();
-    const root = repoRoot();
-    if (!client || !root) return;
+    if (!client || !projectInitialized()) return;
 
-    if (projectId() === null && !projectInitInFlight) {
-      projectInitInFlight = true;
+    if (!projectCreated) {
+      projectCreated = true;
+      const root = repoRoot()!;
       void (async () => {
         try {
-          const result = await client.project.create({ name: repoName(root) });
+          const result = await client.project.create({
+            name: projectDbName(root),
+          });
           if (result.data) {
             setProjectId(result.data.id);
-            setProjectName(result.data.name);
+            setProjectName(repoName(root));
             setNoteCount(result.data.noteCount);
           }
         } catch {
@@ -279,13 +205,57 @@ export function ReviewProvider(props: ReviewProviderProps) {
           // get-or-create operation, either the connection dropped or we have
           // a bad bug in the backend
         } finally {
-          projectInitInFlight = false;
+          projectCreated = false;
         }
       })();
     }
 
-    if (commentsLoadedForReviewId !== null && !commentsHydratedOnce) {
-      void hydrateCommentsOnce(client);
+    if (!commentsHydrated) {
+      const pending = comments().filter(
+        (c) => c.notePath === null || c.noteContent === null,
+      );
+      if (pending.length === 0) {
+        commentsHydrated = true;
+        return;
+      }
+      commentsHydrated = true;
+      setCommentsLoading(true);
+      void (async () => {
+        try {
+          const results = await Promise.all(
+            pending.map(async (comment) => {
+              try {
+                const result = await client.note.getById({
+                  id: comment.noteId.toString(),
+                });
+                if (!result.data) return null;
+                return {
+                  id: comment.id,
+                  notePath: result.data.path,
+                  noteContent: result.data.content,
+                };
+              } catch {
+                return null;
+              }
+            }),
+          );
+
+          const byId = new Map(
+            results.filter(Boolean).map((r) => [r!.id, r!] as const),
+          );
+
+          setComments((prev) =>
+            prev.map((c) => {
+              const upd = byId.get(c.id);
+              return upd
+                ? { ...c, notePath: upd.notePath, noteContent: upd.noteContent }
+                : c;
+            }),
+          );
+        } finally {
+          setCommentsLoading(false);
+        }
+      })();
     }
   });
 
@@ -293,6 +263,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
     // load everything from the tui db
     const root = await Git.root(props.repoPath);
     setRepoRoot(root);
+    if (root) setProjectName(repoName(root));
 
     const head = await Git.head(props.repoPath);
     setCommitSha(head);
@@ -300,23 +271,39 @@ export function ReviewProvider(props: ReviewProviderProps) {
     const diffEntries = await Git.entries(props.repoPath);
     setWorkspaceEntries(diffEntries);
     setEntries(diffEntries);
-    setSelectedFilePath(pickFilePath(diffEntries));
     setLoading(false);
 
-    // Check if we have an existing review for this repo+commit
+    // reviews are unique to (repo, commit), so grab current one if exists
     if (root && head) {
       const repo = Repo.getByPath(root);
       if (repo) {
         const review = ReviewStore.getByRepoAndCommit(repo.id, head);
         if (review) {
           setReviewId(review.id);
-          ensureLocalCommentsLoaded(review.id);
+
+          // Load comments from local DB
+          const local = ReviewComment.list(review.id);
+          setComments(
+            local.map((c) => ({
+              id: c.id,
+              reviewId: c.review,
+              noteId: c.noteId,
+              file: c.file,
+              patchId: c.patchId,
+              startRow: c.startRow,
+              endRow: c.endRow,
+              createdAt: c.createdAt,
+              notePath: null,
+              noteContent: null,
+            })),
+          );
 
           // Load all patches for this review
           setPatchesLoading(true);
           const reviewPatches = Patch.list(review.id);
           setPatches(reviewPatches);
           setPatchesLoading(false);
+
           // Check current patch against stored patches
           const fullDiff = await Git.diff(props.repoPath);
           const hash = String(Bun.hash(fullDiff));
@@ -326,36 +313,35 @@ export function ReviewProvider(props: ReviewProviderProps) {
             // so existing comments can be found/edited without switching views.
             setWorkspacePatchId(existingPatch.id);
           }
-
-          // If we already have a server connection, hydrate immediately.
-          const client = server.client();
-          if (client) {
-            void hydrateCommentsOnce(client);
-          }
         }
       }
     }
+
+    setProjectInitialized(true);
 
     // Poll for git changes every second
     let lastHash = await Git.hash(props.repoPath);
     const pollInterval = setInterval(async () => {
       try {
         const hash = await Git.hash(props.repoPath);
-        if (hash !== lastHash) {
-          lastHash = hash;
-          const newEntries = await Git.entries(props.repoPath);
-          // Update workspace entries if viewing live diff
-          setWorkspaceEntries(newEntries);
-          if (activePatchId() === null) {
-            setEntries(newEntries);
-            setSelectedFilePath(pickFilePath(newEntries, selectedFilePath()));
-          }
+        if (hash === lastHash) return;
 
-          // Working tree changed; any previous snapshot id is stale.
-          setWorkspacePatchId(null);
+        lastHash = hash;
+        const newEntries = await Git.entries(props.repoPath);
+
+        // Update workspace entries if viewing live diff
+        setWorkspaceEntries(newEntries);
+        if (activePatchId() === null) {
+          setEntries(newEntries);
+          setSelectedFilePath(
+            preserveSelectedFilePath(newEntries, selectedFilePath()),
+          );
         }
+
+        // Working tree changed; any previous snapshot id is stale.
+        setWorkspacePatchId(null);
       } catch {
-        // Repo probably gone (deleted/moved) - stop polling
+        // something very bad happened; we're probably just fucked
         clearInterval(pollInterval);
       }
     }, 1000);
@@ -398,29 +384,29 @@ export function ReviewProvider(props: ReviewProviderProps) {
     if (!root || !head) return null;
     if (!content.trim()) return null;
 
-    // Get or create repo in local DB
+    // ensure an entry in the reviews table
     const repo = Repo.getOrCreate(root);
 
-    // Get or create review for this repo+commit
     let revId = reviewId();
     if (!revId) {
       const review = ReviewStore.getOrCreate(repo.id, head);
       revId = review.id;
       setReviewId(revId);
-      ensureLocalCommentsLoaded(revId);
     }
 
-    // Get or create patch for current diff state
+    // ensure the current changeset exists in the patches table
     let patch = activePatchId() ? Patch.get(activePatchId()!) : null;
     if (!patch) {
       const fullDiff = await Git.diff(props.repoPath);
       patch = Patch.getOrCreate(revId, fullDiff);
+
       // If we're viewing the working tree, don't switch to the patch snapshot.
       if (activePatchId() === null) {
         setWorkspacePatchId(patch.id);
       } else {
         setActivePatch(patch.id);
       }
+
       setPatches((prev) => {
         if (prev.some((p) => p.id === patch!.id)) return prev;
         return [...prev, patch!].sort((a, b) => a.seq - b.seq);
@@ -525,6 +511,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
     commitSha,
     activePatchId,
     // Diff
+    workspaceEntries,
     entries,
     loading,
     // Patches

@@ -11,10 +11,12 @@ import type { ScrollBoxRenderable } from "@opentui/core";
 import type { Patch } from "../../store";
 import { useTheme } from "../../context/theme";
 import { Title } from "./Section";
+import type { Git } from "../../lib/git";
 
 export interface PatchListProps {
   patches: Accessor<Patch.Info[]>;
   activePatchId: Accessor<number | null>;
+  workspaceEntries: Accessor<Git.Entry[]>;
   loading: Accessor<boolean>;
   selectedIndex: Accessor<number>;
   focused: Accessor<boolean>;
@@ -39,6 +41,20 @@ function diffStats(content: string): { added: number; removed: number } {
     else if (line.startsWith("-")) removed++;
   }
 
+  return { added, removed };
+}
+
+function sumEntryStats(entries: Git.Entry[]): {
+  added: number;
+  removed: number;
+} {
+  let added = 0;
+  let removed = 0;
+  for (const e of entries) {
+    const s = diffStats(e.content);
+    added += s.added;
+    removed += s.removed;
+  }
   return { added, removed };
 }
 
@@ -120,6 +136,19 @@ export function PatchList(props: PatchListProps) {
               <text fg={props.focused() ? theme.primary : undefined}>
                 Working tree
               </text>
+
+              {(() => {
+                const s = sumEntryStats(props.workspaceEntries());
+                if (s.added === 0 && s.removed === 0) return null;
+                return (
+                  <>
+                    <text fg={theme.diffSignAdded}>+</text>
+                    <text fg={theme.textMuted}>{s.added}</text>
+                    <text fg={theme.diffSignRemoved}>-</text>
+                    <text fg={theme.textMuted}>{s.removed}</text>
+                  </>
+                );
+              })()}
             </box>
             <text fg={theme.textMuted}>{formatTime(now())}</text>
           </box>
@@ -137,25 +166,35 @@ export function PatchList(props: PatchListProps) {
                 return props.activePatchId() === item.id;
               };
               const textColor = () =>
-                isActive() && props.focused() ? theme.primary : undefined;
+                isActive() ? theme.primary : undefined;
               const bgColor = () =>
-                isSelected() && props.focused() ? theme.backgroundElement : theme.backgroundPanel;
+                isSelected() && props.focused()
+                  ? theme.backgroundElement
+                  : theme.backgroundPanel;
 
               const label = () =>
                 item.type === "workspace" ? "Working tree" : `P${item.seq}`;
 
-              const delta = () => {
-                if (item.type === "workspace") return null;
-                return diffStats(item.content);
-              };
+              const delta = () =>
+                item.type === "workspace"
+                  ? sumEntryStats(props.workspaceEntries())
+                  : diffStats(item.content);
 
               return (
-                <box flexDirection="row" justifyContent="space-between" backgroundColor={bgColor()}>
+                <box
+                  flexDirection="row"
+                  justifyContent="space-between"
+                  backgroundColor={bgColor()}
+                >
                   <box flexDirection="row" gap={1}>
                     <text fg={textColor()}>{label()}</text>
-                    <Show when={delta()}>
-                      <text fg={theme.diffSignAdded}>+{delta()!.added}</text>
-                      <text fg={theme.diffSignRemoved}>-{delta()!.removed}</text>
+                    <Show
+                      when={
+                        delta() && (delta().added > 0 || delta().removed > 0)
+                      }
+                    >
+                      <text fg={theme.diffSignAdded}>+{delta().added}</text>
+                      <text fg={theme.diffSignRemoved}>-{delta().removed}</text>
                     </Show>
                   </box>
 
