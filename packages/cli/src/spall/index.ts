@@ -9,12 +9,13 @@ import {
   search,
   sync,
   tui,
+  vsearch,
 } from "./commands";
 
 const cliDef: CliDef = {
   name: "spall",
   description: "Local semantic note store with embeddings",
-  commands: { add, get, search, sync, serve, project, review, tui },
+  commands: { add, get, search, sync, serve, project, review, tui, vsearch },
 };
 
 build(cliDef).parse();

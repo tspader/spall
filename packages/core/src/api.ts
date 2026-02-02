@@ -14,3 +14,16 @@ export function api<T extends z.ZodType, Result>(
   result.schema = schema;
   return result;
 }
+
+export function asyncApi<T extends z.ZodType, Result>(
+  schema: T,
+  cb: (input: z.infer<T>) => Promise<Result>,
+) {
+  const result = async (input: z.infer<T>) => {
+    const parsed = schema.parse(input);
+    return cb(parsed);
+  };
+  result.force = (input: z.infer<T>) => cb(input);
+  result.schema = schema;
+  return result;
+}

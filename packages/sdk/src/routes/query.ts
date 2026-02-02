@@ -159,5 +159,46 @@ export const QueryRoutes = lazy(() =>
           return c.json(Error.from(error), 404);
         }
       },
+    )
+    .get(
+      "/:id/vsearch",
+      describeRoute({
+        summary: "Vector search",
+        description:
+          "Semantic search across all projects in a query using embeddings.",
+        operationId: "query.vsearch",
+        responses: {
+          200: {
+            description: "Search results",
+            content: {
+              "application/json": {
+                schema: resolver(Query.VSearchResults),
+              },
+            },
+          },
+          404: {
+            description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
+        },
+      }),
+      validator("query", Query.vsearch.schema.omit({ id: true })),
+      async (c) => {
+        const id = c.req.param("id");
+        const query = c.req.valid("query");
+        try {
+          const result = await Query.vsearch({
+            id: Query.Id.parse(id),
+            ...query,
+          });
+          return c.json(result);
+        } catch (error: any) {
+          return c.json(Error.from(error), 404);
+        }
+      },
     ),
 );

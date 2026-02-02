@@ -40,6 +40,8 @@ import type {
   QueryNotesResponses,
   QuerySearchErrors,
   QuerySearchResponses,
+  QueryVsearchErrors,
+  QueryVsearchResponses,
   SseNoteAddResponses,
   SseNoteSyncResponses,
   SseNoteUpdateResponses,
@@ -624,6 +626,44 @@ export class Query extends HeyApiClient {
       ThrowOnError
     >({
       url: "/query/{id}/search",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Vector search
+   *
+   * Semantic search across all projects in a query using embeddings.
+   */
+  public vsearch<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      q: string;
+      path?: string;
+      limit?: number;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "q" },
+            { in: "query", key: "path" },
+            { in: "query", key: "limit" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      QueryVsearchResponses,
+      QueryVsearchErrors,
+      ThrowOnError
+    >({
+      url: "/query/{id}/vsearch",
       ...options,
       ...params,
     });

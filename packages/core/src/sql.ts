@@ -120,6 +120,21 @@ export namespace Sql {
     WHERE data MATCH ? AND k = ?
   `;
 
+  export const SEARCH_VECTORS_ENRICHED = `
+    SELECT
+      vectors.key AS embedding_id,
+      n.id AS note_id,
+      n.project_id,
+      n.path,
+      n.content,
+      e.pos AS chunk_pos,
+      vectors.distance
+    FROM vectors
+    JOIN embeddings e ON e.id = CAST(vectors.key AS INTEGER)
+    JOIN notes n ON n.id = e.note_id
+    WHERE vectors.data MATCH ? AND k = ?
+  `;
+
   export const UPSERT_PROJECT = `
     INSERT INTO projects (name, created_at, updated_at) VALUES (?, ?, ?)
     ON CONFLICT(name) DO UPDATE SET updated_at = excluded.updated_at

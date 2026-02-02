@@ -578,6 +578,50 @@ export type QuerySearchResponses = {
 export type QuerySearchResponse =
   QuerySearchResponses[keyof QuerySearchResponses];
 
+export type QueryVsearchData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query: {
+    q: string;
+    path?: string;
+    limit?: number;
+  };
+  url: "/query/{id}/vsearch";
+};
+
+export type QueryVsearchErrors = {
+  /**
+   * Query not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type QueryVsearchError = QueryVsearchErrors[keyof QueryVsearchErrors];
+
+export type QueryVsearchResponses = {
+  /**
+   * Search results
+   */
+  200: {
+    results: Array<{
+      id: number;
+      project: number;
+      path: string;
+      chunk: string;
+      chunkPos: number;
+      score: number;
+    }>;
+  };
+};
+
+export type QueryVsearchResponse =
+  QueryVsearchResponses[keyof QueryVsearchResponses];
+
 export type SseNoteSyncData = {
   body?: {
     directory: string;

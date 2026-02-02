@@ -365,3 +365,133 @@ describe("Project.remove", () => {
     expect(() => Project.get({ id: p2.id })).toThrow(/not found/i);
   });
 });
+
+describe("Query.vsearch", () => {
+  let tmpDir: string;
+  let restoreModel: () => void;
+
+  const CORPUS = [
+    { path: "auth.md", content: "JWT tokens login password authentication" },
+    { path: "database.md", content: "PostgreSQL SQL migrations Prisma" },
+    { path: "caching.md", content: "Redis cache TTL invalidation" },
+    { path: "errors.md", content: "exceptions stack traces error handling" },
+    { path: "uploads.md", content: "S3 presigned URL file upload multipart" },
+    { path: "ratelimit.md", content: "rate limit 429 throttle requests" },
+  ];
+
+  function hashEmbed(text: string): number[] {
+    const vec = new Array(Sql.EMBEDDING_DIMS).fill(0);
+    const words = text.toLowerCase().split(/\s+/);
+    for (const word of words) {
+      let h = 0;
+      for (let i = 0; i < word.length; i++) {
+        h = (h * 31 + word.charCodeAt(i)) >>> 0;
+      }
+      vec[h % Sql.EMBEDDING_DIMS] += 1;
+    }
+    const norm = Math.sqrt(vec.reduce((s, v) => s + v * v, 0)) || 1;
+    return vec.map((v) => v / norm);
+  }
+
+  beforeEach(async () => {
+    Config.reset();
+    tmpDir = mkdtempSync(join(tmpdir(), "spall-vsearch-test-"));
+    Config.set({
+      dirs: { cache: tmpDir, data: tmpDir },
+      models: { embedding: "", reranker: "" },
+    });
+    Store.ensure();
+
+    const origLoad = Model.load;
+    const origEmbed = Model.embed;
+    const origEmbedBatch = Model.embedBatch;
+    const origTokenize = Model.tokenize;
+    const origDetokenize = Model.detokenize;
+
+    (Model as any).load = async () => {};
+    (Model as any).embed = async (t: string) => hashEmbed(t);
+    (Model as any).embedBatch = async (ts: string[]) => ts.map(hashEmbed);
+    (Model as any).tokenize = async () => [0];
+    (Model as any).detokenize = async () => "";
+
+    restoreModel = () => {
+      (Model as any).load = origLoad;
+      (Model as any).embed = origEmbed;
+      (Model as any).embedBatch = origEmbedBatch;
+      (Model as any).tokenize = origTokenize;
+      (Model as any).detokenize = origDetokenize;
+    };
+
+    for (const note of CORPUS) {
+      await Note.add({
+        project: Project.Id.parse(1),
+        path: note.path,
+        content: note.content,
+      });
+    }
+  });
+
+  afterEach(async () => {
+    restoreModel();
+    Store.close();
+    Config.reset();
+    rmSync(tmpDir, { recursive: true });
+  });
+
+  test("returns auth note for login query", async () => {
+    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const res = await Query.vsearch({ id: q.id, q: "login password" });
+
+    expect(res.results.length).toBeGreaterThan(0);
+    expect(res.results[0]!.path).toBe("auth.md");
+    expect(res.results[0]!.score).toBeGreaterThan(0);
+  });
+
+  test("returns database note for SQL query", async () => {
+    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const res = await Query.vsearch({ id: q.id, q: "PostgreSQL migrations" });
+
+    expect(res.results.length).toBeGreaterThan(0);
+    expect(res.results[0]!.path).toBe("database.md");
+  });
+
+  test("returns uploads note for S3 query", async () => {
+    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const res = await Query.vsearch({ id: q.id, q: "S3 file upload" });
+
+    expect(res.results.length).toBeGreaterThan(0);
+    expect(res.results[0]!.path).toBe("uploads.md");
+  });
+
+  test("respects limit parameter", async () => {
+    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const res = await Query.vsearch({ id: q.id, q: "API", limit: 2 });
+
+    expect(res.results).toHaveLength(2);
+  });
+
+  test("filters by path glob", async () => {
+    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const res = await Query.vsearch({
+      id: q.id,
+      q: "tokens authentication",
+      path: "rate*",
+    });
+
+    expect(res.results.every((r) => r.path.startsWith("rate"))).toBe(true);
+  });
+
+  test("filters by project scope", async () => {
+    const p2 = await Project.create({ name: "other" });
+    await Note.add({
+      project: p2.id,
+      path: "other-auth.md",
+      content: "JWT tokens authentication login",
+    });
+
+    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const res = await Query.vsearch({ id: q.id, q: "JWT tokens" });
+
+    expect(res.results.every((r) => r.path !== "other-auth.md")).toBe(true);
+  });
+});
