@@ -52,7 +52,7 @@ export type ColumnDef<T> = {
   noTruncate?: boolean;
   min?: number;
   truncate?: "start" | "middle" | "end";
-  format?: (s: string) => string;
+  format?: (s: string, row: number, col: number) => string;
 };
 
 export type DisplayOpts<T> = {
@@ -127,7 +127,7 @@ export function displayResults<T>(items: T[], opts: DisplayOpts<T>): void {
       truncate: columns.map((c) => c.truncate ?? "middle"),
       format: columns.map((c) =>
         c.format
-          ? (s: string, _row: number, _col: number) => c.format!(s)
+          ? (s: string, row: number, col: number) => c.format!(s, row, col)
           : undefined!,
       ),
       maxRows,

@@ -11,6 +11,41 @@ function collapseWhitespace(s: string): string {
   return s.replace(/\s+/g, " ").trim();
 }
 
+function rgb(r: number, g: number, b: number): (s: string) => string {
+  return (s: string) => `\x1b[38;2;${r};${g};${b}m${s}\x1b[39m`;
+}
+
+function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
+  const c = v * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = v - c;
+  let r = 0,
+    g = 0,
+    b = 0;
+  if (h < 60) [r, g, b] = [c, x, 0];
+  else if (h < 120) [r, g, b] = [x, c, 0];
+  else if (h < 180) [r, g, b] = [0, c, x];
+  else if (h < 240) [r, g, b] = [0, x, c];
+  else if (h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+  return [
+    Math.round((r + m) * 255),
+    Math.round((g + m) * 255),
+    Math.round((b + m) * 255),
+  ];
+}
+
+function heatColor(score: number): (s: string) => string {
+  // nonlinearly spread 0.5-0.8 range, concentrate high values
+  const shifted = (score - 0.5) / 0.35;
+  const t = Math.max(0, Math.min(1, shifted));
+  const sat = t * t;
+
+  // Fixed hue (140 = green), vary saturation, fixed value
+  const [r, g, b] = hsvToRgb(140, sat, 0.85);
+  return rgb(r, g, b);
+}
+
 export const vsearch: CommandDef = {
   description: "Semantic search (vector)",
   positionals: {
@@ -76,6 +111,10 @@ export const vsearch: CommandDef = {
       })
       .then(Client.unwrap);
 
+    const scoreMap = new Map(
+      res.results.map((r: any, i: number) => [i, r.score as number]),
+    );
+
     displayResults(res.results, {
       output: out,
       empty: "(no matches)",
@@ -88,7 +127,7 @@ export const vsearch: CommandDef = {
           value: (r: any) => r.score.toFixed(3),
           flex: 0,
           noTruncate: true,
-          format: (s) => theme.code(s),
+          format: (s, row) => heatColor(scoreMap.get(row) ?? 0)(s),
         },
       ],
     });
