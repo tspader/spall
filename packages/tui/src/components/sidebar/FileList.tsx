@@ -3,27 +3,35 @@ import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { DisplayItem } from "../../lib/tree";
 import { useTheme } from "../../context/theme";
-import { Section, Title } from "./Section";
-import { EmptyBorder } from "../HalfLineShadow";
+import { Title } from "./Section";
+import type { Git } from "../../lib/git";
 
 export interface FileListProps {
   displayItems: Accessor<DisplayItem[]>;
-  /** Index into the files-only list (for navigation) */
   selectedFileIndex: Accessor<number>;
-  /** Entry indices in display order (maps navigation index to entry index) */
   fileIndices: Accessor<number[]>;
+  entries: Accessor<Git.Entry[]>;
   loading: Accessor<boolean>;
   focused: Accessor<boolean>;
 }
 
-/** Number of items to keep visible below the cursor */
-const SCROLL_BUFFER = 4;
+const SCROLL_BUFFER = 2;
+
+function fileDiffStats(content: string): { added: number; removed: number } {
+  let added = 0;
+  let removed = 0;
+  for (const line of content.split("\n")) {
+    if (line.startsWith("+++") || line.startsWith("---")) continue;
+    if (line.startsWith("+")) added++;
+    else if (line.startsWith("-")) removed++;
+  }
+  return { added, removed };
+}
 
 export function FileList(props: FileListProps) {
   const { theme } = useTheme();
   let scrollbox: ScrollBoxRenderable | null = null;
 
-  // Check if a display item is the currently selected file
   const isSelected = (item: DisplayItem): boolean => {
     if (item.node.type !== "file") return false;
     const selectedEntryIndex = props.fileIndices()[props.selectedFileIndex()];
@@ -99,16 +107,33 @@ export function FileList(props: FileListProps) {
               }
 
               const textColor = () =>
-                isSelected(item) && props.focused() ? theme.primary : undefined;
+                isSelected(item) ? theme.primary : undefined;
+
+              const bgColor = () =>
+                isSelected(item) ? theme.backgroundElement : theme.backgroundPanel;
+
+              const entryIndex = item.node.entryIndex;
+              const entry =
+                typeof entryIndex === "number"
+                  ? props.entries()[entryIndex]
+                  : undefined;
+              const stats = entry ? fileDiffStats(entry.content) : null;
 
               return (
-                <box flexDirection="row">
-                  <Show when={item.depth > 0}>
-                    <text>{"  ".repeat(item.depth)}</text>
-                  </Show>
-                  <text fg={theme.textMuted}>{item.node.status} </text>
-                  <text fg={textColor()}>{item.node.name}</text>
-                </box>
+                  <box flexDirection="row" gap={1} backgroundColor={bgColor()}>
+                    <Show when={item.depth > 0}>
+                      <text>{"  ".repeat(item.depth)}</text>
+                    </Show>
+                    <text fg={theme.textMuted}>{item.node.status}</text>
+                    <text fg={textColor()}>{item.node.name}</text>
+                    <Show
+                      when={!!stats && (stats.added > 0 || stats.removed > 0)}
+                    >
+                      <text fg={theme.diffSignAdded}>{`+${stats!.added}`}</text>
+                    <text fg={theme.diffSignRemoved}>{`-${stats!.removed}`}</text>
+                    </Show>
+
+                  </box>
               );
             }}
           </For>

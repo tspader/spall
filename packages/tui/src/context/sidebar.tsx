@@ -5,19 +5,24 @@ import {
   type Accessor,
 } from "solid-js";
 
-export type SidebarSection = "files" | "comments";
+export type SidebarSection = "files" | "comments" | "patches";
 
 interface SidebarContextValue {
   activeSection: Accessor<SidebarSection>;
+  isFocused: Accessor<boolean>;
 }
 
 const SidebarContext = createContext<SidebarContextValue>();
 
 export function SidebarProvider(
-  props: ParentProps<{ activeSection: Accessor<SidebarSection> }>,
+  props: ParentProps<{
+    activeSection: Accessor<SidebarSection>;
+    isFocused: Accessor<boolean>;
+  }>,
 ) {
   const value: SidebarContextValue = {
     activeSection: props.activeSection,
+    isFocused: props.isFocused,
   };
 
   return (

@@ -21,9 +21,6 @@ export function ServerStatus() {
           {server.url() ?? "disconnected"}
         </text>
       </box>
-      <box height={1}>
-        <text>{server.event()}</text>
-      </box>
     </Section>
   );
 }

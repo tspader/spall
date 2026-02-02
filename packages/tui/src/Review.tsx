@@ -3,6 +3,7 @@ import { createSignal, createEffect, createMemo, Show } from "solid-js";
 import {
   FileList,
   CommentList,
+  PatchList,
   DiffPanel,
   EditorPanel,
   CommandPalette,
@@ -26,7 +27,7 @@ import { SidebarProvider } from "./context/sidebar";
 import { type Command, matchAny } from "./lib/keybind";
 
 type FocusPanel = "sidebar" | "diff" | "editor";
-type SidebarMode = "files" | "comments";
+type SidebarMode = "files" | "patches" | "comments";
 type SelectionMode = "hunk" | "line";
 
 type EditorAnchor = {
@@ -84,15 +85,21 @@ function App(props: AppProps) {
 
   createEffect(() => {
     const indices = fileIndices();
+    const entries = review.entries();
+    const current = review.selectedFilePath();
+
     if (indices.length === 0) {
-      setSelectedFileIndex(0);
+      review.setSelectedFilePath(null);
       return;
     }
-    setSelectedFileIndex((i) => Math.min(i, indices.length - 1));
+
+    if (!current || !entries.some((e) => e.file === current)) {
+      const firstEntryIndex = indices[0]!;
+      review.setSelectedFilePath(entries[firstEntryIndex]?.file ?? null);
+    }
   });
 
-  // Navigation state - selectedFileIndex is index into fileIndices (files only)
-  const [selectedFileIndex, setSelectedFileIndex] = createSignal(0);
+  // Navigation state
   const [focusPanel, setFocusPanel] = createSignal<FocusPanel>("sidebar");
   const [sidebarMode, setSidebarMode] = createSignal<SidebarMode>("files");
   const [selectedHunkIndex, setSelectedHunkIndex] = createSignal(0);
@@ -109,10 +116,37 @@ function App(props: AppProps) {
   // Comment list state
   const [selectedCommentIndex, setSelectedCommentIndex] = createSignal(0);
 
-  // Derived state - map navigation index to actual entry
+  // Patch list state
+  const [selectedPatchIndex, setSelectedPatchIndex] = createSignal(0);
+
+  const selectedFileNavIndex = createMemo(() => {
+    const indices = fileIndices();
+    if (indices.length === 0) return 0;
+
+    const entries = review.entries();
+    const path = review.selectedFilePath();
+    if (!path) return 0;
+
+    const entryIndex = entries.findIndex((e) => e.file === path);
+    if (entryIndex === -1) return 0;
+
+    const navIndex = indices.indexOf(entryIndex);
+    return navIndex === -1 ? 0 : navIndex;
+  });
+
   const selectedEntry = () => {
-    const entryIndex = fileIndices()[selectedFileIndex()];
-    return entryIndex !== undefined ? review.entries()[entryIndex] : undefined;
+    const entries = review.entries();
+    if (entries.length === 0) return undefined;
+
+    const path = review.selectedFilePath();
+    if (path) {
+      const found = entries.find((e) => e.file === path);
+      if (found) return found;
+    }
+
+    const firstEntryIndex = fileIndices()[0];
+    if (firstEntryIndex !== undefined) return entries[firstEntryIndex];
+    return entries[0];
   };
 
   // Hunk count for the selected entry (computed from diff content)
@@ -133,13 +167,49 @@ function App(props: AppProps) {
     return { startRow: hunk.startRow, endRow: hunk.endRow };
   });
 
-  // Reset selection when file changes
+  // Track previous file to detect actual file changes vs patch switches
+  const [previousFile, setPreviousFile] = createSignal<string | null>(null);
+
+  // Reset or clip hunk selection when file changes
   createEffect(() => {
-    selectedFileIndex();
-    setSelectedHunkIndex(0);
-    setSelectionMode("hunk");
-    setSelectedRange(null);
-    setCursorRow(1);
+    review.selectedFilePath();
+    review.activePatchId();
+    const currentFile = selectedEntry()?.file ?? null;
+    const prevFile = previousFile();
+
+    // Only reset if we actually changed to a different file
+    if (currentFile !== prevFile) {
+      setSelectedHunkIndex(0);
+      setSelectionMode("hunk");
+      setSelectedRange(null);
+      setCursorRow(1);
+    } else if (currentFile !== null) {
+      // Same file, patch changed - clip to valid bounds
+      const maxHunk = Math.max(0, hunkCount() - 1);
+      setSelectedHunkIndex((i) => Math.min(i, maxHunk));
+
+      const maxRow = totalRows();
+      if (maxRow > 0) {
+        setSelectedRange((range) => {
+          if (!range) return null;
+          // Clip range to valid bounds
+          const clippedStart = Math.min(range.startRow, maxRow);
+          const clippedEnd = Math.min(range.endRow, maxRow);
+          if (
+            clippedStart === clippedEnd &&
+            clippedStart === maxRow &&
+            maxRow > 1
+          ) {
+            // If everything got clipped to the end, select last line
+            return { startRow: maxRow - 1, endRow: maxRow };
+          }
+          return { startRow: clippedStart, endRow: clippedEnd };
+        });
+        setCursorRow((r) => Math.min(Math.max(1, r), maxRow));
+      }
+    }
+
+    setPreviousFile(currentFile);
   });
 
   const clampRow = (row: number) => {
@@ -147,12 +217,21 @@ function App(props: AppProps) {
     return Math.min(Math.max(1, row), max);
   };
 
+  const setSelectedNavIndex = (navIndex: number) => {
+    const entryIndex = fileIndices()[navIndex];
+    const entry =
+      entryIndex !== undefined ? review.entries()[entryIndex] : null;
+    review.setSelectedFilePath(entry?.file ?? null);
+  };
+
   // Helper functions for commands
   const navigateUp = () => {
     const panel = focusPanel();
     if (panel === "sidebar") {
       if (sidebarMode() === "files") {
-        setSelectedFileIndex((i) => Math.max(0, i - 1));
+        setSelectedNavIndex(Math.max(0, selectedFileNavIndex() - 1));
+      } else if (sidebarMode() === "patches") {
+        setSelectedPatchIndex((i) => Math.max(0, i - 1));
       } else {
         setSelectedCommentIndex((i) => Math.max(0, i - 1));
       }
@@ -175,7 +254,12 @@ function App(props: AppProps) {
     const panel = focusPanel();
     if (panel === "sidebar") {
       if (sidebarMode() === "files") {
-        setSelectedFileIndex((i) => Math.min(fileIndices().length - 1, i + 1));
+        setSelectedNavIndex(
+          Math.min(fileIndices().length - 1, selectedFileNavIndex() + 1),
+        );
+      } else if (sidebarMode() === "patches") {
+        const patchCount = review.patches().length + 1; // +1 for workspace entry
+        setSelectedPatchIndex((i) => Math.min(patchCount - 1, i + 1));
       } else {
         const maxIndex = review.comments().length - 1;
         setSelectedCommentIndex((i) => Math.min(maxIndex, i + 1));
@@ -217,7 +301,11 @@ function App(props: AppProps) {
   };
 
   const toggleSidebarMode = () => {
-    setSidebarMode((m) => (m === "files" ? "comments" : "files"));
+    setSidebarMode((m) => {
+      if (m === "files") return "patches";
+      if (m === "patches") return "comments";
+      return "files";
+    });
   };
 
   const toggleHunkSelection = () => {
@@ -319,12 +407,50 @@ function App(props: AppProps) {
     },
 
     {
-      id: "switch-sidebar",
-      title: "switch section",
+      id: "cycle-forward",
+      title: "cycle forward",
       category: "movement",
-      keybinds: [{ name: "tab" }, { name: "tab", shift: true }],
-      isActive: () => focusPanel() === "sidebar",
-      onExecute: toggleSidebarMode,
+      keybinds: [{ name: "tab" }],
+      isActive: () => focusPanel() !== "editor",
+      onExecute: () => {
+        // Cycle: files -> patches -> comments -> diff -> files
+        if (focusPanel() === "sidebar") {
+          if (sidebarMode() === "files") {
+            setSidebarMode("patches");
+          } else if (sidebarMode() === "patches") {
+            setSidebarMode("comments");
+          } else {
+            setFocusPanel("diff");
+            setSelectedHunkIndex(0);
+          }
+        } else if (focusPanel() === "diff") {
+          setFocusPanel("sidebar");
+          setSidebarMode("files");
+        }
+      },
+    },
+    {
+      id: "cycle-backward",
+      title: "cycle backward",
+      category: "movement",
+      keybinds: [{ name: "tab", shift: true }],
+      isActive: () => focusPanel() !== "editor",
+      onExecute: () => {
+        // Cycle: files <- patches <- comments <- diff <- files
+        if (focusPanel() === "sidebar") {
+          if (sidebarMode() === "files") {
+            setFocusPanel("diff");
+            setSelectedHunkIndex(0);
+          } else if (sidebarMode() === "patches") {
+            setSidebarMode("files");
+          } else {
+            setSidebarMode("patches");
+          }
+        } else if (focusPanel() === "diff") {
+          setFocusPanel("sidebar");
+          setSidebarMode("comments");
+        }
+      },
     },
 
     {
@@ -401,24 +527,15 @@ function App(props: AppProps) {
         const comment = comments[idx];
         if (!comment) return;
 
-        review.setActivePatch(comment.patchId);
+        review.setActivePatch(comment.patchId, comment.file);
 
-        // Find the file index for this comment's file
-        const entries = review.entries();
-        const entryIndex = entries.findIndex((e) => e.file === comment.file);
-        if (entryIndex === -1) return;
-
-        // Find the navigation index (into fileIndices)
-        const navIndex = fileIndices().indexOf(entryIndex);
-        if (navIndex === -1) return;
-
-        const entry = entries[entryIndex];
+        const entry = review.entries().find((e) => e.file === comment.file);
         if (!entry) return;
         const hunkIndex =
           getHunkIndexForRow(entry.content, entry.file, comment.startRow) ?? 0;
 
         // Navigate to the file and hunk
-        setSelectedFileIndex(navIndex);
+        review.setSelectedFilePath(comment.file);
         setSelectedHunkIndex(hunkIndex);
         setEditorAnchor({
           file: comment.file,
@@ -427,6 +544,35 @@ function App(props: AppProps) {
           commentId: comment.id,
         });
         setFocusPanel("editor");
+      },
+    },
+    {
+      id: "select-patch",
+      title: "select patch",
+      category: "selection",
+      keybinds: [{ name: "return" }],
+      isActive: () =>
+        focusPanel() === "sidebar" &&
+        sidebarMode() === "patches" &&
+        review.patches().length > 0,
+      onExecute: () => {
+        const patches = review
+          .patches()
+          .slice()
+          .sort((a, b) => b.seq - a.seq);
+        const idx = selectedPatchIndex();
+        // Get current file to preserve selection if possible
+        const currentEntry = selectedEntry();
+        const currentFile = currentEntry?.file;
+        // Index 0 is workspace (null), then patches start at index 1
+        if (idx === 0) {
+          review.setActivePatch(null, currentFile);
+        } else {
+          const patch = patches[idx - 1];
+          if (patch) {
+            review.setActivePatch(patch.id, currentFile);
+          }
+        }
       },
     },
     // Actions
@@ -558,16 +704,32 @@ function App(props: AppProps) {
             noteCount={review.noteCount}
           />
 
-          <SidebarProvider activeSection={sidebarMode}>
+          <SidebarProvider
+            activeSection={sidebarMode}
+            isFocused={() => focusPanel() === "sidebar"}
+          >
             <box flexGrow={1} flexDirection="column" overflow="hidden" gap={1}>
               <box flexGrow={1}>
                 <FileList
                   displayItems={displayItems}
-                  selectedFileIndex={selectedFileIndex}
+                  selectedFileIndex={selectedFileNavIndex}
                   fileIndices={fileIndices}
+                  entries={review.entries}
                   loading={review.loading}
                   focused={() =>
                     focusPanel() === "sidebar" && sidebarMode() === "files"
+                  }
+                />
+              </box>
+
+              <box flexGrow={1} flexDirection="column">
+                <PatchList
+                  patches={review.patches}
+                  activePatchId={review.activePatchId}
+                  loading={review.patchesLoading}
+                  selectedIndex={selectedPatchIndex}
+                  focused={() =>
+                    focusPanel() === "sidebar" && sidebarMode() === "patches"
                   }
                 />
               </box>

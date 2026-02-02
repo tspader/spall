@@ -19,8 +19,8 @@ export function Title(props: { section: SidebarSection }) {
   const { theme } = useTheme();
   const sidebar = useSidebar();
 
-  const isActive = () => sidebar.activeSection() === props.section;
-  const color = () => (isActive() ? theme.primary : undefined);
+  const isActive = () =>
+    sidebar.activeSection() === props.section && sidebar.isFocused();
   const title = () =>
     props.section.charAt(0).toUpperCase() + props.section.slice(1);
 

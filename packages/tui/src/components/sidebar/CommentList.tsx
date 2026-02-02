@@ -2,8 +2,10 @@ import { For, Show, createEffect } from "solid-js";
 import type { Accessor } from "solid-js";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import { useTheme } from "../../context/theme";
+import { useReview } from "../../context/review";
 import { Title } from "./Section";
 import type { CommentWithNote } from "../../context/review";
+import type { Patch } from "../../store";
 
 export interface CommentListProps {
   comments: Accessor<CommentWithNote[]>;
@@ -12,17 +14,26 @@ export interface CommentListProps {
   focused: Accessor<boolean>;
 }
 
-/** Number of items to keep visible below the cursor */
 const SCROLL_BUFFER = 2;
 
-// Get short filename from path
 function getShortFile(file: string): string {
   const segments = file.split("/");
   return segments[segments.length - 1] || file;
 }
 
+function getPatchDisplay(
+  patchId: number | null,
+  patches: Patch.Info[],
+): string {
+  if (patchId === null) return "WT";
+  const patch = patches.find((p) => p.id === patchId);
+  if (!patch) return "?";
+  return `P${patch.seq}`;
+}
+
 export function CommentList(props: CommentListProps) {
   const { theme } = useTheme();
+  const review = useReview();
   let scrollbox: ScrollBoxRenderable | null = null;
 
   // Scroll to keep selection visible
@@ -59,12 +70,19 @@ export function CommentList(props: CommentListProps) {
               const isSelected = () => index() === props.selectedIndex();
               const textColor = () =>
                 isSelected() && props.focused() ? theme.primary : undefined;
+              const bgColor = () =>
+                isSelected() && props.focused() ? theme.backgroundElement : theme.backgroundPanel;
 
               return (
-                <box flexDirection="row" justifyContent="flex-start" gap={1}>
-                  <text fg={textColor()}>{getShortFile(comment.file)}</text>
+                <box flexDirection="row" justifyContent="space-between" backgroundColor={bgColor()}>
+                  <box flexDirection="row" gap={1}>
+                    <text fg={textColor()}>{getShortFile(comment.file)}</text>
+                    <text fg={theme.textMuted}>
+                      {`${comment.startRow}:${comment.endRow}`}
+                    </text>
+                  </box>
                   <text fg={theme.textMuted}>
-                    {`lines ${comment.startRow}-${comment.endRow}`}
+                    {getPatchDisplay(comment.patchId, review.patches())}
                   </text>
                 </box>
               );

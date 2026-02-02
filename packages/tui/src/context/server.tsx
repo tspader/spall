@@ -47,6 +47,10 @@ export function ServerProvider(props: ParentProps) {
             },
             sseMaxRetryAttempts: 0,
           });
+
+          for await (const event of stream) {
+
+          }
         } catch {
           setConnected(false);
           setClient(null);

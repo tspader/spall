@@ -10,6 +10,8 @@ export {
   type FileListProps,
   CommentList,
   type CommentListProps,
+  PatchList,
+  type PatchListProps,
   ServerStatus,
   ProjectStatus,
   type ProjectStatusProps,
