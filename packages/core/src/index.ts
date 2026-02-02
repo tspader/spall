@@ -4,7 +4,12 @@ export { Bus } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
 export { FileStatus } from "./schema";
-export { Config, type ConfigSchema, ProjectConfig, type ProjectConfigSchema } from "./config";
+export {
+  Config,
+  type ConfigSchema,
+  ProjectConfig,
+  type ProjectConfigSchema,
+} from "./config";
 
 export { Project } from "./project";
 export { Note } from "./note";
@@ -39,6 +44,8 @@ export const EventUnion = z.discriminatedUnion("tag", [
   Store.Event.EmbedProgress,
   Store.Event.Embedded,
   Store.Event.EmbedCancel,
+  Store.Event.FtsStart,
+  Store.Event.FtsDone,
   Note.Event.Created,
   Note.Event.Updated,
 ]);
@@ -62,5 +69,7 @@ export type EventUnion =
   | z.infer<typeof Store.Event.EmbedProgress>
   | z.infer<typeof Store.Event.Embedded>
   | z.infer<typeof Store.Event.EmbedCancel>
+  | z.infer<typeof Store.Event.FtsStart>
+  | z.infer<typeof Store.Event.FtsDone>
   | z.infer<typeof Note.Event.Created>
   | z.infer<typeof Note.Event.Updated>;

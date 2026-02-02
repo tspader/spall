@@ -38,6 +38,8 @@ import type {
   QueryGetResponses,
   QueryNotesErrors,
   QueryNotesResponses,
+  QuerySearchErrors,
+  QuerySearchResponses,
   SseNoteAddResponses,
   SseNoteSyncResponses,
   SseNoteUpdateResponses,
@@ -582,6 +584,46 @@ export class Query extends HeyApiClient {
       ThrowOnError
     >({
       url: "/query/{id}/notes",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Keyword search
+   *
+   * Search note content across all projects in a query using FTS5.
+   */
+  public search<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      q: string;
+      path?: string;
+      limit?: number;
+      mode?: "plain" | "fts";
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "q" },
+            { in: "query", key: "path" },
+            { in: "query", key: "limit" },
+            { in: "query", key: "mode" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      QuerySearchResponses,
+      QuerySearchErrors,
+      ThrowOnError
+    >({
+      url: "/query/{id}/search",
       ...options,
       ...params,
     });

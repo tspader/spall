@@ -123,6 +123,8 @@ export namespace Note {
       id: number;
     };
 
+    await Store.ftsApply({ upsert: [{ id: inserted.id, content }] });
+
     if (chunks.length > 0) {
       const texts = chunks.map((c) => c.text);
       const embeddings = await Model.embedBatch(texts);
@@ -297,16 +299,18 @@ export namespace Note {
       // just nuke everything and bail early if there's no content
       if (content.length == 0) {
         db.transaction(() => {
-          db.run(Sql.DELETE_VECTORS_BY_NOTE, [id])
-          db.run(Sql.DELETE_EMBEDDINGS_BY_NOTE, [id])
+          db.run(Sql.DELETE_VECTORS_BY_NOTE, [id]);
+          db.run(Sql.DELETE_EMBEDDINGS_BY_NOTE, [id]);
         })();
 
-        const updated = db.prepare(Sql.UPDATE_NOTE).get("", "", Date.now(), id)
+        const updated = db.prepare(Sql.UPDATE_NOTE).get("", "", Date.now(), id);
         const info = Row.parse(updated);
+
+        await Store.ftsApply({ del: [id] });
 
         await Bus.publish({ tag: "note.updated", info });
 
-        return info
+        return info;
       }
 
       // if there IS content, check against existing content
@@ -330,6 +334,8 @@ export namespace Note {
       const updated = db
         .prepare(Sql.UPDATE_NOTE)
         .get(content, hash, Date.now(), id);
+
+      await Store.ftsApply({ upsert: [{ id, content }] });
 
       const texts = chunks.map((c) => c.text);
       const embeddings = await Model.embedBatch(texts);

@@ -17,6 +17,20 @@ export namespace Query {
   });
   export type Info = z.infer<typeof Info>;
 
+  export const SearchItem = z.object({
+    id: Note.Id,
+    project: Project.Id,
+    path: z.string(),
+    snippet: z.string(),
+    rank: z.number(),
+  });
+  export type SearchItem = z.infer<typeof SearchItem>;
+
+  export const SearchResults = z.object({
+    results: SearchItem.array(),
+  });
+  export type SearchResults = z.infer<typeof SearchResults>;
+
   type Row = {
     id: number;
     projects: string;
@@ -32,6 +46,19 @@ export namespace Query {
       createdAt: row.created_at,
     };
   }
+
+  function ftsQuery(q: string): string {
+    const parts = q
+      .trim()
+      .split(/\s+/)
+      .flatMap((s) => s.split(/[^A-Za-z0-9_]+/))
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return "";
+    return parts.map((s) => `"${s.replace(/"/g, '""')}"`).join(" AND ");
+  }
+
+  type Mode = "plain" | "fts";
 
   export class NotFoundError extends Error.SpallError {
     constructor(id: number) {
@@ -94,6 +121,53 @@ export namespace Query {
         notes.length === limit ? notes[notes.length - 1]!.path : null;
 
       return { notes, nextCursor };
+    },
+  );
+
+  const SearchRow = z
+    .object({
+      id: z.number(),
+      project_id: z.number(),
+      path: z.string(),
+      snippet: z.string(),
+      rank: z.number(),
+    })
+    .transform(
+      (r): SearchItem => ({
+        id: Note.Id.parse(r.id),
+        project: Project.Id.parse(r.project_id),
+        path: r.path,
+        snippet: r.snippet,
+        rank: r.rank,
+      }),
+    );
+
+  export const search = api(
+    z.object({
+      id: Id,
+      q: z.string(),
+      path: z.string().optional(),
+      limit: z.coerce.number().optional(),
+      mode: z.enum(["plain", "fts"]).optional(),
+    }),
+    (input): SearchResults => {
+      const db = Store.ensure();
+
+      const scope = get({ id: input.id });
+      const projects = JSON.stringify(scope.projects);
+
+      const mode: Mode = input.mode ?? "plain";
+      const match = mode === "fts" ? input.q.trim() : ftsQuery(input.q);
+      if (!match) return { results: [] };
+
+      const path = input.path ?? "*";
+      const limit = input.limit ?? 20;
+
+      const rows = db
+        .prepare(Sql.SEARCH_QUERY_FTS)
+        .all(match, projects, path, limit) as unknown[];
+
+      return { results: rows.map((r) => SearchRow.parse(r)) };
     },
   );
 }

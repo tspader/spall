@@ -118,5 +118,46 @@ export const QueryRoutes = lazy(() =>
           return c.json(Error.from(error), 404);
         }
       },
+    )
+    .get(
+      "/:id/search",
+      describeRoute({
+        summary: "Keyword search",
+        description:
+          "Search note content across all projects in a query using FTS5.",
+        operationId: "query.search",
+        responses: {
+          200: {
+            description: "Search results",
+            content: {
+              "application/json": {
+                schema: resolver(Query.SearchResults),
+              },
+            },
+          },
+          404: {
+            description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
+        },
+      }),
+      validator("query", Query.search.schema.omit({ id: true })),
+      async (c) => {
+        const id = c.req.param("id");
+        const query = c.req.valid("query");
+        try {
+          const result = Query.search({
+            id: Query.Id.parse(id),
+            ...query,
+          });
+          return c.json(result);
+        } catch (error: any) {
+          return c.json(Error.from(error), 404);
+        }
+      },
     ),
 );

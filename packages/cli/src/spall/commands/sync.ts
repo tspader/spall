@@ -56,6 +56,7 @@ export const sync: CommandDef = {
     let embedTotalBytes = 0;
     let embedTotalFiles = 0;
     let embedStartTime = 0;
+    let ftsActive = false;
 
     const controller = new AbortController();
     process.once("SIGINT", () => controller.abort());
@@ -159,6 +160,16 @@ export const sync: CommandDef = {
         case "embed.done":
           //process.stderr.write(`\r${CLEAR}`);
           consola.success("Index complete");
+          break;
+        case "fts.start":
+          ftsActive = true;
+          consola.start("Indexing text (FTS)");
+          break;
+        case "fts.done":
+          if (ftsActive) {
+            ftsActive = false;
+            consola.success("FTS index updated");
+          }
           break;
       }
     }

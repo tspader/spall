@@ -1190,6 +1190,125 @@
         ]
       }
     },
+    "/query/{id}/search": {
+      "get": {
+        "operationId": "query.search",
+        "summary": "Keyword search",
+        "description": "Search note content across all projects in a query using FTS5.",
+        "responses": {
+          "200": {
+            "description": "Search results",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "results": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "number"
+                          },
+                          "project": {
+                            "type": "number"
+                          },
+                          "path": {
+                            "type": "string"
+                          },
+                          "snippet": {
+                            "type": "string"
+                          },
+                          "rank": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "project",
+                          "path",
+                          "snippet",
+                          "rank"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "results"
+                  ]
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Query not found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "code",
+                    "message"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "schema": {
+              "type": "string"
+            },
+            "required": true
+          },
+          {
+            "in": "query",
+            "name": "path",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "plain",
+                "fts"
+              ]
+            }
+          },
+          {
+            "schema": {
+              "type": "string"
+            },
+            "in": "path",
+            "name": "id",
+            "required": true
+          }
+        ]
+      }
+    },
     "/sse/project/sync": {
       "post": {
         "operationId": "sse.note.sync",
@@ -1666,6 +1785,42 @@
                         "numBytes",
                         "numFilesProcessed",
                         "numBytesProcessed"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.start"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes",
+                        "numBytes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.done"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes"
                       ]
                     },
                     {
@@ -2263,6 +2418,42 @@
                       "properties": {
                         "tag": {
                           "type": "string",
+                          "const": "fts.start"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes",
+                        "numBytes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.done"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
                           "const": "note.created"
                         },
                         "info": {
@@ -2850,6 +3041,42 @@
                         "numBytes",
                         "numFilesProcessed",
                         "numBytesProcessed"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.start"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes",
+                        "numBytes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.done"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes"
                       ]
                     },
                     {
@@ -3454,6 +3681,42 @@
                         "numBytes",
                         "numFilesProcessed",
                         "numBytesProcessed"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.start"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes",
+                        "numBytes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.done"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes"
                       ]
                     },
                     {
@@ -4069,6 +4332,42 @@
                         "numBytes",
                         "numFilesProcessed",
                         "numBytesProcessed"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.start"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes",
+                        "numBytes"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "fts.done"
+                        },
+                        "numNotes": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numNotes"
                       ]
                     },
                     {

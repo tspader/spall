@@ -534,6 +534,50 @@ export type QueryNotesResponses = {
 
 export type QueryNotesResponse = QueryNotesResponses[keyof QueryNotesResponses];
 
+export type QuerySearchData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query: {
+    q: string;
+    path?: string;
+    limit?: number;
+    mode?: "plain" | "fts";
+  };
+  url: "/query/{id}/search";
+};
+
+export type QuerySearchErrors = {
+  /**
+   * Query not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type QuerySearchError = QuerySearchErrors[keyof QuerySearchErrors];
+
+export type QuerySearchResponses = {
+  /**
+   * Search results
+   */
+  200: {
+    results: Array<{
+      id: number;
+      project: number;
+      path: string;
+      snippet: string;
+      rank: number;
+    }>;
+  };
+};
+
+export type QuerySearchResponse =
+  QuerySearchResponses[keyof QuerySearchResponses];
+
 export type SseNoteSyncData = {
   body?: {
     directory: string;
@@ -664,6 +708,15 @@ export type SseNoteSyncResponses = {
         numBytes: number;
         numFilesProcessed: number;
         numBytesProcessed: number;
+      }
+    | {
+        tag: "fts.start";
+        numNotes: number;
+        numBytes: number;
+      }
+    | {
+        tag: "fts.done";
+        numNotes: number;
       }
     | {
         tag: "note.created";
@@ -823,6 +876,15 @@ export type SseNoteAddResponses = {
         numBytesProcessed: number;
       }
     | {
+        tag: "fts.start";
+        numNotes: number;
+        numBytes: number;
+      }
+    | {
+        tag: "fts.done";
+        numNotes: number;
+      }
+    | {
         tag: "note.created";
         info: {
           id: number;
@@ -980,6 +1042,15 @@ export type SseNoteUpsertResponses = {
         numBytesProcessed: number;
       }
     | {
+        tag: "fts.start";
+        numNotes: number;
+        numBytes: number;
+      }
+    | {
+        tag: "fts.done";
+        numNotes: number;
+      }
+    | {
         tag: "note.created";
         info: {
           id: number;
@@ -1135,6 +1206,15 @@ export type SseNoteUpdateResponses = {
         numBytes: number;
         numFilesProcessed: number;
         numBytesProcessed: number;
+      }
+    | {
+        tag: "fts.start";
+        numNotes: number;
+        numBytes: number;
+      }
+    | {
+        tag: "fts.done";
+        numNotes: number;
       }
     | {
         tag: "note.created";
@@ -1303,6 +1383,15 @@ export type EventsResponses = {
         numBytes: number;
         numFilesProcessed: number;
         numBytesProcessed: number;
+      }
+    | {
+        tag: "fts.start";
+        numNotes: number;
+        numBytes: number;
+      }
+    | {
+        tag: "fts.done";
+        numNotes: number;
       }
     | {
         tag: "note.created";

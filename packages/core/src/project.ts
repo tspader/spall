@@ -147,6 +147,7 @@ export namespace Project {
       // Delete vectors first (references embeddings), then notes (cascades to embeddings), then project
       db.transaction(() => {
         db.prepare(Sql.DELETE_VECTORS_BY_PROJECT).run(input.id);
+        db.prepare(Sql.DELETE_NOTE_FTS_BY_PROJECT).run(input.id);
         db.prepare(Sql.DELETE_NOTES_BY_PROJECT).run(input.id);
         db.prepare(Sql.DELETE_PROJECT).run(input.id);
       })();

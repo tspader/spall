@@ -121,6 +121,57 @@ describe("Query", () => {
     expect(page.notes.every((n) => n.path.startsWith("docs/"))).toBe(true);
   });
 
+  describe("search", () => {
+    test("finds notes by keyword and returns a snippet", async () => {
+      await addNote(
+        PROJECT_ID,
+        "a.md",
+        "We do not use foo.bar here. Always use baz_qux instead.",
+      );
+      await addNote(PROJECT_ID, "b.md", "unrelated");
+
+      const q = Query.create({ projects: [PROJECT_ID] });
+      const res = Query.search({ id: q.id, q: "foo.bar" });
+
+      expect(res.results).toHaveLength(1);
+      expect(res.results[0]!.path).toBe("a.md");
+      const snip = res.results[0]!.snippet.toLowerCase();
+      expect(snip).toContain("foo");
+      expect(snip).toContain("bar");
+    });
+
+    test("reflects updates", async () => {
+      await addNote(PROJECT_ID, "a.md", "Always use old_name.");
+
+      const note = Note.get({ project: PROJECT_ID, path: "a.md" });
+      const q = Query.create({ projects: [PROJECT_ID] });
+
+      expect(Query.search({ id: q.id, q: "old_name" }).results).toHaveLength(1);
+
+      await Note.update({ id: note.id, content: "Always use new_name." });
+
+      expect(Query.search({ id: q.id, q: "old_name" }).results).toHaveLength(0);
+      expect(Query.search({ id: q.id, q: "new_name" }).results).toHaveLength(1);
+    });
+
+    test("fts mode accepts raw operators (plain does not)", async () => {
+      await addNote(PROJECT_ID, "a.md", "Always use old_name.");
+      await addNote(PROJECT_ID, "b.md", "Always use new_name.");
+
+      const q = Query.create({ projects: [PROJECT_ID] });
+
+      const plain = Query.search({ id: q.id, q: "old_name OR new_name" });
+      expect(plain.results).toHaveLength(0);
+
+      const fts = Query.search({
+        id: q.id,
+        q: "old_name OR new_name",
+        mode: "fts",
+      });
+      expect(fts.results).toHaveLength(2);
+    });
+  });
+
   describe("pagination", () => {
     test("limit restricts page size and returns cursor", async () => {
       await addNote(PROJECT_ID, "a.md", "a");

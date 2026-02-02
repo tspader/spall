@@ -46,9 +46,7 @@ export function canonicalize(path: string): string {
 
 export function convertFilePath(prefix: string, file: string): string {
   const relative = canonicalize(file);
-  return prefix
-    ? `${prefix}/${relative}`
-    : relative;
+  return prefix ? `${prefix}/${relative}` : relative;
 }
 
 export namespace Store {
@@ -91,6 +89,14 @@ export namespace Store {
       numBytes: z.number(),
       numFilesProcessed: z.number(),
       numBytesProcessed: z.number(),
+    }),
+
+    FtsStart: Bus.define("fts.start", {
+      numNotes: z.number(),
+      numBytes: z.number(),
+    }),
+    FtsDone: Bus.define("fts.done", {
+      numNotes: z.number(),
     }),
   };
 
@@ -140,6 +146,14 @@ export namespace Store {
     db.run(Sql.CREATE_VECTORS_TABLE);
     db.run(Sql.CREATE_PROJECT_TABLE);
     db.run(Sql.CREATE_NOTES_TABLE);
+    try {
+      db.run(Sql.CREATE_NOTES_FTS_TABLE);
+    } catch (e: any) {
+      throw new SpallError.SpallError(
+        "fts.unavailable",
+        `FTS5 is not available in this SQLite build: ${String(e?.message ?? e)}`,
+      );
+    }
     db.run(Sql.CREATE_EMBEDDINGS_TABLE);
     db.run(Sql.CREATE_FILES_TABLE);
     db.run(Sql.CREATE_QUERIES_TABLE);
@@ -150,6 +164,34 @@ export namespace Store {
     Bus.publish({ tag: "store.created", path: dbPath });
 
     return db;
+  }
+
+  export type FtsUpsert = { id: number; content: string };
+
+  export async function ftsApply(input: {
+    upsert?: FtsUpsert[];
+    del?: number[];
+  }): Promise<void> {
+    const upsert = input.upsert ?? [];
+    const del = input.del ?? [];
+    const numNotes = upsert.length + del.length;
+    if (numNotes === 0) return;
+
+    const numBytes = upsert.reduce((sum, n) => sum + n.content.length, 0);
+    await Bus.publish({ tag: "fts.start", numNotes, numBytes });
+
+    const db = get();
+    const statements = {
+      upsert: db.prepare(Sql.UPSERT_NOTE_FTS),
+      del: db.prepare(Sql.DELETE_NOTE_FTS),
+    };
+
+    db.transaction(() => {
+      for (const n of upsert) statements.upsert.run(n.id, n.content);
+      for (const id of del) statements.del.run(id);
+    })();
+
+    await Bus.publish({ tag: "fts.done", numNotes });
   }
 
   export function open(dbPath?: string): Database {
@@ -301,10 +343,10 @@ export namespace Store {
     const rows = db
       .prepare(Sql.SEARCH_VECTORS)
       .all(new Float32Array(queryVector), limit) as {
-        key: string;
-        note_id: number;
-        distance: number;
-      }[];
+      key: string;
+      note_id: number;
+      distance: number;
+    }[];
 
     return rows.map((row) => ({
       noteId: row.note_id,
@@ -349,7 +391,6 @@ export namespace Store {
 
     await Bus.publish({ tag: "scan.start", numFiles: files.length });
 
-
     // find all existing notes which match this path
     const db = get();
 
@@ -357,11 +398,11 @@ export namespace Store {
     const existing = db
       .prepare(Sql.LIST_NOTES_FOR_PROJECT_PREFIX)
       .all(projectId, canonicalPrefix, canonicalPrefix, canonicalPrefix) as {
-        id: number;
-        path: string;
-        mtime: number;
-        content_hash: string;
-      }[];
+      id: number;
+      path: string;
+      mtime: number;
+      content_hash: string;
+    }[];
 
     const rows = new Map(
       existing.map((r) => [
@@ -381,6 +422,8 @@ export namespace Store {
     const modified: string[] = [];
     const removed: string[] = [];
     const unembedded: number[] = [];
+    const ftsUpsert: FtsUpsert[] = [];
+    const ftsDelete: number[] = [];
 
     const statements = {
       insertNote: db.prepare(Sql.INSERT_NOTE),
@@ -390,14 +433,14 @@ export namespace Store {
         embeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
         vectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
         note: db.prepare(Sql.DELETE_NOTE),
-      }
+      },
     };
 
     Context.setYield(32);
 
     for (const file of files) {
       if (await Context.checkpoint()) {
-        Embed.cancel()
+        Embed.cancel();
         throw new CancelledError();
       }
 
@@ -425,6 +468,7 @@ export namespace Store {
         ) as { id: number };
 
         unembedded.push(inserted.id);
+        ftsUpsert.push({ id: inserted.id, content });
       } else {
         // if it IS in the db, make sure all our tables are up-to-date and that any
         // stale embeddings are cleared
@@ -453,6 +497,8 @@ export namespace Store {
           unembedded.push(updated.id);
         })();
 
+        ftsUpsert.push({ id: note.id, content });
+
         modified.push(path);
         status = "modified";
       }
@@ -477,6 +523,8 @@ export namespace Store {
         statements.delete.note.run(row.id);
       })();
 
+      ftsDelete.push(row.id);
+
       removed.push(row.path);
 
       await Bus.publish({
@@ -488,6 +536,8 @@ export namespace Store {
 
     // done!
     await Bus.publish({ tag: "scan.done", numFiles: files.length });
+
+    await ftsApply({ upsert: ftsUpsert, del: ftsDelete });
 
     return { added, modified, removed, unembedded };
   }
@@ -502,7 +552,13 @@ export namespace Store {
     };
 
     export async function cancel(metadata?: Metadata) {
-      metadata = metadata ?? { numFiles: 0, numChunks: 0, numBytes: 0, numFilesProcessed: 0, numBytesProcessed: 0 }
+      metadata = metadata ?? {
+        numFiles: 0,
+        numChunks: 0,
+        numBytes: 0,
+        numFilesProcessed: 0,
+        numBytesProcessed: 0,
+      };
       await Bus.publish({
         tag: "embed.cancel",
         ...metadata,

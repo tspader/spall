@@ -1,6 +1,51 @@
 export namespace Sql {
   export const EMBEDDING_DIMS = 768;
 
+  // ============================================
+  // FTS
+  // ============================================
+
+  // FTS5 table over note content.
+  // - We keep the FTS rowid == notes.id so joins are cheap.
+  // - tokenchars keeps common code-ish punctuation inside tokens.
+  export const CREATE_NOTES_FTS_TABLE = `
+    CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
+      content,
+      tokenize='unicode61 tokenchars _',
+      prefix='2 3 4'
+    )
+  `;
+
+  export const UPSERT_NOTE_FTS = `
+    INSERT OR REPLACE INTO notes_fts(rowid, content) VALUES (?, ?)
+  `;
+
+  export const DELETE_NOTE_FTS = `
+    DELETE FROM notes_fts WHERE rowid = ?
+  `;
+
+  export const DELETE_NOTE_FTS_BY_PROJECT = `
+    DELETE FROM notes_fts WHERE rowid IN (
+      SELECT id FROM notes WHERE project_id = ?
+    )
+  `;
+
+  export const SEARCH_QUERY_FTS = `
+    SELECT
+      n.id,
+      n.project_id,
+      n.path,
+      snippet(notes_fts, 0, '[', ']', ' ... ', 16) AS snippet,
+      bm25(notes_fts) AS rank
+    FROM notes_fts
+    JOIN notes n ON n.id = notes_fts.rowid
+    WHERE notes_fts MATCH ?
+      AND n.project_id IN (SELECT value FROM json_each(?))
+      AND n.path GLOB ?
+    ORDER BY rank
+    LIMIT ?
+  `;
+
   export const CREATE_META_TABLE = `
     CREATE TABLE IF NOT EXISTS meta (
       id INTEGER PRIMARY KEY CHECK (id = 1),
