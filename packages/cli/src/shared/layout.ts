@@ -65,17 +65,23 @@ export function table(
   const min = opts?.min ?? [];
   const truncate = opts?.truncate ?? [];
   const format = opts?.format ?? [];
-  const maxWidth = opts?.maxWidth ?? process.stdout.columns;
+  const termWidth = opts?.maxWidth ?? process.stdout.columns;
+  const maxWidth = termWidth - 3; // reserve space for UTF-8 width edge cases
 
-  // Natural (unconstrained) widths.
+  const numRows = columns.reduce((m, c) => Math.max(m, c.length), 0);
+  const maxRows = opts?.maxRows ?? numRows;
+  const visibleRows = Math.min(numRows, maxRows);
+
+  // Natural (unconstrained) widths - only consider visible rows.
   const natural: number[] = [];
   for (let i = 0; i < numCols; i++) {
     const col = columns[i] ?? [];
     const headerLen = displayText(headers[i] ?? "").length;
-    const maxCellLen = col.reduce((m, v) => {
-      const len = displayText(v).length;
-      return len > m ? len : m;
-    }, 0);
+    let maxCellLen = 0;
+    for (let r = 0; r < visibleRows; r++) {
+      const len = displayText(col[r] ?? "").length;
+      if (len > maxCellLen) maxCellLen = len;
+    }
     natural[i] = Math.max(headerLen, maxCellLen);
   }
 
@@ -135,16 +141,56 @@ export function table(
             widths[flexCols[idx]!.i] = baseMins[idx]!;
           }
         } else {
+          // Initial proportional allocation
           const alloc = flexCols.map(({ i, weight }, idx) => {
             const exact = (extraSpace * weight) / totalWeight;
             const base = Math.floor(exact);
-            return { i, base: baseMins[idx]! + base, frac: exact - base };
+            return {
+              i,
+              base: baseMins[idx]! + base,
+              frac: exact - base,
+              weight,
+              natural: natural[i]!,
+              capped: false,
+            };
           });
+
+          // Redistribute: cap columns at natural width, give surplus to others
+          let changed = true;
+          while (changed) {
+            changed = false;
+            let surplus = 0;
+            let uncappedWeight = 0;
+
+            for (const a of alloc) {
+              if (!a.capped && a.base > a.natural) {
+                surplus += a.base - a.natural;
+                a.base = a.natural;
+                a.capped = true;
+                changed = true;
+              }
+              if (!a.capped) uncappedWeight += a.weight;
+            }
+
+            if (surplus > 0 && uncappedWeight > 0) {
+              for (const a of alloc) {
+                if (!a.capped) {
+                  const share = Math.floor((surplus * a.weight) / uncappedWeight);
+                  a.base += share;
+                }
+              }
+            }
+          }
+
+          // Distribute any remaining pixels by fractional part
           let used = alloc.reduce((s, a) => s + a.base, 0);
           let extra = Math.max(0, available - fixed - used);
           alloc.sort((a, b) => b.frac - a.frac || a.i - b.i);
-          for (let k = 0; k < alloc.length && extra > 0; k++, extra--) {
-            alloc[k]!.base += 1;
+          for (let k = 0; k < alloc.length && extra > 0; k++) {
+            if (!alloc[k]!.capped || alloc[k]!.base < alloc[k]!.natural) {
+              alloc[k]!.base += 1;
+              extra--;
+            }
           }
           for (const a of alloc) widths[a.i] = a.base;
         }
@@ -162,10 +208,7 @@ export function table(
     .join("  ");
   console.log(theme.dim(header));
 
-  const numRows = columns.reduce((m, c) => Math.max(m, c.length), 0);
-  const maxRows = opts?.maxRows ?? numRows;
-
-  for (let row = 0; row < Math.min(numRows, maxRows); row++) {
+  for (let row = 0; row < visibleRows; row++) {
     const parts: string[] = [];
     for (let i = 0; i < numCols; i++) {
       const w = widths[i] ?? 0;

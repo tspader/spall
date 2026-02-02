@@ -109,7 +109,7 @@ export function displayResults<T>(items: T[], opts: DisplayOpts<T>): void {
       value: opts.preview,
       flex: 2,
       min: 3,
-      truncate: "middle",
+      truncate: "end",
       format: opts.previewFormat,
     },
   ];
