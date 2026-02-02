@@ -59,8 +59,7 @@ export namespace Project {
       id: z.coerce.number().optional(),
     }),
     (input): Info => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       let row: Row | null;
 
@@ -88,8 +87,7 @@ export namespace Project {
   );
 
   export const list = api(z.object({}), async (): Promise<Info[]> => {
-    Store.ensure();
-    const db = Store.get();
+    const db = Store.ensure();
 
     const rows = db.prepare(Sql.LIST_PROJECTS).all() as Row[];
 
@@ -107,8 +105,7 @@ export namespace Project {
       name: z.string(),
     }),
     async (input): Promise<Info> => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       const name = input.name;
 
@@ -137,8 +134,7 @@ export namespace Project {
       id: Id,
     }),
     async (input): Promise<void> => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       // Verify project exists
       const existing = db

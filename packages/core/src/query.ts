@@ -45,8 +45,7 @@ export namespace Query {
       projects: z.array(Project.Id),
     }),
     (input): Info => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       const row = db
         .prepare(Sql.INSERT_QUERY)
@@ -61,8 +60,7 @@ export namespace Query {
       id: Id,
     }),
     (input): Info => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       const row = db.prepare(Sql.GET_QUERY).get(input.id) as Row | null;
       if (!row) throw new NotFoundError(input.id);
@@ -79,8 +77,7 @@ export namespace Query {
       after: z.string().optional(),
     }),
     (input): Note.Page => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       const query = get({ id: input.id });
       const projects = JSON.stringify(query.projects);

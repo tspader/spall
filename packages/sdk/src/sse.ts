@@ -1,6 +1,6 @@
 import { streamSSE } from "hono/streaming";
 
-import { Bus, EventUnion, Error } from "@spall/core";
+import { Bus, Context, EventUnion, Error, Store } from "@spall/core";
 import { Server } from "./server";
 
 export namespace Sse {
@@ -9,27 +9,41 @@ export namespace Sse {
   // wrap hono's sse streaming with code to
   //   - track the sse connection
   //   - clean up subscriptions when finished
+  //   - give access to a per-request cancellation signal
   export function stream<T>(
     context: SseContext,
     handler: (arg: T) => Promise<unknown>,
     input: T,
   ) {
     return streamSSE(context, async (stream) => {
-      Server.incrementSse();
+      Server.Sse.track()
 
       const write = async (event: EventUnion) => {
+        if (stream.aborted) return;
         await stream.writeSSE({ data: JSON.stringify(event) });
       };
 
-      const unsubscribe = Bus.subscribe(write);
+      let unsubscribe = Bus.subscribe(write);
+
+      // run the actual work we want to do through a thin wrapper that gives
+      // access to the cancellation signal
+      const [result, ctx] = Context.run(() => handler(input));
+
+      stream.onAbort(() => {
+        ctx.aborted = true;
+        unsubscribe();
+        unsubscribe = () => false;
+      });
 
       try {
-        await handler(input);
+        await result;
       } catch (error) {
-        await write({ tag: "error", error: Error.from(error) });
+        if (!(error instanceof Store.CancelledError)) {
+          await write({ tag: "error", error: Error.from(error) });
+        }
       } finally {
         unsubscribe();
-        Server.decrementSse();
+        Server.Sse.untrack();
       }
     });
   }
@@ -37,7 +51,7 @@ export namespace Sse {
   // the same, but for permanent stream
   export function subscribe(context: SseContext) {
     return streamSSE(context, async (stream) => {
-      Server.incrementSse();
+      Server.Sse.track();
 
       const write = async (event: EventUnion) => {
         await stream.writeSSE({ data: JSON.stringify(event) });
@@ -55,7 +69,7 @@ export namespace Sse {
       });
 
       unsubscribe();
-      Server.decrementSse();
+      Server.Sse.untrack();
     });
   }
 }

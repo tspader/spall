@@ -151,6 +151,10 @@ export namespace Sql {
     UPDATE notes SET content = ?, content_hash = ?, mtime = ? WHERE id = ? RETURNING id, project_id, path, content, content_hash
   `;
 
+  export const UPDATE_NOTE_MTIME = `
+    UPDATE notes SET mtime = ? WHERE id = ?
+  `;
+
   export const DELETE_NOTE = `
     DELETE FROM notes WHERE id = ?
   `;

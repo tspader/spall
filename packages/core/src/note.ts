@@ -1,6 +1,6 @@
 import z from "zod";
 import { api } from "./api";
-import { Store, canonicalPath } from "./store";
+import { Store, canonicalize } from "./store";
 import { Model } from "./model";
 import { Sql } from "./sql";
 import { Project } from "./project";
@@ -126,7 +126,7 @@ export namespace Note {
     if (chunks.length > 0) {
       const texts = chunks.map((c) => c.text);
       const embeddings = await Model.embedBatch(texts);
-      Store.saveNoteEmbeddings(inserted.id, chunks, embeddings);
+      Store.saveEmbeddings(inserted.id, chunks, embeddings);
     }
 
     return {
@@ -138,40 +138,13 @@ export namespace Note {
     };
   }
 
-  async function updateNote(
-    id: Id,
-    content: string,
-    contentHash: string,
-  ): Promise<Info> {
-    const db = Store.get();
-
-    await Model.load();
-
-    const chunks = await Store.chunk(content);
-
-    const updated = db
-      .prepare(Sql.UPDATE_NOTE)
-      .get(content, contentHash, Date.now(), id);
-
-    if (chunks.length > 0) {
-      const texts = chunks.map((c) => c.text);
-      const embeddings = await Model.embedBatch(texts);
-      Store.saveNoteEmbeddings(id, chunks, embeddings);
-    } else {
-      Store.clearNoteEmbeddings(id);
-    }
-
-    return Row.parse(updated);
-  }
-
   export const get = api(
     z.object({
       project: Project.Id,
       path: z.string(),
     }),
     (input): Info => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       const row = db
         .prepare(Sql.GET_NOTE_BY_PATH)
@@ -187,8 +160,7 @@ export namespace Note {
       id: Id,
     }),
     (input): Info => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       const row = db.prepare(Sql.GET_NOTE).get(input.id);
       if (!row) throw new NotFoundError(`Note not found: ${input.id}`);
@@ -236,9 +208,8 @@ export namespace Note {
       after: z.string().optional(),
     }),
     (input): Page => {
-      Store.ensure();
+      const db = Store.ensure();
       Project.get({ id: input.project });
-      const db = Store.get();
 
       const path = input.path ?? "*";
       const limit = input.limit ?? 100;
@@ -267,7 +238,7 @@ export namespace Note {
       Io.clear();
       const resolved = Project.get({ id: input.project });
       const pattern = input.glob ?? "**/*.md";
-      const prefix = canonicalPath(input.directory)
+      const prefix = canonicalize(input.directory);
 
       const files = await Store.scan(
         input.directory,
@@ -275,12 +246,7 @@ export namespace Note {
         resolved.id,
         prefix,
       );
-      await Store.embedFiles(
-        input.directory,
-        resolved.id,
-        files.unembedded,
-        prefix,
-      );
+      await Store.embedFiles(files.unembedded);
     },
   );
 
@@ -292,17 +258,16 @@ export namespace Note {
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<Info> => {
-      Store.ensure();
+      const db = Store.ensure();
       const project = Project.get({ id: input.project });
-      const db = Store.get();
 
-      const contentHash = getHash(input.content);
-      checkDupe(project.id, contentHash, input.dupe);
+      const hash = getHash(input.content);
+      checkDupe(project.id, hash, input.dupe);
 
-      const existingByPath = db
+      const existing = db
         .prepare(Sql.GET_NOTE_BY_PATH)
         .get(project.id, input.path);
-      if (existingByPath) {
+      if (existing) {
         throw new ExistsError(input.path);
       }
 
@@ -310,7 +275,7 @@ export namespace Note {
         project.id,
         input.path,
         input.content,
-        contentHash,
+        hash,
       );
 
       await Bus.publish({ tag: "note.created", info });
@@ -325,13 +290,30 @@ export namespace Note {
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<Info> => {
-      Store.ensure();
-      const db = Store.get();
+      const { id, content } = input;
 
-      const cursor = db.prepare(Sql.GET_NOTE).get(input.id);
-      if (!cursor) throw new NotFoundError(`Note not found: ${input.id}`);
+      const db = Store.ensure();
 
-      const hash = getHash(input.content);
+      // just nuke everything and bail early if there's no content
+      if (content.length == 0) {
+        db.transaction(() => {
+          db.run(Sql.DELETE_VECTORS_BY_NOTE, [id])
+          db.run(Sql.DELETE_EMBEDDINGS_BY_NOTE, [id])
+        })();
+
+        const updated = db.prepare(Sql.UPDATE_NOTE).get("", "", Date.now(), id)
+        const info = Row.parse(updated);
+
+        await Bus.publish({ tag: "note.updated", info });
+
+        return info
+      }
+
+      // if there IS content, check against existing content
+      const cursor = db.prepare(Sql.GET_NOTE).get(id);
+      if (!cursor) throw new NotFoundError(`Note not found: ${id}`);
+
+      const hash = getHash(content);
       const row = Row.parse(cursor);
 
       if (hash === row.contentHash) {
@@ -339,9 +321,22 @@ export namespace Note {
         return row;
       }
 
-      checkDupe(row.project, hash, input.dupe, input.id);
+      checkDupe(row.project, hash, input.dupe, id);
 
-      const info = await updateNote(input.id, input.content, hash);
+      // re-embed, store new content
+      await Model.load();
+      const chunks = await Store.chunk(content);
+
+      const updated = db
+        .prepare(Sql.UPDATE_NOTE)
+        .get(content, hash, Date.now(), id);
+
+      const texts = chunks.map((c) => c.text);
+      const embeddings = await Model.embedBatch(texts);
+      Store.saveEmbeddings(id, chunks, embeddings);
+
+      const info = Row.parse(updated);
+
       await Bus.publish({ tag: "note.updated", info });
       return info;
     },
@@ -355,8 +350,7 @@ export namespace Note {
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<Info> => {
-      Store.ensure();
-      const db = Store.get();
+      const db = Store.ensure();
 
       // Check if note exists at this path
       const existing = db

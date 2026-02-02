@@ -658,6 +658,14 @@ export type SseNoteSyncResponses = {
         numFiles: number;
       }
     | {
+        tag: "embed.cancel";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
         tag: "note.created";
         info: {
           id: number;
@@ -805,6 +813,14 @@ export type SseNoteAddResponses = {
     | {
         tag: "embed.done";
         numFiles: number;
+      }
+    | {
+        tag: "embed.cancel";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
       }
     | {
         tag: "note.created";
@@ -956,6 +972,14 @@ export type SseNoteUpsertResponses = {
         numFiles: number;
       }
     | {
+        tag: "embed.cancel";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
+      }
+    | {
         tag: "note.created";
         info: {
           id: number;
@@ -1103,6 +1127,14 @@ export type SseNoteUpdateResponses = {
     | {
         tag: "embed.done";
         numFiles: number;
+      }
+    | {
+        tag: "embed.cancel";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
       }
     | {
         tag: "note.created";
@@ -1263,6 +1295,14 @@ export type EventsResponses = {
     | {
         tag: "embed.done";
         numFiles: number;
+      }
+    | {
+        tag: "embed.cancel";
+        numFiles: number;
+        numChunks: number;
+        numBytes: number;
+        numFilesProcessed: number;
+        numBytesProcessed: number;
       }
     | {
         tag: "note.created";

@@ -57,11 +57,17 @@ export const sync: CommandDef = {
     let embedTotalFiles = 0;
     let embedStartTime = 0;
 
-    const { stream } = await client.sse.note.sync({
-      directory: dir,
-      glob: argv.glob,
-      project: project.id,
-    });
+    const controller = new AbortController();
+    process.once("SIGINT", () => controller.abort());
+
+    const { stream } = await client.sse.note.sync(
+      {
+        directory: dir,
+        glob: argv.glob,
+        project: project.id,
+      },
+      { signal: controller.signal },
+    );
 
     for await (const event of stream as AsyncGenerator<any>) {
       if (event?.tag === "error") {
@@ -85,16 +91,23 @@ export const sync: CommandDef = {
           const status = event.status as keyof typeof scanCounts;
           if (status in scanCounts) scanCounts[status]++;
 
-          const scanned = scanCounts.added + scanCounts.modified + scanCounts.removed + scanCounts.ok;
-          process.stderr.write(
-            `\rScanning... ${scanned}/${scanTotal} (added: ${scanCounts.added}, modified: ${scanCounts.modified}, removed: ${scanCounts.removed}, ok: ${scanCounts.ok}) ${CLEAR}`,
+          const scanned =
+            scanCounts.added +
+            scanCounts.modified +
+            scanCounts.removed +
+            scanCounts.ok;
+          // process.stderr.write(
+          //   `\rScanning... ${scanned}/${scanTotal} (added: ${scanCounts.added}, modified: ${scanCounts.modified}, removed: ${scanCounts.removed}, ok: ${scanCounts.ok}) ${CLEAR}`,
+          // );
+          console.info(
+            `Scanning... ${scanned}/${scanTotal} (added: ${scanCounts.added}, modified: ${scanCounts.modified}, removed: ${scanCounts.removed}, ok: ${scanCounts.ok})`,
           );
-          await Bun.sleep(10)
+          //await Bun.sleep(10)
 
           break;
         }
         case "scan.done":
-          process.stderr.write(`\r${CLEAR}`);
+          //process.stderr.write(`\r${CLEAR}`);
           consola.success(
             `Scan done (added: ${scanCounts.added}, modified: ${scanCounts.modified}, removed: ${scanCounts.removed}, ok: ${scanCounts.ok})`,
           );
@@ -103,11 +116,12 @@ export const sync: CommandDef = {
           embedTotalFiles = event.numFiles;
           embedTotalBytes = event.numBytes;
           embedStartTime = performance.now();
-          const sizeStr = embedTotalBytes >= 1024 * 1024
-            ? `${(embedTotalBytes / (1024 * 1024)).toFixed(1)} MB`
-            : embedTotalBytes >= 1024
-              ? `${(embedTotalBytes / 1024).toFixed(1)} KB`
-              : `${embedTotalBytes} B`;
+          const sizeStr =
+            embedTotalBytes >= 1024 * 1024
+              ? `${(embedTotalBytes / (1024 * 1024)).toFixed(1)} MB`
+              : embedTotalBytes >= 1024
+                ? `${(embedTotalBytes / 1024).toFixed(1)} KB`
+                : `${embedTotalBytes} B`;
           consola.info(
             `Embedding ${event.numChunks} chunks from ${event.numFiles} files ${pc.dim(`(${sizeStr})`)}`,
           );
@@ -120,18 +134,30 @@ export const sync: CommandDef = {
           const percentStr = percent.toFixed(0).padStart(3);
           const elapsed = (performance.now() - embedStartTime) / 1000;
           const bps = elapsed > 0 ? event.numBytesProcessed / elapsed : 0;
-          const bpsStr = bps >= 1024 * 1024
-            ? `${(bps / (1024 * 1024)).toFixed(1)} MB/s`
-            : bps >= 1024
-              ? `${(bps / 1024).toFixed(1)} KB/s`
-              : `${bps.toFixed(0)} B/s`;
-          process.stderr.write(
-            `\r${bar} ${pc.bold(percentStr + "%")} files ${event.numFilesProcessed}/${embedTotalFiles} ${pc.dim(`(${bpsStr})`)} ${CLEAR}`,
+          const bpsStr =
+            bps >= 1024 * 1024
+              ? `${(bps / (1024 * 1024)).toFixed(1)} MB/s`
+              : bps >= 1024
+                ? `${(bps / 1024).toFixed(1)} KB/s`
+                : `${bps.toFixed(0)} B/s`;
+          consola.info(
+            `${bar} ${pc.bold(percentStr + "%")} files ${event.numFilesProcessed}/${embedTotalFiles} ${pc.dim(`(${bpsStr})`)}`,
           );
+          // process.stderr.write(
+          //   `\r${bar} ${pc.bold(percentStr + "%")} files ${event.numFilesProcessed}/${embedTotalFiles} ${pc.dim(`(${bpsStr})`)} ${CLEAR}`,
+          // );
+          break;
+        }
+        case "embed.cancel": {
+          //process.stderr.write(`\r${CLEAR}`);
+          consola.info(
+            `CANCELLED ${event.numFilesProcessed}/${embedTotalFiles}`,
+          );
+          consola.warn("Index cancelled");
           break;
         }
         case "embed.done":
-          process.stderr.write(`\r${CLEAR}`);
+          //process.stderr.write(`\r${CLEAR}`);
           consola.success("Index complete");
           break;
       }

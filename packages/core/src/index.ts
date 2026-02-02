@@ -10,6 +10,7 @@ export { Project } from "./project";
 export { Note } from "./note";
 export { Query } from "./query";
 export { Error } from "./error";
+export { Context } from "./context";
 
 import { z } from "zod";
 import { Project } from "./project";
@@ -37,6 +38,7 @@ export const EventUnion = z.discriminatedUnion("tag", [
   Store.Event.Embed,
   Store.Event.EmbedProgress,
   Store.Event.Embedded,
+  Store.Event.EmbedCancel,
   Note.Event.Created,
   Note.Event.Updated,
 ]);
@@ -59,5 +61,6 @@ export type EventUnion =
   | z.infer<typeof Store.Event.Embed>
   | z.infer<typeof Store.Event.EmbedProgress>
   | z.infer<typeof Store.Event.Embedded>
+  | z.infer<typeof Store.Event.EmbedCancel>
   | z.infer<typeof Note.Event.Created>
   | z.infer<typeof Note.Event.Updated>;

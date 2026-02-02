@@ -1641,6 +1641,38 @@
                       "properties": {
                         "tag": {
                           "type": "string",
+                          "const": "embed.cancel"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        },
+                        "numFilesProcessed": {
+                          "type": "number"
+                        },
+                        "numBytesProcessed": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes",
+                        "numFilesProcessed",
+                        "numBytesProcessed"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
                           "const": "note.created"
                         },
                         "info": {
@@ -2192,6 +2224,38 @@
                       "required": [
                         "tag",
                         "numFiles"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.cancel"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        },
+                        "numFilesProcessed": {
+                          "type": "number"
+                        },
+                        "numBytesProcessed": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes",
+                        "numFilesProcessed",
+                        "numBytesProcessed"
                       ]
                     },
                     {
@@ -2754,6 +2818,38 @@
                       "required": [
                         "tag",
                         "numFiles"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.cancel"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        },
+                        "numFilesProcessed": {
+                          "type": "number"
+                        },
+                        "numBytesProcessed": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes",
+                        "numFilesProcessed",
+                        "numBytesProcessed"
                       ]
                     },
                     {
@@ -3326,6 +3422,38 @@
                       "required": [
                         "tag",
                         "numFiles"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.cancel"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        },
+                        "numFilesProcessed": {
+                          "type": "number"
+                        },
+                        "numBytesProcessed": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes",
+                        "numFilesProcessed",
+                        "numBytesProcessed"
                       ]
                     },
                     {
@@ -3909,6 +4037,38 @@
                       "required": [
                         "tag",
                         "numFiles"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "tag": {
+                          "type": "string",
+                          "const": "embed.cancel"
+                        },
+                        "numFiles": {
+                          "type": "number"
+                        },
+                        "numChunks": {
+                          "type": "number"
+                        },
+                        "numBytes": {
+                          "type": "number"
+                        },
+                        "numFilesProcessed": {
+                          "type": "number"
+                        },
+                        "numBytesProcessed": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "tag",
+                        "numFiles",
+                        "numChunks",
+                        "numBytes",
+                        "numFilesProcessed",
+                        "numBytesProcessed"
                       ]
                     },
                     {

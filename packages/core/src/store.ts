@@ -10,6 +10,8 @@ import { Io } from "./io";
 import { Model } from "./model";
 import { Config } from "./config";
 import { FileStatus } from "./schema";
+import { Context } from "./context";
+import { Error as SpallError } from "./error";
 
 export type Chunk = {
   text: string;
@@ -29,11 +31,10 @@ export type IndexResult = {
 };
 
 export type ScanResult = IndexResult & {
-  unembedded: string[];
+  unembedded: number[];
 };
 
-export function canonicalPath(path: string): string {
-  // canonicalize to unix-ish note paths
+export function canonicalize(path: string): string {
   let p = path.replace(/\\/g, "/");
   p = p.replace(/\/+$/, "");
   p = p.replace(/^\.\//, "");
@@ -42,7 +43,16 @@ export function canonicalPath(path: string): string {
   if (p === ".") return "";
   return p;
 }
+
+export function convertFilePath(prefix: string, file: string): string {
+  const relative = canonicalize(file);
+  return prefix
+    ? `${prefix}/${relative}`
+    : relative;
+}
+
 export namespace Store {
+  type Statement = ReturnType<Database["prepare"]>;
   export const Event = {
     Create: Bus.define("store.create", {
       path: z.string(),
@@ -74,6 +84,13 @@ export namespace Store {
     }),
     Embedded: Bus.define("embed.done", {
       numFiles: z.number(),
+    }),
+    EmbedCancel: Bus.define("embed.cancel", {
+      numFiles: z.number(),
+      numChunks: z.number(),
+      numBytes: z.number(),
+      numFilesProcessed: z.number(),
+      numBytesProcessed: z.number(),
     }),
   };
 
@@ -153,11 +170,7 @@ export namespace Store {
     }
   }
 
-  // ============================================
-  // Chunking & Embedding
-  // ============================================
-
-  function findBreakPoint(text: string): number {
+  function findBreak(text: string): number {
     const searchStart = Math.floor(text.length * 0.7);
     const searchSlice = text.slice(searchStart);
 
@@ -205,7 +218,7 @@ export namespace Store {
       let chunkText = await Model.detokenize(chunkTokens);
 
       if (chunkEnd < totalTokens) {
-        const breakOffset = findBreakPoint(chunkText);
+        const breakOffset = findBreak(chunkText);
         if (breakOffset > 0) {
           chunkText = chunkText.slice(0, breakOffset);
         }
@@ -221,40 +234,26 @@ export namespace Store {
     return chunks;
   }
 
-  function getHash(content: string): string {
+  function calcHash(content: string): string {
     return Bun.hash(content).toString(16);
   }
 
-  function cachedHash(
-    absPath: string,
-    mtime: number,
-    content?: string,
-  ): string | null {
+  function getHash(absPath: string): string {
     const db = get();
-    const row = db.prepare(Sql.GET_FILE_HASH).get(absPath, mtime) as {
+    const meta = Io.getFile(absPath);
+
+    const row = db.prepare(Sql.GET_FILE_HASH).get(absPath, meta.modTime) as {
       content_hash: string;
     } | null;
     if (row) return row.content_hash;
-    if (content === undefined) return null;
-    const hash = getHash(content);
-    db.run(Sql.UPSERT_FILE_HASH, [absPath, hash, mtime]);
+
+    const content = Io.readFile(absPath);
+    const hash = calcHash(content);
+    db.run(Sql.UPSERT_FILE_HASH, [absPath, hash, meta.modTime]);
     return hash;
   }
 
-  export function clearNoteEmbeddings(noteId: number): void {
-    const db = get();
-    const statements = {
-      deleteVectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
-      deleteEmbeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
-    };
-
-    db.transaction(() => {
-      statements.deleteVectors.run(noteId);
-      statements.deleteEmbeddings.run(noteId);
-    })();
-  }
-
-  export function saveNoteEmbeddings(
+  export function saveEmbeddings(
     noteId: number,
     chunks: Chunk[],
     vectors: number[][],
@@ -302,10 +301,10 @@ export namespace Store {
     const rows = db
       .prepare(Sql.SEARCH_VECTORS)
       .all(new Float32Array(queryVector), limit) as {
-      key: string;
-      note_id: number;
-      distance: number;
-    }[];
+        key: string;
+        note_id: number;
+        distance: number;
+      }[];
 
     return rows.map((row) => ({
       noteId: row.note_id,
@@ -320,12 +319,27 @@ export namespace Store {
 
   const BATCH_SIZE = 16;
 
+  export class UnknownNoteError extends SpallError.SpallError {
+    constructor(id: number) {
+      super("embed.unknown", `Note ${id} was not found`);
+      this.name = "UnknownNoteError";
+    }
+  }
+
+  export class CancelledError extends SpallError.SpallError {
+    constructor(message: string = "Cancelled") {
+      super("request.cancelled", message);
+      this.name = "CancelledError";
+    }
+  }
+
   export async function scan(
     dir: string,
     globPattern: string,
     projectId: number,
     prefix: string,
   ): Promise<ScanResult> {
+    // find all files on the filesystem which match the glob
     const glob = new Glob(globPattern);
 
     const files: string[] = [];
@@ -335,16 +349,19 @@ export namespace Store {
 
     await Bus.publish({ tag: "scan.start", numFiles: files.length });
 
+
+    // find all existing notes which match this path
     const db = get();
-    const canonicalPrefix = canonicalPath(prefix);
+
+    const canonicalPrefix = canonicalize(prefix);
     const existing = db
       .prepare(Sql.LIST_NOTES_FOR_PROJECT_PREFIX)
       .all(projectId, canonicalPrefix, canonicalPrefix, canonicalPrefix) as {
-      id: number;
-      path: string;
-      mtime: number;
-      content_hash: string;
-    }[];
+        id: number;
+        path: string;
+        mtime: number;
+        content_hash: string;
+      }[];
 
     const rows = new Map(
       existing.map((r) => [
@@ -358,38 +375,86 @@ export namespace Store {
       ]),
     );
 
+    // bucket every note, make sure tables are clean for embedding
     const seen = new Set<string>();
     const added: string[] = [];
     const modified: string[] = [];
     const removed: string[] = [];
+    const unembedded: number[] = [];
+
+    const statements = {
+      insertNote: db.prepare(Sql.INSERT_NOTE),
+      updateNote: db.prepare(Sql.UPDATE_NOTE),
+      updateMtime: db.prepare(Sql.UPDATE_NOTE_MTIME),
+      delete: {
+        embeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
+        vectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
+        note: db.prepare(Sql.DELETE_NOTE),
+      }
+    };
+
+    Context.setYield(32);
 
     for (const file of files) {
-      const relative = canonicalPath(file);
-      const path = canonicalPrefix
-        ? `${canonicalPrefix}/${relative}`
-        : relative;
+      if (await Context.checkpoint()) {
+        Embed.cancel()
+        throw new CancelledError();
+      }
+
+      const path = convertFilePath(canonicalPrefix, file);
       seen.add(path);
 
       const meta = Io.get(dir, file);
-      const note = rows.get(path);
-
+      const absPath = join(dir, file);
+      const hash = getHash(absPath);
       let status: FileStatus;
+
+      const note = rows.get(path);
       if (!note) {
+        // if it's not in the db, it's new
+        const content = Io.read(dir, file);
         added.push(path);
         status = "added";
-      } else if (meta.modTime > note.mtime) {
-        const absPath = join(dir, file);
-        const hash =
-          cachedHash(absPath, meta.modTime) ??
-          cachedHash(absPath, meta.modTime, Io.read(dir, file))!;
-        if (note.content_hash !== hash) {
-          modified.push(path);
-          status = "modified";
-        } else {
-          status = "ok";
-        }
+
+        const inserted = statements.insertNote.get(
+          projectId,
+          path,
+          content,
+          hash,
+          meta.modTime,
+        ) as { id: number };
+
+        unembedded.push(inserted.id);
       } else {
-        status = "ok";
+        // if it IS in the db, make sure all our tables are up-to-date and that any
+        // stale embeddings are cleared
+        if (note.content_hash == hash) {
+          if (note.mtime !== meta.modTime) {
+            statements.updateMtime.run(meta.modTime, note.id);
+          }
+
+          status = "ok";
+          continue;
+        }
+
+        const content = Io.read(dir, file);
+
+        db.transaction(() => {
+          statements.delete.vectors.run(note.id);
+          statements.delete.embeddings.run(note.id);
+
+          const updated = statements.updateNote.get(
+            content,
+            hash,
+            meta.modTime,
+            note.id,
+          ) as { id: number };
+
+          unembedded.push(updated.id);
+        })();
+
+        modified.push(path);
+        status = "modified";
       }
 
       await Bus.publish({
@@ -399,34 +464,74 @@ export namespace Store {
       });
     }
 
+    // delete anything which was in the db under the path, but not on the fs
+    Context.setYield(32);
+
     for (const [path, row] of rows) {
-      if (!seen.has(path)) {
-        clearNoteEmbeddings(row.id);
-        db.run(Sql.DELETE_NOTE, [row.id]);
-        removed.push(row.path);
-        await Bus.publish({
-          tag: "scan.progress",
-          path: row.path,
-          status: "removed",
-        });
-      }
+      if (await Context.checkpoint()) throw new CancelledError();
+      if (seen.has(path)) continue;
+
+      db.transaction(() => {
+        statements.delete.vectors.run(row.id);
+        statements.delete.embeddings.run(row.id);
+        statements.delete.note.run(row.id);
+      })();
+
+      removed.push(row.path);
+
+      await Bus.publish({
+        tag: "scan.progress",
+        path: row.path,
+        status: "removed",
+      });
     }
 
+    // done!
     await Bus.publish({ tag: "scan.done", numFiles: files.length });
 
-    const unembedded = [...added, ...modified].map((path) =>
-      canonicalPrefix ? path.slice(canonicalPrefix.length + 1) : path,
-    );
     return { added, modified, removed, unembedded };
   }
 
-  export async function embedFiles(
-    dir: string,
-    projectId: number,
-    files: string[],
-    prefix: string,
-  ): Promise<void> {
-    if (files.length === 0) return;
+  namespace Embed {
+    export type Metadata = {
+      numFiles: number;
+      numChunks: number;
+      numBytes: number;
+      numFilesProcessed: number;
+      numBytesProcessed: number;
+    };
+
+    export async function cancel(metadata?: Metadata) {
+      metadata = metadata ?? { numFiles: 0, numChunks: 0, numBytes: 0, numFilesProcessed: 0, numBytesProcessed: 0 }
+      await Bus.publish({
+        tag: "embed.cancel",
+        ...metadata,
+      });
+    }
+
+    export async function progress(metadata: Metadata) {
+      await Bus.publish({
+        tag: "embed.progress",
+        ...metadata,
+      });
+    }
+  }
+
+  export async function embedFiles(ids: number[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const metadata: Embed.Metadata = {
+      numFiles: ids.length,
+      numChunks: 0,
+      numBytes: 0,
+      numFilesProcessed: 0,
+      numBytesProcessed: 0,
+    };
+
+    if (Context.aborted()) {
+      await Embed.cancel(metadata);
+      return;
+    }
 
     await Model.load();
 
@@ -441,53 +546,37 @@ export namespace Store {
 
     const db = get();
     const statements = {
-      getNote: db.prepare(Sql.GET_NOTE_BY_PATH),
-      insertNote: db.prepare(Sql.INSERT_NOTE),
-      updateNote: db.prepare(Sql.UPDATE_NOTE),
+      getNote: db.prepare(Sql.GET_NOTE),
       deleteEmbeddings: db.prepare(Sql.DELETE_EMBEDDINGS_BY_NOTE),
       deleteVectors: db.prepare(Sql.DELETE_VECTORS_BY_NOTE),
       insertEmbedding: db.prepare(Sql.INSERT_EMBEDDING),
       insertVector: db.prepare(Sql.INSERT_VECTOR),
     };
 
-    const canonicalPrefix = canonicalPath(prefix);
     const work: { note: NoteWork; chunks: ChunkWork[] }[] = [];
-    for (const file of files) {
-      const meta = Io.get(dir, file);
-      const content = Io.read(dir, file);
-      const chunks = await chunk(content);
-      const absPath = join(dir, file);
-      const contentHash = cachedHash(absPath, meta.modTime, content)!;
-      const rel = canonicalPath(file);
-      const notePath = canonicalPrefix ? `${canonicalPrefix}/${rel}` : rel;
-      const existing = statements.getNote.get(projectId, notePath) as {
-        id: number;
-      } | null;
-      let noteId: number;
 
-      if (existing) {
-        const updated = statements.updateNote.get(
-          content,
-          contentHash,
-          meta.modTime,
-          existing.id,
-        ) as { id: number };
-        noteId = updated.id;
-      } else {
-        const inserted = statements.insertNote.get(
-          projectId,
-          notePath,
-          content,
-          contentHash,
-          meta.modTime,
-        ) as { id: number };
-        noteId = inserted.id;
+    Context.setYield(8);
+
+    for (const id of ids) {
+      if (await Context.checkpoint()) {
+        await Embed.cancel(metadata);
+        return;
       }
 
+      const row = statements.getNote.get(id) as {
+        id: number;
+        content: string;
+      } | null;
+      if (!row) throw new UnknownNoteError(id);
+
+      const content = row.content;
+
+      const chunks = await chunk(content);
+
       work.push({
-        note: { noteId, size: meta.size },
+        note: { noteId: row.id, size: content.length },
         chunks: chunks.map((c, seq) => ({
-          noteId,
+          noteId: row.id,
           seq,
           pos: c.pos,
           text: c.text,
@@ -495,21 +584,35 @@ export namespace Store {
       });
     }
 
-    const numFiles = work.length;
-    const numBytes = work.reduce((sum, entry) => sum + entry.chunks.reduce((s, c) => s + c.text.length, 0), 0);
-    const numChunks = work.reduce((sum, entry) => sum + entry.chunks.length, 0);
-    await Bus.publish({ tag: "embed.start", numFiles, numChunks, numBytes });
+    // embed, in batches, checking occasionally for cancellation
+    metadata.numFiles = work.length;
+    metadata.numBytes = work.reduce(
+      (sum, entry) => sum + entry.chunks.reduce((s, c) => s + c.text.length, 0),
+      0,
+    );
+    metadata.numChunks = work.reduce(
+      (sum, entry) => sum + entry.chunks.length,
+      0,
+    );
+    await Bus.publish({
+      tag: "embed.start",
+      numFiles: metadata.numFiles,
+      numChunks: metadata.numChunks,
+      numBytes: metadata.numBytes,
+    });
 
-    let numFilesProcessed = 0;
-    let numBytesProcessed = 0;
     let pendingChunks: ChunkWork[] = [];
     let pendingNotes: NoteWork[] = [];
 
     const flushBatch = async () => {
       if (pendingChunks.length === 0) return;
 
+      if (Context.aborted()) return;
+
       const texts = pendingChunks.map((chunk) => chunk.text);
       const embeddings = await Model.embedBatch(texts);
+
+      if (Context.aborted()) return;
 
       db.transaction(() => {
         for (const note of pendingNotes) {
@@ -528,26 +631,26 @@ export namespace Store {
             String(inserted.id),
             new Float32Array(embeddings[j]!),
           );
-          numBytesProcessed += c.text.length;
+          metadata.numBytesProcessed += c.text.length;
         }
 
-        numFilesProcessed += pendingNotes.length;
+        metadata.numFilesProcessed += pendingNotes.length;
       })();
 
-      await Bus.publish({
-        tag: "embed.progress",
-        numFiles,
-        numChunks,
-        numBytes,
-        numFilesProcessed,
-        numBytesProcessed,
-      });
+      await Embed.progress(metadata);
 
       pendingChunks = [];
       pendingNotes = [];
     };
 
+    Context.setYield(8);
+
     for (const entry of work) {
+      if (await Context.checkpoint()) {
+        await Embed.cancel(metadata);
+        return;
+      }
+
       pendingChunks.push(...entry.chunks);
       pendingNotes.push(entry.note);
 
@@ -558,6 +661,11 @@ export namespace Store {
 
     await flushBatch();
 
-    await Bus.publish({ tag: "embed.done", numFiles });
+    if (Context.aborted()) {
+      await Embed.cancel(metadata);
+      return;
+    }
+
+    await Bus.publish({ tag: "embed.done", numFiles: metadata.numFiles });
   }
 }

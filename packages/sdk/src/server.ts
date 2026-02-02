@@ -37,7 +37,6 @@ export namespace Server {
   let server: Bun.Server;
   let persist = false;
   let activeRequests = 0;
-  let activeSse = 0;
   let timer: Timer;
   let idleTimeoutMs = 1000;
   let resolved: () => void;
@@ -47,6 +46,24 @@ export namespace Server {
     idleTimeoutMs: number;
     force: boolean;
   };
+
+  export namespace Sse {
+    let count = 0;
+
+    export function active(): boolean {
+      return count > 0;
+    }
+
+    export function track(): void {
+      count++;
+      clearTimeout(timer);
+    }
+
+    export function untrack(): void {
+      count--;
+      clearTimeout(timer);
+    }
+  }
 
   export function increment(): void {
     activeRequests++;
@@ -58,22 +75,12 @@ export namespace Server {
     resetShutdownTimer();
   }
 
-  export function incrementSse(): void {
-    activeSse++;
-    clearTimeout(timer);
-  }
-
-  export function decrementSse(): void {
-    activeSse--;
-    resetShutdownTimer();
-  }
-
   function resetShutdownTimer(): void {
     if (persist) return;
-    if (activeRequests > 0 || activeSse > 0) return;
+    if (activeRequests > 0 || Sse.active()) return;
 
     timer = setTimeout(() => {
-      if (activeRequests === 0 && activeSse === 0) {
+      if (activeRequests === 0 && !Sse.active()) {
         stop();
       }
     }, idleTimeoutMs);
@@ -108,6 +115,7 @@ export namespace Server {
         return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
       case "note.updated":
         return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
+      case "embed.cancel": return "Cancelled embedding";
     }
 
     return event.tag;
@@ -135,7 +143,6 @@ export namespace Server {
       force: request?.force ?? env.force ?? false,
     };
 
-    // initialize core store before serving requests
     Store.ensure();
 
     // set module level fields
