@@ -1220,7 +1220,7 @@
                           "snippet": {
                             "type": "string"
                           },
-                          "rank": {
+                          "score": {
                             "type": "number"
                           }
                         },
@@ -1229,7 +1229,7 @@
                           "project",
                           "path",
                           "snippet",
-                          "rank"
+                          "score"
                         ]
                       }
                     }

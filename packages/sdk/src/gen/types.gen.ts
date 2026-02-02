@@ -570,7 +570,7 @@ export type QuerySearchResponses = {
       project: number;
       path: string;
       snippet: string;
-      rank: number;
+      score: number;
     }>;
   };
 };

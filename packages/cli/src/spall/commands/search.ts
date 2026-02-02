@@ -2,10 +2,10 @@ import consola from "consola";
 import { Client } from "@spall/sdk/client";
 import { ProjectConfig } from "@spall/core";
 import {
-  table,
   type CommandDef,
   defaultTheme as theme,
-  cleanEscapes,
+  displayResults,
+  highlightSnippet,
 } from "@spall/cli/shared";
 
 type Mode = "plain" | "fts";
@@ -43,7 +43,7 @@ export const search: CommandDef = {
     output: {
       alias: "o",
       type: "string",
-      description: "Output format: table | json",
+      description: "Output format: table | json | tree | list",
       default: "table",
     },
   },
@@ -56,11 +56,6 @@ export const search: CommandDef = {
     }
 
     const out = String(argv.output ?? "table");
-    if (out !== "table" && out !== "json") {
-      consola.error(`Invalid output: ${theme.primary(out)}`);
-      consola.info(`Use ${theme.option("--output")} table | json`);
-      process.exit(1);
-    }
 
     const client = await Client.connect();
 
@@ -94,40 +89,22 @@ export const search: CommandDef = {
       })
       .then(Client.unwrap);
 
-    if (res.results.length === 0) {
-      console.log(theme.dim("(no matches)"));
-      return;
-    }
-
-    if (out === "json") {
-      console.log(JSON.stringify(res, null, 2));
-      return;
-    }
-
-    table(
-      ["path", "rank", "snippet"],
-      [
-        res.results.map((r: any) => r.path),
-        res.results.map((r: any) => r.rank.toFixed(3)),
-        res.results.map((r: any) => cleanEscapes(r.snippet)),
+    displayResults(res.results, {
+      output: out,
+      empty: "(no matches)",
+      path: (r: any) => r.path,
+      id: (r: any) => String(r.id),
+      preview: (r: any) => r.snippet,
+      previewFormat: highlightSnippet,
+      extraColumns: [
+        {
+          header: "score",
+          value: (r: any) => r.score.toFixed(3),
+          flex: 0,
+          noTruncate: true,
+          format: (s) => theme.code(s),
+        },
       ],
-      {
-        flex: [1, 0, 2],
-        noTruncate: [false, true, false],
-        min: [0, 0, 3],
-        truncate: ["start", "end", "middle"],
-        format: [
-          (s) => {
-            const slash = s.lastIndexOf("/");
-            if (slash === -1) return theme.primary(s);
-            return (
-              theme.dim(s.slice(0, slash + 1)) +
-              theme.primary(s.slice(slash + 1))
-            );
-          },
-          (s) => theme.code(s),
-        ],
-      },
-    );
+    });
   },
 };

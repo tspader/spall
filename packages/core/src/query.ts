@@ -22,7 +22,7 @@ export namespace Query {
     project: Project.Id,
     path: z.string(),
     snippet: z.string(),
-    rank: z.number(),
+    score: z.number(),
   });
   export type SearchItem = z.infer<typeof SearchItem>;
 
@@ -130,7 +130,7 @@ export namespace Query {
       project_id: z.number(),
       path: z.string(),
       snippet: z.string(),
-      rank: z.number(),
+      score: z.number(),
     })
     .transform(
       (r): SearchItem => ({
@@ -138,7 +138,7 @@ export namespace Query {
         project: Project.Id.parse(r.project_id),
         path: r.path,
         snippet: r.snippet,
-        rank: r.rank,
+        score: r.score,
       }),
     );
 

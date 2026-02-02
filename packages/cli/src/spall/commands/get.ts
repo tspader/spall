@@ -2,10 +2,9 @@ import consola from "consola";
 import { Client } from "@spall/sdk/client";
 import { ProjectConfig } from "@spall/core";
 import {
-  table,
   type CommandDef,
   defaultTheme as theme,
-  cleanEscapes,
+  displayResults,
 } from "@spall/cli/shared";
 
 export const get: CommandDef = {
@@ -79,19 +78,10 @@ export const get: CommandDef = {
     const notes: NoteInfo[] = [];
     let cursor: string | undefined = undefined;
 
+    // Limit fetching to roughly what we'd display, to avoid over-fetching.
     const termRows = process.stdout.rows ?? 24;
-
-    const maxTableRows = showAll ? Infinity : Math.max(1, termRows - 4);
-    const maxTreeRows = showAll ? Infinity : Math.max(1, termRows - 3);
-
-    const fetchLimit = Math.min(
-      argv.max ?? Infinity,
-      output === "table"
-        ? maxTableRows + 1
-        : output === "tree"
-          ? maxTreeRows + 1
-          : Infinity,
-    );
+    const displayRows = showAll ? Infinity : Math.max(1, termRows - 4);
+    const fetchLimit = Math.min(argv.max ?? Infinity, displayRows + 1);
 
     while (notes.length < fetchLimit) {
       const page: Page = await client.query
@@ -109,185 +99,13 @@ export const get: CommandDef = {
       cursor = page.nextCursor;
     }
 
-    if (notes.length === 0) {
-      console.log(theme.dim("(no notes matching pattern)"));
-      return;
-    }
-
-    switch (output) {
-      case "json":
-        console.log(JSON.stringify(notes, null, 2));
-        break;
-      case "tree": {
-        type TreeNode = {
-          name: string;
-          isDir: boolean;
-          children: Map<string, TreeNode>;
-          notes: NoteInfo[]; // For leaf nodes, store the actual notes
-        };
-        const truncated = !showAll && notes.length > maxTreeRows;
-        const notesForTree = truncated ? notes.slice(0, maxTreeRows) : notes;
-
-        const root: TreeNode = {
-          name: "",
-          isDir: true,
-          children: new Map(),
-          notes: [],
-        };
-
-        for (const note of notesForTree) {
-          const parts = note.path.split("/");
-          let current = root;
-          for (let i = 0; i < parts.length; i++) {
-            const part = parts[i]!;
-            const isLast = i === parts.length - 1;
-            if (!current.children.has(part)) {
-              current.children.set(part, {
-                name: part,
-                isDir: !isLast,
-                children: new Map(),
-                notes: [],
-              });
-            }
-            current = current.children.get(part)!;
-            if (isLast) {
-              current.notes.push(note);
-            }
-          }
-        }
-
-        const MAX_NOTES_PER_LEAF = 3;
-
-        const ANSI_RE = /\x1b\[[0-9;]*m/g;
-        const termWidth = process.stdout.columns ?? 80;
-
-        function displayLen(s: string): number {
-          // Keep this consistent with what we print: ignore ANSI; replace tabs/newlines.
-          return cleanEscapes(s.replace(ANSI_RE, "")).length;
-        }
-
-        function truncateMiddle(s: string, max: number): string {
-          if (max <= 0) return "";
-          if (s.length <= max) return s;
-          if (max <= 3) return "...".slice(0, max);
-          const half = (max - 3) >> 1;
-          return s.slice(0, half + ((max - 3) & 1)) + "..." + s.slice(-half);
-        }
-
-        function printTree(node: TreeNode, indent: string = ""): void {
-          const sorted = Array.from(node.children.entries()).sort((a, b) => {
-            if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
-            return a[0].localeCompare(b[0]);
-          });
-
-          for (const [name, child] of sorted) {
-            if (child.isDir) {
-              console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
-              printTree(child, indent + " ");
-            } else {
-              // This is a leaf node (file), display notes at this path
-              const notesToShow = showAll
-                ? child.notes
-                : child.notes.slice(0, MAX_NOTES_PER_LEAF);
-
-              for (let i = 0; i < notesToShow.length; i++) {
-                const note = notesToShow[i]!;
-
-                const index =
-                  notesToShow.length > 1 || child.notes.length > 1
-                    ? `[${i + 1}/${child.notes.length}] `
-                    : "";
-
-                const left = `${indent}${index}${name}`;
-                const leftStyled =
-                  theme.dim(indent + index) + theme.primary(name);
-                const content = cleanEscapes(note.content);
-
-                const contentBudget = termWidth - displayLen(left) - 1; // space between name and content
-
-                const preview =
-                  contentBudget > 0
-                    ? truncateMiddle(content, contentBudget)
-                    : "";
-
-                console.log(preview ? `${leftStyled} ${preview}` : leftStyled);
-              }
-
-              // Show ellipsis if there are more notes
-              if (!showAll && child.notes.length > MAX_NOTES_PER_LEAF) {
-                const remaining = child.notes.length - MAX_NOTES_PER_LEAF;
-                console.log(
-                  `${theme.dim(indent)}  ${theme.dim(`( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`)}`,
-                );
-              }
-            }
-          }
-        }
-
-        printTree(root);
-        if (truncated) console.log(theme.dim("..."));
-        break;
-      }
-      case "table": {
-        const maxRows = showAll ? notes.length : maxTableRows;
-
-        table(
-          ["path", "id", "content"],
-          [
-            notes.map((n) => n.path),
-            notes.map((n) => String(n.id)),
-            notes.map((n) => n.content),
-          ],
-          {
-            // id stays intact; content gets guaranteed room; path truncates from the start.
-            flex: [1, 0, 2],
-            noTruncate: [false, true, false],
-            min: [0, 0, 3],
-            truncate: ["start", "end", "middle"],
-            format: [
-              (s) => {
-                const bodyLen = s.trimEnd().length;
-                const body = s.slice(0, bodyLen);
-                const pad = s.slice(bodyLen);
-
-                const slash = body.lastIndexOf("/");
-                if (slash === -1) return theme.primary(body) + pad;
-
-                const prefix = body.slice(0, slash + 1);
-                const name = body.slice(slash + 1);
-                return theme.dim(prefix) + theme.primary(name) + pad;
-              },
-              (s) => theme.code(s),
-            ],
-            maxRows,
-          },
-        );
-        break;
-      }
-      default: {
-        const maxNotes = showAll
-          ? notes.length
-          : Math.max(1, (process.stdout.rows ?? 24) - 3);
-
-        for (let i = 0; i < Math.min(notes.length, maxNotes); i++) {
-          const note = notes[i]!;
-          if (notes.length > 1) {
-            console.log(theme.command(note.path));
-          }
-          console.log(note.content);
-          if (i < Math.min(notes.length, maxNotes) - 1) console.log("");
-        }
-
-        if (notes.length > maxNotes && !showAll) {
-          const remaining = notes.length - maxNotes;
-          console.log(
-            theme.dim(
-              `( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`,
-            ),
-          );
-        }
-        break;
-      }
-    }
+    displayResults(notes, {
+      output,
+      showAll,
+      empty: "(no notes matching pattern)",
+      path: (n) => n.path,
+      id: (n) => String(n.id),
+      preview: (n) => n.content,
+    });
   },
 };

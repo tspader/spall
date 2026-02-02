@@ -1,13 +1,6 @@
 export namespace Sql {
   export const EMBEDDING_DIMS = 768;
 
-  // ============================================
-  // FTS
-  // ============================================
-
-  // FTS5 table over note content.
-  // - We keep the FTS rowid == notes.id so joins are cheap.
-  // - tokenchars keeps common code-ish punctuation inside tokens.
   export const CREATE_NOTES_FTS_TABLE = `
     CREATE VIRTUAL TABLE IF NOT EXISTS notes_fts USING fts5(
       content,
@@ -35,14 +28,14 @@ export namespace Sql {
       n.id,
       n.project_id,
       n.path,
-      snippet(notes_fts, 0, '[', ']', ' ... ', 16) AS snippet,
-      bm25(notes_fts) AS rank
+      snippet(notes_fts, 0, char(1), char(2), ' ... ', 16) AS snippet,
+      2.0 * (1.0 / (1.0 + exp(bm25(notes_fts) * 0.3))) - 1.0 AS score
     FROM notes_fts
     JOIN notes n ON n.id = notes_fts.rowid
     WHERE notes_fts MATCH ?
       AND n.project_id IN (SELECT value FROM json_each(?))
       AND n.path GLOB ?
-    ORDER BY rank
+    ORDER BY score DESC
     LIMIT ?
   `;
 
