@@ -19,3 +19,5 @@ doc
 AGENTS.md
 *.tsbuildinfo
 docs
+.local
+test/
