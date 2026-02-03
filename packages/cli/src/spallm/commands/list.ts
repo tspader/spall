@@ -1,4 +1,9 @@
-import type { CommandDef } from "@spall/cli/shared";
+import { Client } from "@spall/sdk/client";
+import {
+  type CommandDef,
+  createEphemeralQuery,
+  printQueryId,
+} from "@spall/cli/shared";
 
 export const list: CommandDef = {
   summary: "Browse notes as a directory tree",
@@ -16,10 +21,10 @@ Example:
     },
   },
   options: {
-    project: {
-      alias: "p",
+    corpus: {
+      alias: "c",
       type: "string",
-      description: "Project name (default: from spall.json)",
+      description: "Corpus name (default: from spall.json)",
     },
     limit: {
       alias: "n",
@@ -27,15 +32,49 @@ Example:
       description: "Max notes to list (default: 50)",
     },
   },
-  handler: async (_argv) => {
-    // TODO: implement
-    // 1. Resolve project(s) from --project or spall.json
-    // 2. Create ephemeral query
-    // 3. Call client.query.notes with path glob
-    // 4. Print directory tree:
-    //    - Directories as "dir/"
-    //    - Files as "filename (id: N)"
-    //    - Truncate deep trees, show "... N more"
-    // 5. Print footer: "Query ID: <id>"
+  handler: async (argv) => {
+    const client = await Client.connect();
+
+    const { query } = await createEphemeralQuery({
+      client,
+      corpus: (argv as any).corpus,
+      tracked: true,
+    });
+
+    const limit = Number(argv.limit ?? 50);
+    const path = String(argv.path ?? "*");
+
+    const page = await client.query
+      .notes({ id: String(query.id), path, limit })
+      .then(Client.unwrap);
+
+    const notes = (page.notes as Array<{ id: number; path: string }>).slice();
+    notes.sort((a, b) => a.path.localeCompare(b.path));
+
+    if (notes.length === 0) {
+      console.log("(no notes)");
+      printQueryId(query.id);
+      return;
+    }
+
+    // Simple tree printer: directories once, then files as "name (id: N)".
+    const seenDirs = new Set<string>();
+    for (const note of notes) {
+      const parts = note.path.split("/");
+      let prefix = "";
+      for (let i = 0; i < parts.length - 1; i++) {
+        prefix = prefix ? `${prefix}/${parts[i]}` : parts[i]!;
+        if (!seenDirs.has(prefix)) {
+          seenDirs.add(prefix);
+          console.log(`${" ".repeat(i)}${parts[i]}/`);
+        }
+      }
+      const fileIndent = Math.max(0, parts.length - 1);
+      console.log(
+        `${" ".repeat(fileIndent)}${parts[parts.length - 1]} (id: ${note.id})`,
+      );
+    }
+
+    printQueryId(query.id);
   },
 };

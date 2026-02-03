@@ -25,10 +25,10 @@ export const sync: CommandDef = {
       type: "string",
       description: "Glob pattern to match (default: **/*.md)",
     },
-    project: {
-      alias: "p",
+    corpus: {
+      alias: "c",
       type: "string",
-      description: "Project name",
+      description: "Corpus name",
       default: "default",
     },
   },
@@ -41,10 +41,12 @@ export const sync: CommandDef = {
 
     const client = await Client.connect();
 
-    const project = await client.project
-      .get({ name: argv.project })
+    const corpus = await client.corpus
+      .get({ name: (argv as any).corpus })
       .catch(() => {
-        consola.error(`Project not found: ${theme.command(argv.project)}`);
+        consola.error(
+          `Corpus not found: ${theme.command(String((argv as any).corpus))}`,
+        );
         process.exit(1);
       })
       .then(Client.unwrap);
@@ -65,7 +67,7 @@ export const sync: CommandDef = {
       {
         directory: dir,
         glob: argv.glob,
-        project: project.id,
+        corpus: corpus.id,
       },
       { signal: controller.signal },
     );

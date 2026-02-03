@@ -4,7 +4,8 @@ import { describeRoute, generateSpecs, resolver } from "hono-openapi";
 import { z } from "zod";
 
 import { Server } from "./server";
-import { ProjectRoutes } from "./routes/project";
+import { CorpusRoutes } from "./routes/corpus";
+import { WorkspaceRoutes } from "./routes/workspace";
 import { NoteRoutes } from "./routes/note";
 import { QueryRoutes } from "./routes/query";
 import { CommitRoutes } from "./routes/commit";
@@ -30,7 +31,8 @@ export namespace App {
         }
       })
       .use(logger())
-      .route("/project", ProjectRoutes())
+      .route("/workspace", WorkspaceRoutes())
+      .route("/corpus", CorpusRoutes())
       .route("/note", NoteRoutes())
       .route("/query", QueryRoutes())
       .route("/commit", CommitRoutes())

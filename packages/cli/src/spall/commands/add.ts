@@ -1,5 +1,6 @@
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
+import { WorkspaceConfig } from "@spall/core";
 import {
   type CommandDef,
   defaultTheme as theme,
@@ -23,10 +24,10 @@ export const add: CommandDef = {
       description: "Note content",
       required: true,
     },
-    project: {
-      alias: "p",
+    corpus: {
+      alias: "c",
       type: "string",
-      description: "Project name",
+      description: "Corpus name",
     },
     update: {
       alias: "u",
@@ -42,10 +43,17 @@ export const add: CommandDef = {
   handler: async (argv) => {
     const client = await Client.connect();
 
-    const project = await client.project
-      .get({ name: argv.project })
+    const corpusName: string =
+      (argv as any).corpus ??
+      WorkspaceConfig.load(process.cwd()).include[0] ??
+      "default";
+
+    const corpus = await client.corpus
+      .get({ name: corpusName })
       .catch(() => {
-        consola.error(`Failed to find project: ${theme.primary(argv.project)}`);
+        consola.error(
+          `Failed to find corpus: ${theme.primary(String(corpusName))}`,
+        );
         process.exit(1);
       })
       .then(Client.unwrap);
@@ -60,7 +68,7 @@ export const add: CommandDef = {
 
     if (argv.update) {
       const existing = await client.note
-        .get({ id: project.id.toString(), path: argv.path })
+        .get({ id: corpus.id.toString(), path: argv.path })
         .then(Client.unwrap)
         .catch(() => null);
 
@@ -77,7 +85,7 @@ export const add: CommandDef = {
 
       let result: {
         tag: string;
-        info: { path: string; id: number; project: number };
+        info: { path: string; id: number; corpus: number };
       } | null = null;
 
       for await (const event of stream as AsyncGenerator<any>) {
@@ -94,19 +102,19 @@ export const add: CommandDef = {
       }
 
       consola.success(
-        `Updated note ${theme.primary(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
+        `Updated note ${theme.primary(result.info.path)} (id: ${result.info.id}, corpus: ${result.info.corpus})`,
       );
     } else {
       const { stream } = await client.sse.note.add({
         path: argv.path,
         content: argv.text,
-        project: project.id,
+        corpus: corpus.id,
         dupe: argv.dupe,
       });
 
       let result: {
         tag: string;
-        info: { path: string; id: number; project: number };
+        info: { path: string; id: number; corpus: number };
       } | null = null;
 
       for await (const event of stream as AsyncGenerator<any>) {
@@ -123,7 +131,7 @@ export const add: CommandDef = {
       }
 
       consola.success(
-        `Added note ${theme.primary(result.info.path)} (id: ${result.info.id}, project: ${result.info.project})`,
+        `Added note ${theme.primary(result.info.path)} (id: ${result.info.id}, corpus: ${result.info.corpus})`,
       );
     }
   },

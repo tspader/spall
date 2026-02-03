@@ -1,18 +1,14 @@
 #!/usr/bin/env bun
 import { writeFileSync, mkdirSync } from "fs";
 import { join, dirname } from "path";
-import { ConfigSchemaZod, ProjectConfigSchemaZod } from "../src/config";
+import { ConfigSchemaZod, WorkspaceConfigSchemaZod } from "../src/config";
 
 const SCHEMAS_DIR = join(dirname(import.meta.dirname), "src", "gen");
 
 // Generate JSON schemas using Zod 4's native toJSONSchema() method
-const configJsonSchema = ConfigSchemaZod.toJSONSchema({
-  description: "Configuration schema for spall CLI",
-});
+const configJsonSchema = ConfigSchemaZod.toJSONSchema();
 
-const projectConfigJsonSchema = ProjectConfigSchemaZod.toJSONSchema({
-  description: "Project-level configuration schema for spall",
-});
+const workspaceConfigJsonSchema = WorkspaceConfigSchemaZod.toJSONSchema();
 
 // Ensure schemas directory exists
 mkdirSync(SCHEMAS_DIR, { recursive: true });
@@ -24,10 +20,10 @@ writeFileSync(
 );
 
 writeFileSync(
-  join(SCHEMAS_DIR, "project-config.json"),
-  JSON.stringify(projectConfigJsonSchema, null, 2),
+  join(SCHEMAS_DIR, "workspace-config.json"),
+  JSON.stringify(workspaceConfigJsonSchema, null, 2),
 );
 
 console.log(`Generated JSON schemas in ${SCHEMAS_DIR}`);
 console.log("  - config.json");
-console.log("  - project-config.json");
+console.log("  - workspace-config.json");

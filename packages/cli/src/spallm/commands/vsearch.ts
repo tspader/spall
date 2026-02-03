@@ -22,10 +22,10 @@ Example:
     },
   },
   options: {
-    project: {
-      alias: "p",
+    corpus: {
+      alias: "c",
       type: "string",
-      description: "Project name (default: from spall.json)",
+      description: "Corpus name (default: from spall.json)",
     },
     path: {
       type: "string",
@@ -42,7 +42,7 @@ Example:
 
     const { query } = await createEphemeralQuery({
       client,
-      project: argv.project,
+      corpus: (argv as any).corpus,
       tracked: true,
     });
 

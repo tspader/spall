@@ -137,6 +137,8 @@ export namespace Store {
       configure(db);
 
       // Keep newer tables available even if the DB already exists.
+      db.run(Sql.CREATE_WORKSPACES_TABLE);
+      db.run(Sql.CREATE_CORPORA_TABLE);
       db.run(Sql.CREATE_STAGING_TABLE);
       db.exec(Sql.CREATE_STAGING_INDEXES);
       db.run(Sql.CREATE_COMMITTED_TABLE);
@@ -151,7 +153,8 @@ export namespace Store {
 
     db.run(Sql.CREATE_META_TABLE);
     db.run(Sql.CREATE_VECTORS_TABLE);
-    db.run(Sql.CREATE_PROJECT_TABLE);
+    db.run(Sql.CREATE_WORKSPACES_TABLE);
+    db.run(Sql.CREATE_CORPORA_TABLE);
     db.run(Sql.CREATE_NOTES_TABLE);
     try {
       db.run(Sql.CREATE_NOTES_FTS_TABLE);
@@ -170,7 +173,7 @@ export namespace Store {
     db.exec(Sql.CREATE_COMMITTED_INDEXES);
 
     db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
-    db.run(Sql.INSERT_DEFAULT_PROJECT);
+    db.run(Sql.INSERT_DEFAULT_CORPUS);
 
     Bus.publish({ tag: "store.created", path: dbPath });
 
@@ -389,7 +392,7 @@ export namespace Store {
   export async function scan(
     dir: string,
     globPattern: string,
-    projectId: number,
+    corpusId: number,
     prefix: string,
   ): Promise<ScanResult> {
     // find all files on the filesystem which match the glob
@@ -407,8 +410,8 @@ export namespace Store {
 
     const canonicalPrefix = canonicalize(prefix);
     const existing = db
-      .prepare(Sql.LIST_NOTES_FOR_PROJECT_PREFIX)
-      .all(projectId, canonicalPrefix, canonicalPrefix, canonicalPrefix) as {
+      .prepare(Sql.LIST_NOTES_FOR_CORPUS_PREFIX)
+      .all(corpusId, canonicalPrefix, canonicalPrefix, canonicalPrefix) as {
       id: number;
       path: string;
       mtime: number;
@@ -471,7 +474,7 @@ export namespace Store {
         status = "added";
 
         const inserted = statements.insertNote.get(
-          projectId,
+          corpusId,
           path,
           content,
           hash,

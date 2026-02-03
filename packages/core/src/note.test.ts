@@ -6,10 +6,10 @@ import { Config } from "./config";
 import { Store } from "./store";
 import { Note } from "./note";
 import { Model } from "./model";
-import { Project } from "./project";
+import { Corpus } from "./corpus";
 import { Sql } from "./sql";
 
-const PROJECT_ID = Project.Id.parse(1);
+const CORPUS_ID = Corpus.Id.parse(1);
 
 function toPrefix(dir: string): string {
   let prefix = normalize(dir).replace(/\\/g, "/");
@@ -49,14 +49,14 @@ describe("Note duplication rules", () => {
 
   test("add rejects duplicate content without dupe", async () => {
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "a.md",
       content: "same content",
     });
 
     await expect(
       Note.add({
-        project: PROJECT_ID,
+        corpus: CORPUS_ID,
         path: "b.md",
         content: "same content",
       }),
@@ -65,13 +65,13 @@ describe("Note duplication rules", () => {
 
   test("add allows duplicates with dupe but not same path", async () => {
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "a.md",
       content: "same content",
     });
 
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "b.md",
       content: "same content",
       dupe: true,
@@ -79,7 +79,7 @@ describe("Note duplication rules", () => {
 
     await expect(
       Note.add({
-        project: PROJECT_ID,
+        corpus: CORPUS_ID,
         path: "a.md",
         content: "same content",
         dupe: true,
@@ -89,18 +89,18 @@ describe("Note duplication rules", () => {
 
   test("update requires dupe when matching another note", async () => {
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "a.md",
       content: "content a",
     });
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "b.md",
       content: "content b",
     });
 
-    const noteA = Note.get({ project: PROJECT_ID, path: "a.md" });
-    const noteB = Note.get({ project: PROJECT_ID, path: "b.md" });
+    const noteA = Note.get({ corpus: CORPUS_ID, path: "a.md" });
+    const noteB = Note.get({ corpus: CORPUS_ID, path: "b.md" });
 
     await expect(
       Note.update({ id: noteB.id, content: noteA.content }),
@@ -115,21 +115,21 @@ describe("Note duplication rules", () => {
 
   test("upsert respects dupe rule on inserts", async () => {
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "a.md",
       content: "content a",
     });
 
     await expect(
       Note.upsert({
-        project: PROJECT_ID,
+        corpus: CORPUS_ID,
         path: "c.md",
         content: "content a",
       }),
     ).rejects.toThrow(/Duplicate content/);
 
     await Note.upsert({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "c.md",
       content: "content a",
       dupe: true,
@@ -168,19 +168,19 @@ describe("Note.listByPath defaults", () => {
 
   test("listByPath with no path returns all notes", async () => {
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "a.md",
       content: "alpha",
       dupe: true,
     });
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "b.md",
       content: "beta",
       dupe: true,
     });
 
-    const page = Note.listByPath({ project: PROJECT_ID });
+    const page = Note.listByPath({ corpus: CORPUS_ID });
     expect(page.notes).toHaveLength(2);
   });
 });
@@ -238,14 +238,14 @@ describe("Note index", () => {
     await Note.sync({
       directory: source,
       glob: "**/*.md",
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
     });
 
     const prefix = toPrefix(source);
-    const note = Note.get({ project: PROJECT_ID, path: `${prefix}/a.md` });
+    const note = Note.get({ corpus: CORPUS_ID, path: `${prefix}/a.md` });
     expect(note.content).toBe("alpha");
     expect(() =>
-      Note.get({ project: PROJECT_ID, path: `${prefix}/b.txt` }),
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/b.txt` }),
     ).toThrow(/not found/i);
   });
 
@@ -256,10 +256,10 @@ describe("Note index", () => {
     writeFileSync(join(source, "a.md"), "alpha");
     writeFileSync(join(source, "b.md"), "beta");
 
-    await Note.sync({ directory: source, project: PROJECT_ID });
+    await Note.sync({ directory: source, corpus: CORPUS_ID });
 
     await Note.add({
-      project: PROJECT_ID,
+      corpus: CORPUS_ID,
       path: "outside.md",
       content: "outside",
       dupe: true,
@@ -271,19 +271,19 @@ describe("Note index", () => {
     rmSync(join(source, "b.md"));
     writeFileSync(join(source, "c.md"), "gamma");
 
-    await Note.sync({ directory: source, project: PROJECT_ID });
+    await Note.sync({ directory: source, corpus: CORPUS_ID });
 
     const prefix = toPrefix(source);
     expect(
-      Note.get({ project: PROJECT_ID, path: `${prefix}/a.md` }).content,
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/a.md` }).content,
     ).toBe("alpha updated");
     expect(() =>
-      Note.get({ project: PROJECT_ID, path: `${prefix}/b.md` }),
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/b.md` }),
     ).toThrow(/not found/i);
     expect(
-      Note.get({ project: PROJECT_ID, path: `${prefix}/c.md` }).content,
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/c.md` }).content,
     ).toBe("gamma");
-    expect(Note.get({ project: PROJECT_ID, path: "outside.md" }).content).toBe(
+    expect(Note.get({ corpus: CORPUS_ID, path: "outside.md" }).content).toBe(
       "outside",
     );
   });

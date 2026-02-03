@@ -4,18 +4,145 @@ export type ClientOptions = {
   baseUrl: `${string}://${string}` | (string & {});
 };
 
+export type WorkspaceGetData = {
+  body?: never;
+  path?: never;
+  query?: {
+    name?: string;
+    id?: number;
+  };
+  url: "/workspace";
+};
+
+export type WorkspaceGetErrors = {
+  /**
+   * Workspace not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type WorkspaceGetError = WorkspaceGetErrors[keyof WorkspaceGetErrors];
+
+export type WorkspaceGetResponses = {
+  /**
+   * Workspace info
+   */
+  200: {
+    id: number;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+
+export type WorkspaceGetResponse =
+  WorkspaceGetResponses[keyof WorkspaceGetResponses];
+
+export type WorkspaceCreateData = {
+  body?: {
+    name: string;
+  };
+  path?: never;
+  query?: never;
+  url: "/workspace";
+};
+
+export type WorkspaceCreateResponses = {
+  /**
+   * Workspace info
+   */
+  200: {
+    id: number;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+  };
+};
+
+export type WorkspaceCreateResponse =
+  WorkspaceCreateResponses[keyof WorkspaceCreateResponses];
+
+export type WorkspaceListData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/workspace/list";
+};
+
+export type WorkspaceListErrors = {
+  /**
+   * Server error
+   */
+  500: {
+    code: string;
+    message: string;
+  };
+};
+
+export type WorkspaceListError = WorkspaceListErrors[keyof WorkspaceListErrors];
+
+export type WorkspaceListResponses = {
+  /**
+   * List of workspaces
+   */
+  200: Array<{
+    id: number;
+    name: string;
+    createdAt: number;
+    updatedAt: number;
+  }>;
+};
+
+export type WorkspaceListResponse =
+  WorkspaceListResponses[keyof WorkspaceListResponses];
+
+export type WorkspaceDeleteData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/workspace/{id}";
+};
+
+export type WorkspaceDeleteErrors = {
+  /**
+   * Workspace not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type WorkspaceDeleteError =
+  WorkspaceDeleteErrors[keyof WorkspaceDeleteErrors];
+
+export type WorkspaceDeleteResponses = {
+  /**
+   * Workspace deleted successfully
+   */
+  204: void;
+};
+
+export type WorkspaceDeleteResponse =
+  WorkspaceDeleteResponses[keyof WorkspaceDeleteResponses];
+
 export type NoteListData = {
   body?: never;
   path: {
     id: string;
   };
   query?: never;
-  url: "/project/{id}/list";
+  url: "/corpus/{id}/list";
 };
 
 export type NoteListErrors = {
   /**
-   * Project not found
+   * Corpus not found
    */
   404: {
     code: string;
@@ -47,12 +174,12 @@ export type NoteListByPathData = {
     limit?: number;
     after?: string;
   };
-  url: "/project/{id}/notes";
+  url: "/corpus/{id}/notes";
 };
 
 export type NoteListByPathErrors = {
   /**
-   * Project not found
+   * Corpus not found
    */
   404: {
     code: string;
@@ -70,7 +197,7 @@ export type NoteListByPathResponses = {
   200: {
     notes: Array<{
       id: number;
-      project: number;
+      corpus: number;
       path: string;
       content: string;
       contentHash: string;
@@ -89,12 +216,12 @@ export type NoteGetData = {
     path: string;
   };
   query?: never;
-  url: "/project/{id}/note/{path}";
+  url: "/corpus/{id}/note/{path}";
 };
 
 export type NoteGetErrors = {
   /**
-   * Project or note not found
+   * Corpus or note not found
    */
   404: {
     code: string;
@@ -110,7 +237,7 @@ export type NoteGetResponses = {
    */
   200: {
     id: number;
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     contentHash: string;
@@ -129,12 +256,12 @@ export type NoteUpsertData = {
     path: string;
   };
   query?: never;
-  url: "/project/{id}/note/{path}";
+  url: "/corpus/{id}/note/{path}";
 };
 
 export type NoteUpsertErrors = {
   /**
-   * Project not found
+   * Corpus not found
    */
   404: {
     code: string;
@@ -150,7 +277,7 @@ export type NoteUpsertResponses = {
    */
   200: {
     id: number;
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     contentHash: string;
@@ -159,19 +286,19 @@ export type NoteUpsertResponses = {
 
 export type NoteUpsertResponse = NoteUpsertResponses[keyof NoteUpsertResponses];
 
-export type ProjectGetData = {
+export type CorpusGetData = {
   body?: never;
   path?: never;
   query?: {
     name?: string;
     id?: number;
   };
-  url: "/project";
+  url: "/corpus";
 };
 
-export type ProjectGetErrors = {
+export type CorpusGetErrors = {
   /**
-   * Project not found
+   * Corpus not found
    */
   404: {
     code: string;
@@ -179,11 +306,11 @@ export type ProjectGetErrors = {
   };
 };
 
-export type ProjectGetError = ProjectGetErrors[keyof ProjectGetErrors];
+export type CorpusGetError = CorpusGetErrors[keyof CorpusGetErrors];
 
-export type ProjectGetResponses = {
+export type CorpusGetResponses = {
   /**
-   * Project info
+   * Corpus info
    */
   200: {
     id: number;
@@ -194,20 +321,20 @@ export type ProjectGetResponses = {
   };
 };
 
-export type ProjectGetResponse = ProjectGetResponses[keyof ProjectGetResponses];
+export type CorpusGetResponse = CorpusGetResponses[keyof CorpusGetResponses];
 
-export type ProjectCreateData = {
+export type CorpusCreateData = {
   body?: {
     name: string;
   };
   path?: never;
   query?: never;
-  url: "/project";
+  url: "/corpus";
 };
 
-export type ProjectCreateResponses = {
+export type CorpusCreateResponses = {
   /**
-   * Project info
+   * Corpus info
    */
   200: {
     id: number;
@@ -218,17 +345,17 @@ export type ProjectCreateResponses = {
   };
 };
 
-export type ProjectCreateResponse =
-  ProjectCreateResponses[keyof ProjectCreateResponses];
+export type CorpusCreateResponse =
+  CorpusCreateResponses[keyof CorpusCreateResponses];
 
-export type ProjectListData = {
+export type CorpusListData = {
   body?: never;
   path?: never;
   query?: never;
-  url: "/project/list";
+  url: "/corpus/list";
 };
 
-export type ProjectListErrors = {
+export type CorpusListErrors = {
   /**
    * Server error
    */
@@ -238,11 +365,11 @@ export type ProjectListErrors = {
   };
 };
 
-export type ProjectListError = ProjectListErrors[keyof ProjectListErrors];
+export type CorpusListError = CorpusListErrors[keyof CorpusListErrors];
 
-export type ProjectListResponses = {
+export type CorpusListResponses = {
   /**
-   * List of projects
+   * List of corpora
    */
   200: Array<{
     id: number;
@@ -253,21 +380,20 @@ export type ProjectListResponses = {
   }>;
 };
 
-export type ProjectListResponse =
-  ProjectListResponses[keyof ProjectListResponses];
+export type CorpusListResponse = CorpusListResponses[keyof CorpusListResponses];
 
-export type ProjectDeleteData = {
+export type CorpusDeleteData = {
   body?: never;
   path: {
     id: string;
   };
   query?: never;
-  url: "/project/{id}";
+  url: "/corpus/{id}";
 };
 
-export type ProjectDeleteErrors = {
+export type CorpusDeleteErrors = {
   /**
-   * Project not found
+   * Corpus not found
    */
   404: {
     code: string;
@@ -275,27 +401,27 @@ export type ProjectDeleteErrors = {
   };
 };
 
-export type ProjectDeleteError = ProjectDeleteErrors[keyof ProjectDeleteErrors];
+export type CorpusDeleteError = CorpusDeleteErrors[keyof CorpusDeleteErrors];
 
-export type ProjectDeleteResponses = {
+export type CorpusDeleteResponses = {
   /**
-   * Project deleted successfully
+   * Corpus deleted successfully
    */
   204: void;
 };
 
-export type ProjectDeleteResponse =
-  ProjectDeleteResponses[keyof ProjectDeleteResponses];
+export type CorpusDeleteResponse =
+  CorpusDeleteResponses[keyof CorpusDeleteResponses];
 
 export type NoteSyncData = {
   body?: {
     directory: string;
     glob?: string;
-    project: number;
+    corpus: number;
   };
   path?: never;
   query?: never;
-  url: "/project/sync";
+  url: "/corpus/sync";
 };
 
 export type NoteSyncResponses = {
@@ -309,19 +435,19 @@ export type NoteSyncResponse = NoteSyncResponses[keyof NoteSyncResponses];
 
 export type NoteAddData = {
   body?: {
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     dupe?: boolean;
   };
   path?: never;
   query?: never;
-  url: "/project/note";
+  url: "/corpus/note";
 };
 
 export type NoteAddErrors = {
   /**
-   * Project not found
+   * Corpus not found
    */
   404: {
     code: string;
@@ -337,7 +463,7 @@ export type NoteAddResponses = {
    */
   200: {
     id: number;
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     contentHash: string;
@@ -373,7 +499,7 @@ export type NoteGetByIdResponses = {
    */
   200: {
     id: number;
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     contentHash: string;
@@ -413,7 +539,7 @@ export type NoteUpdateResponses = {
    */
   200: {
     id: number;
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     contentHash: string;
@@ -426,7 +552,7 @@ export type QueryCreateData = {
   body?: {
     viewer: number;
     tracked?: boolean;
-    projects: Array<number>;
+    corpora: Array<number>;
   };
   path?: never;
   query?: never;
@@ -453,7 +579,7 @@ export type QueryCreateResponses = {
     id: number;
     viewer: number;
     tracked: boolean;
-    projects: Array<number>;
+    corpora: Array<number>;
     createdAt: number;
   };
 };
@@ -479,7 +605,7 @@ export type QueryRecentResponses = {
       id: number;
       viewer: number;
       tracked: boolean;
-      projects: Array<number>;
+      corpora: Array<number>;
       createdAt: number;
     }>;
   };
@@ -517,7 +643,7 @@ export type QueryGetResponses = {
     id: number;
     viewer: number;
     tracked: boolean;
-    projects: Array<number>;
+    corpora: Array<number>;
     createdAt: number;
   };
 };
@@ -556,7 +682,7 @@ export type QueryNotesResponses = {
   200: {
     notes: Array<{
       id: number;
-      project: number;
+      corpus: number;
       path: string;
       content: string;
       contentHash: string;
@@ -600,7 +726,7 @@ export type QuerySearchResponses = {
   200: {
     results: Array<{
       id: number;
-      project: number;
+      corpus: number;
       path: string;
       snippet: string;
       score: number;
@@ -643,7 +769,7 @@ export type QueryVsearchResponses = {
   200: {
     results: Array<{
       id: number;
-      project: number;
+      corpus: number;
       path: string;
       chunk: string;
       chunkPos: number;
@@ -685,7 +811,7 @@ export type QueryFetchResponses = {
   200: {
     notes: Array<{
       id: number;
-      project: number;
+      corpus: number;
       path: string;
       content: string;
       contentHash: string;
@@ -720,11 +846,11 @@ export type QueryPathsError = QueryPathsErrors[keyof QueryPathsErrors];
 
 export type QueryPathsResponses = {
   /**
-   * Paths grouped by project
+   * Paths grouped by corpus
    */
   200: {
     paths: Array<{
-      project: number;
+      corpus: number;
       paths: Array<string>;
     }>;
   };
@@ -757,11 +883,11 @@ export type SseNoteSyncData = {
   body?: {
     directory: string;
     glob?: string;
-    project: number;
+    corpus: number;
   };
   path?: never;
   query?: never;
-  url: "/sse/project/sync";
+  url: "/sse/corpus/sync";
 };
 
 export type SseNoteSyncResponses = {
@@ -780,7 +906,25 @@ export type SseNoteSyncResponses = {
         tag: "sse.connected";
       }
     | {
-        tag: "project.created";
+        tag: "workspace.created";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "workspace.updated";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "corpus.created";
         info: {
           id: number;
           name: string;
@@ -790,7 +934,7 @@ export type SseNoteSyncResponses = {
         };
       }
     | {
-        tag: "project.updated";
+        tag: "corpus.updated";
         info: {
           id: number;
           name: string;
@@ -897,7 +1041,7 @@ export type SseNoteSyncResponses = {
         tag: "note.created";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -907,7 +1051,7 @@ export type SseNoteSyncResponses = {
         tag: "note.updated";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -920,14 +1064,14 @@ export type SseNoteSyncResponse =
 
 export type SseNoteAddData = {
   body?: {
-    project: number;
+    corpus: number;
     path: string;
     content: string;
     dupe?: boolean;
   };
   path?: never;
   query?: never;
-  url: "/sse/project/note";
+  url: "/sse/corpus/note";
 };
 
 export type SseNoteAddResponses = {
@@ -946,7 +1090,25 @@ export type SseNoteAddResponses = {
         tag: "sse.connected";
       }
     | {
-        tag: "project.created";
+        tag: "workspace.created";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "workspace.updated";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "corpus.created";
         info: {
           id: number;
           name: string;
@@ -956,7 +1118,7 @@ export type SseNoteAddResponses = {
         };
       }
     | {
-        tag: "project.updated";
+        tag: "corpus.updated";
         info: {
           id: number;
           name: string;
@@ -1063,7 +1225,7 @@ export type SseNoteAddResponses = {
         tag: "note.created";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1073,7 +1235,7 @@ export type SseNoteAddResponses = {
         tag: "note.updated";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1093,7 +1255,7 @@ export type SseNoteUpsertData = {
     path: string;
   };
   query?: never;
-  url: "/sse/project/{id}/note/{path}";
+  url: "/sse/corpus/{id}/note/{path}";
 };
 
 export type SseNoteUpsertResponses = {
@@ -1112,7 +1274,25 @@ export type SseNoteUpsertResponses = {
         tag: "sse.connected";
       }
     | {
-        tag: "project.created";
+        tag: "workspace.created";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "workspace.updated";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "corpus.created";
         info: {
           id: number;
           name: string;
@@ -1122,7 +1302,7 @@ export type SseNoteUpsertResponses = {
         };
       }
     | {
-        tag: "project.updated";
+        tag: "corpus.updated";
         info: {
           id: number;
           name: string;
@@ -1229,7 +1409,7 @@ export type SseNoteUpsertResponses = {
         tag: "note.created";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1239,7 +1419,7 @@ export type SseNoteUpsertResponses = {
         tag: "note.updated";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1278,7 +1458,25 @@ export type SseNoteUpdateResponses = {
         tag: "sse.connected";
       }
     | {
-        tag: "project.created";
+        tag: "workspace.created";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "workspace.updated";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "corpus.created";
         info: {
           id: number;
           name: string;
@@ -1288,7 +1486,7 @@ export type SseNoteUpdateResponses = {
         };
       }
     | {
-        tag: "project.updated";
+        tag: "corpus.updated";
         info: {
           id: number;
           name: string;
@@ -1395,7 +1593,7 @@ export type SseNoteUpdateResponses = {
         tag: "note.created";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1405,7 +1603,7 @@ export type SseNoteUpdateResponses = {
         tag: "note.updated";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1455,7 +1653,25 @@ export type EventsResponses = {
         tag: "sse.connected";
       }
     | {
-        tag: "project.created";
+        tag: "workspace.created";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "workspace.updated";
+        info: {
+          id: number;
+          name: string;
+          createdAt: number;
+          updatedAt: number;
+        };
+      }
+    | {
+        tag: "corpus.created";
         info: {
           id: number;
           name: string;
@@ -1465,7 +1681,7 @@ export type EventsResponses = {
         };
       }
     | {
-        tag: "project.updated";
+        tag: "corpus.updated";
         info: {
           id: number;
           name: string;
@@ -1572,7 +1788,7 @@ export type EventsResponses = {
         tag: "note.created";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;
@@ -1582,7 +1798,7 @@ export type EventsResponses = {
         tag: "note.updated";
         info: {
           id: number;
-          project: number;
+          corpus: number;
           path: string;
           content: string;
           contentHash: string;

@@ -3,7 +3,7 @@ import { create } from "./create";
 import { list } from "./list";
 import { remove } from "./delete";
 
-export const project: CommandDef = {
-  description: "Manage projects",
+export const corpus: CommandDef = {
+  description: "Manage corpora",
   commands: { create, list, delete: remove },
 };

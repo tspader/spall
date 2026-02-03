@@ -7,11 +7,12 @@ export { FileStatus } from "./schema";
 export {
   Config,
   type ConfigSchema,
-  ProjectConfig,
-  type ProjectConfigSchema,
+  WorkspaceConfig,
+  type WorkspaceConfigSchema,
 } from "./config";
 
-export { Project } from "./project";
+export { Workspace } from "./workspace";
+export { Corpus } from "./corpus";
 export { Note } from "./note";
 export { Query } from "./query";
 export { Commit } from "./commit";
@@ -19,7 +20,8 @@ export { Error } from "./error";
 export { Context } from "./context";
 
 import { z } from "zod";
-import { Project } from "./project";
+import { Workspace } from "./workspace";
+import { Corpus } from "./corpus";
 import { Model } from "./model";
 import { Store } from "./store";
 import { Bus } from "./event";
@@ -29,8 +31,10 @@ import { Error } from "./error";
 export const EventUnion = z.discriminatedUnion("tag", [
   Error.Event.Raised,
   Bus.Event.Connected,
-  Project.Event.Created,
-  Project.Event.Updated,
+  Workspace.Event.Created,
+  Workspace.Event.Updated,
+  Corpus.Event.Created,
+  Corpus.Event.Updated,
   Model.Event.Download,
   Model.Event.Progress,
   Model.Event.Downloaded,
@@ -54,8 +58,10 @@ export const EventUnion = z.discriminatedUnion("tag", [
 export type EventUnion =
   | z.infer<typeof Error.Event.Raised>
   | z.infer<typeof Bus.Event.Connected>
-  | z.infer<typeof Project.Event.Created>
-  | z.infer<typeof Project.Event.Updated>
+  | z.infer<typeof Workspace.Event.Created>
+  | z.infer<typeof Workspace.Event.Updated>
+  | z.infer<typeof Corpus.Event.Created>
+  | z.infer<typeof Corpus.Event.Updated>
   | z.infer<typeof Model.Event.Download>
   | z.infer<typeof Model.Event.Progress>
   | z.infer<typeof Model.Event.Downloaded>

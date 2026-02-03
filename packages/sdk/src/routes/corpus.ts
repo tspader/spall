@@ -2,15 +2,15 @@ import { Hono } from "hono";
 import { describeRoute, resolver, validator } from "hono-openapi";
 
 import { lazy } from "../util";
-import { Project, Note, Error } from "@spall/core";
+import { Corpus, Note, Error } from "@spall/core";
 
-export const ProjectRoutes = lazy(() =>
+export const CorpusRoutes = lazy(() =>
   new Hono()
     .get(
       "/:id/list",
       describeRoute({
         summary: "List notes",
-        description: "List all note paths in a project.",
+        description: "List all note paths in a corpus.",
         operationId: "note.list",
         responses: {
           200: {
@@ -22,7 +22,7 @@ export const ProjectRoutes = lazy(() =>
             },
           },
           404: {
-            description: "Project not found",
+            description: "Corpus not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -34,15 +34,10 @@ export const ProjectRoutes = lazy(() =>
       async (c) => {
         const id = c.req.param("id");
         const result = await Note.list({
-          project: Project.Id.parse(id),
+          corpus: Corpus.Id.parse(id),
         })
-          .then((result) => {
-            return c.json(result);
-          })
-          .catch((error: any) => {
-            return c.json(Error.from(error), 404);
-          });
-
+          .then((result) => c.json(result))
+          .catch((error: any) => c.json(Error.from(error), 404));
         return result;
       },
     )
@@ -63,7 +58,7 @@ export const ProjectRoutes = lazy(() =>
             },
           },
           404: {
-            description: "Project not found",
+            description: "Corpus not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -72,13 +67,13 @@ export const ProjectRoutes = lazy(() =>
           },
         },
       }),
-      validator("query", Note.listByPath.schema.omit({ project: true })),
+      validator("query", Note.listByPath.schema.omit({ corpus: true })),
       async (c) => {
         const id = c.req.param("id");
         const query = c.req.valid("query");
         try {
           const result = Note.listByPath({
-            project: Project.Id.parse(id),
+            corpus: Corpus.Id.parse(id),
             ...query,
           });
           return c.json(result);
@@ -91,7 +86,7 @@ export const ProjectRoutes = lazy(() =>
       "/:id/note/:path{.+}",
       describeRoute({
         summary: "Get a note",
-        description: "Get a note by path within a project.",
+        description: "Get a note by path within a corpus.",
         operationId: "note.get",
         responses: {
           200: {
@@ -103,7 +98,7 @@ export const ProjectRoutes = lazy(() =>
             },
           },
           404: {
-            description: "Project or note not found",
+            description: "Corpus or note not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -117,7 +112,7 @@ export const ProjectRoutes = lazy(() =>
         const path = c.req.param("path");
         try {
           const result = Note.get({
-            project: Project.Id.parse(id),
+            corpus: Corpus.Id.parse(id),
             path,
           });
           return c.json(result);
@@ -129,40 +124,40 @@ export const ProjectRoutes = lazy(() =>
     .post(
       "/",
       describeRoute({
-        summary: "Create a project",
+        summary: "Create a corpus",
         description:
-          "Get or create a project. Returns existing project if name matches, creates new one otherwise.",
-        operationId: "project.create",
+          "Get or create a corpus. Returns existing corpus if name matches, creates new one otherwise.",
+        operationId: "corpus.create",
         responses: {
           200: {
-            description: "Project info",
+            description: "Corpus info",
             content: {
               "application/json": {
-                schema: resolver(Project.Info),
+                schema: resolver(Corpus.Info),
               },
             },
           },
         },
       }),
-      validator("json", Project.create.schema),
+      validator("json", Corpus.create.schema),
       async (context) => {
         const input = context.req.valid("json") ?? {};
-        const result = await Project.create(input);
+        const result = await Corpus.create(input);
         return context.json(result);
       },
     )
     .get(
       "/list",
       describeRoute({
-        summary: "List projects",
-        description: "List all projects.",
-        operationId: "project.list",
+        summary: "List corpora",
+        description: "List all corpora.",
+        operationId: "corpus.list",
         responses: {
           200: {
-            description: "List of projects",
+            description: "List of corpora",
             content: {
               "application/json": {
-                schema: resolver(Project.Info.array()),
+                schema: resolver(Corpus.Info.array()),
               },
             },
           },
@@ -178,7 +173,7 @@ export const ProjectRoutes = lazy(() =>
       }),
       async (c) => {
         try {
-          const result = await Project.list({});
+          const result = await Corpus.list({});
           return c.json(result);
         } catch (error: any) {
           return c.json(Error.from(error), 500);
@@ -188,21 +183,21 @@ export const ProjectRoutes = lazy(() =>
     .get(
       "/",
       describeRoute({
-        summary: "Get project",
+        summary: "Get corpus",
         description:
-          "Look up a project by name or id. Returns default project if neither specified.",
-        operationId: "project.get",
+          "Look up a corpus by name or id. Returns default corpus if neither specified.",
+        operationId: "corpus.get",
         responses: {
           200: {
-            description: "Project info",
+            description: "Corpus info",
             content: {
               "application/json": {
-                schema: resolver(Project.Info),
+                schema: resolver(Corpus.Info),
               },
             },
           },
           404: {
-            description: "Project not found",
+            description: "Corpus not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -211,11 +206,11 @@ export const ProjectRoutes = lazy(() =>
           },
         },
       }),
-      validator("query", Project.get.schema),
+      validator("query", Corpus.get.schema),
       async (context) => {
         const query = context.req.valid("query");
         try {
-          const result = await Project.get(query);
+          const result = await Corpus.get(query);
           return context.json(result);
         } catch (error: any) {
           return context.json(Error.from(error), 404);
@@ -225,15 +220,15 @@ export const ProjectRoutes = lazy(() =>
     .delete(
       "/:id",
       describeRoute({
-        summary: "Delete project",
-        description: "Delete a project and all associated notes by ID.",
-        operationId: "project.delete",
+        summary: "Delete corpus",
+        description: "Delete a corpus and all associated notes by ID.",
+        operationId: "corpus.delete",
         responses: {
           204: {
-            description: "Project deleted successfully",
+            description: "Corpus deleted successfully",
           },
           404: {
-            description: "Project not found",
+            description: "Corpus not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -245,7 +240,7 @@ export const ProjectRoutes = lazy(() =>
       async (context) => {
         try {
           const id = context.req.param("id");
-          await Project.remove({ id: Project.Id.parse(id) });
+          await Corpus.remove({ id: Corpus.Id.parse(id) });
           return context.body(null, 204);
         } catch (error: any) {
           return context.json(Error.from(error), 404);
@@ -256,8 +251,7 @@ export const ProjectRoutes = lazy(() =>
       "/sync",
       describeRoute({
         summary: "Sync a directory as notes",
-        description:
-          "Scan a directory, add matching notes to path, remove non-matches",
+        description: "Scan a directory, add matching notes, remove non-matches",
         operationId: "note.sync",
         responses: {
           204: {
@@ -276,8 +270,7 @@ export const ProjectRoutes = lazy(() =>
       "/note",
       describeRoute({
         summary: "Add a note",
-        description:
-          "Add a note to a project and embed it. Requires project ID.",
+        description: "Add a note to a corpus and embed it. Requires corpus ID.",
         operationId: "note.add",
         responses: {
           200: {
@@ -289,7 +282,7 @@ export const ProjectRoutes = lazy(() =>
             },
           },
           404: {
-            description: "Project not found",
+            description: "Corpus not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -326,7 +319,7 @@ export const ProjectRoutes = lazy(() =>
             },
           },
           404: {
-            description: "Project not found",
+            description: "Corpus not found",
             content: {
               "application/json": {
                 schema: resolver(Error.Info),
@@ -335,14 +328,14 @@ export const ProjectRoutes = lazy(() =>
           },
         },
       }),
-      validator("json", Note.upsert.schema.omit({ project: true, path: true })),
+      validator("json", Note.upsert.schema.omit({ corpus: true, path: true })),
       async (context) => {
         const id = context.req.param("id");
         const path = context.req.param("path");
         const body = context.req.valid("json");
         try {
           const result = await Note.upsert({
-            project: Project.Id.parse(id),
+            corpus: Corpus.Id.parse(id),
             path,
             ...body,
           });

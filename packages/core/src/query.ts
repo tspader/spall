@@ -2,7 +2,8 @@ import z from "zod";
 import { api, asyncApi } from "./api";
 import { Store } from "./store";
 import { Sql } from "./sql";
-import { Project } from "./project";
+import { Workspace } from "./workspace";
+import { Corpus } from "./corpus";
 import { Note } from "./note";
 import { Error } from "./error";
 import { Model } from "./model";
@@ -13,16 +14,16 @@ export namespace Query {
 
   export const Info = z.object({
     id: Id,
-    viewer: Project.Id,
+    viewer: Workspace.Id,
     tracked: z.boolean(),
-    projects: z.array(Project.Id),
+    corpora: z.array(Corpus.Id),
     createdAt: z.number(),
   });
   export type Info = z.infer<typeof Info>;
 
   export const SearchItem = z.object({
     id: Note.Id,
-    project: Project.Id,
+    corpus: Corpus.Id,
     path: z.string(),
     snippet: z.string(),
     score: z.number(),
@@ -36,7 +37,7 @@ export namespace Query {
 
   export const VSearchItem = z.object({
     id: Note.Id,
-    project: Project.Id,
+    corpus: Corpus.Id,
     path: z.string(),
     chunk: z.string(),
     chunkPos: z.number(),
@@ -53,18 +54,16 @@ export namespace Query {
     id: number;
     viewer: number;
     tracked: number;
-    projects: string;
+    corpora: string;
     created_at: number;
   };
 
   function parse(row: Row): Info {
     return {
       id: Id.parse(row.id),
-      viewer: Project.Id.parse(row.viewer),
+      viewer: Workspace.Id.parse(row.viewer),
       tracked: Boolean(row.tracked),
-      projects: JSON.parse(row.projects).map((id: number) =>
-        Project.Id.parse(id),
-      ),
+      corpora: JSON.parse(row.corpora).map((id: number) => Corpus.Id.parse(id)),
       createdAt: row.created_at,
     };
   }
@@ -91,12 +90,20 @@ export namespace Query {
 
   export const create = api(
     z.object({
-      viewer: Project.Id,
+      viewer: Workspace.Id,
       tracked: z.boolean().optional(),
-      projects: z.array(Project.Id),
+      corpora: z.array(Corpus.Id),
     }),
     (input): Info => {
       const db = Store.ensure();
+
+      // validate viewer workspace exists
+      Workspace.get({ id: input.viewer });
+
+      // validate corpora exist
+      for (const id of input.corpora) {
+        Corpus.get({ id });
+      }
 
       const tracked = input.tracked ?? false;
 
@@ -105,7 +112,7 @@ export namespace Query {
         .get(
           input.viewer,
           tracked ? 1 : 0,
-          JSON.stringify(input.projects),
+          JSON.stringify(input.corpora),
           Date.now(),
         ) as Row;
 
@@ -155,14 +162,14 @@ export namespace Query {
       const db = Store.ensure();
 
       const query = get({ id: input.id });
-      const projects = JSON.stringify(query.projects);
+      const corpora = JSON.stringify(query.corpora);
       const path = input.path ?? "*";
       const limit = input.limit ?? 100;
       const after = input.after ?? "";
 
       const rows = db
         .prepare(Sql.LIST_QUERY_NOTES_PAGINATED)
-        .all(projects, path, after, limit) as unknown[];
+        .all(corpora, path, after, limit) as unknown[];
 
       const notes = rows.map((r) => Note.Row.parse(r));
       const nextCursor =
@@ -175,7 +182,7 @@ export namespace Query {
   const SearchRow = z
     .object({
       id: z.number(),
-      project_id: z.number(),
+      corpus_id: z.number(),
       path: z.string(),
       snippet: z.string(),
       score: z.number(),
@@ -183,7 +190,7 @@ export namespace Query {
     .transform(
       (r): SearchItem => ({
         id: Note.Id.parse(r.id),
-        project: Project.Id.parse(r.project_id),
+        corpus: Corpus.Id.parse(r.corpus_id),
         path: r.path,
         snippet: r.snippet,
         score: r.score,
@@ -202,7 +209,7 @@ export namespace Query {
       const db = Store.ensure();
 
       const scope = get({ id: input.id });
-      const projects = JSON.stringify(scope.projects);
+      const corpora = JSON.stringify(scope.corpora);
 
       const mode: Mode = input.mode ?? "plain";
       const match = mode === "fts" ? input.q.trim() : ftsQuery(input.q);
@@ -213,7 +220,7 @@ export namespace Query {
 
       const rows = db
         .prepare(Sql.SEARCH_QUERY_FTS)
-        .all(match, projects, path, limit) as unknown[];
+        .all(match, corpora, path, limit) as unknown[];
 
       return { results: rows.map((r) => SearchRow.parse(r)) };
     },
@@ -229,7 +236,7 @@ export namespace Query {
   type VSearchRow = {
     embedding_id: string;
     note_id: number;
-    project_id: number;
+    corpus_id: number;
     path: string;
     content: string;
     chunk_pos: number;
@@ -247,7 +254,7 @@ export namespace Query {
       const db = Store.ensure();
 
       const scope = get({ id: input.id });
-      const projectSet = new Set(scope.projects.map(Number));
+      const corpusSet = new Set(scope.corpora.map(Number));
 
       const pathGlob = input.path ?? "*";
       const limit = input.limit ?? 20;
@@ -262,12 +269,12 @@ export namespace Query {
 
       const results: VSearchItem[] = [];
       for (const row of rows) {
-        if (!projectSet.has(row.project_id)) continue;
+        if (!corpusSet.has(row.corpus_id)) continue;
         if (pathGlob !== "*" && !matchGlob(pathGlob, row.path)) continue;
 
         results.push({
           id: Note.Id.parse(row.note_id),
-          project: Project.Id.parse(row.project_id),
+          corpus: Corpus.Id.parse(row.corpus_id),
           path: row.path,
           chunk: extractChunk(row.content, row.chunk_pos),
           chunkPos: row.chunk_pos,
@@ -287,7 +294,7 @@ export namespace Query {
   export type FetchResults = z.infer<typeof FetchResults>;
 
   export const PathsItem = z.object({
-    project: Project.Id,
+    corpus: Corpus.Id,
     paths: z.array(z.string()),
   });
   export type PathsItem = z.infer<typeof PathsItem>;
@@ -316,7 +323,13 @@ export namespace Query {
         const statement = db.prepare(Sql.INSERT_STAGING);
         db.transaction(() => {
           for (const note of notes) {
-            statement.run(Number(note.id), Number(query.id), 1, createdAt, payload);
+            statement.run(
+              Number(note.id),
+              Number(query.id),
+              1,
+              createdAt,
+              payload,
+            );
           }
         })();
       }
@@ -345,16 +358,16 @@ export namespace Query {
       const db = Store.ensure();
 
       const query = get({ id: input.id });
-      const projects = JSON.stringify(query.projects);
+      const corpora = JSON.stringify(query.corpora);
       const path = input.path ?? "*";
 
-      const rows = db.prepare(Sql.LIST_QUERY_PATHS).all(projects, path) as {
-        project_id: number;
+      const rows = db.prepare(Sql.LIST_QUERY_PATHS).all(corpora, path) as {
+        corpus_id: number;
         paths: string;
       }[];
 
       const results: PathsItem[] = rows.map((row) => ({
-        project: Project.Id.parse(row.project_id),
+        corpus: Corpus.Id.parse(row.corpus_id),
         paths: JSON.parse(row.paths) as string[],
       }));
 

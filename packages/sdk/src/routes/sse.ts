@@ -3,12 +3,12 @@ import { describeRoute, resolver, validator } from "hono-openapi";
 
 import { lazy } from "../util";
 import { Sse } from "../sse";
-import { Project, Note, EventUnion } from "@spall/core";
+import { Corpus, Note, EventUnion } from "@spall/core";
 
 export const SseRoutes = lazy(() =>
   new Hono()
     .post(
-      "/project/sync",
+      "/corpus/sync",
       describeRoute({
         summary: "Index a directory (SSE)",
         description:
@@ -32,11 +32,11 @@ export const SseRoutes = lazy(() =>
       },
     )
     .post(
-      "/project/note",
+      "/corpus/note",
       describeRoute({
         summary: "Add a note (SSE)",
         description:
-          "Add a note to a project and embed it. Streams progress events.",
+          "Add a note to a corpus and embed it. Streams progress events.",
         operationId: "sse.note.add",
         responses: {
           200: {
@@ -56,7 +56,7 @@ export const SseRoutes = lazy(() =>
       },
     )
     .put(
-      "/project/:id/note/:path{.+}",
+      "/corpus/:id/note/:path{.+}",
       describeRoute({
         summary: "Upsert a note (SSE)",
         description:
@@ -73,16 +73,13 @@ export const SseRoutes = lazy(() =>
           },
         },
       }),
-      validator(
-        "json",
-        Note.upsert.schema.omit({ project: true, path: true }),
-      ),
+      validator("json", Note.upsert.schema.omit({ corpus: true, path: true })),
       async (context) => {
         const id = context.req.param("id");
         const path = context.req.param("path");
         const body = context.req.valid("json");
         return Sse.stream(context, Note.upsert, {
-          project: Project.Id.parse(id),
+          corpus: Corpus.Id.parse(id),
           path,
           ...body,
         });

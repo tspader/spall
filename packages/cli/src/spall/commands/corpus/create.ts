@@ -4,23 +4,23 @@ import { Client } from "@spall/sdk/client";
 import type { CommandDef } from "@spall/cli/shared";
 
 export const create: CommandDef = {
-  description: "Create a new project",
+  description: "Create a new corpus",
   positionals: {
     name: {
       type: "string",
-      description: "Project name",
+      description: "Corpus name",
       required: true,
     },
   },
   handler: async (argv) => {
     const client = await Client.connect();
 
-    const result = await client.project
+    const result = await client.corpus
       .create({
         name: argv.name,
       })
       .then(Client.unwrap);
 
-    consola.success(`Project ${pc.cyanBright(result.name)} (id: ${result.id})`);
+    consola.success(`Corpus ${pc.cyanBright(result.name)} (id: ${result.id})`);
   },
 };

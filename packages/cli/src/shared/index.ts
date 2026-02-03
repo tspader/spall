@@ -31,4 +31,4 @@ export {
   resolveProjectScope,
   createEphemeralQuery,
   type ResolvedProjectScope,
-} from "./project";
+} from "./workspace";

@@ -3,7 +3,7 @@ import { api } from "./api";
 import { Store, canonicalize } from "./store";
 import { Model } from "./model";
 import { Sql } from "./sql";
-import { Project } from "./project";
+import { Corpus } from "./corpus";
 import { Bus } from "./event";
 import { Error } from "./error";
 import { Io } from "./io";
@@ -14,7 +14,7 @@ export namespace Note {
 
   export const Info = z.object({
     id: Id,
-    project: Project.Id,
+    corpus: Corpus.Id,
     path: z.string(),
     content: z.string(),
     contentHash: z.string(),
@@ -33,7 +33,7 @@ export namespace Note {
   export const Row = z
     .object({
       id: z.number(),
-      project_id: z.number(),
+      corpus_id: z.number(),
       path: z.string(),
       content: z.string(),
       content_hash: z.string(),
@@ -41,7 +41,7 @@ export namespace Note {
     .transform(
       (r): Info => ({
         id: Id.parse(r.id),
-        project: Project.Id.parse(r.project_id),
+        corpus: Corpus.Id.parse(r.corpus_id),
         path: r.path,
         content: r.content,
         contentHash: r.content_hash,
@@ -89,13 +89,13 @@ export namespace Note {
   }
 
   function checkDupe(
-    project: number,
+    corpus: number,
     hash: string,
     dupe?: boolean,
     id?: number,
   ): void {
     const db = Store.get();
-    const existing = db.prepare(Sql.GET_NOTE_BY_HASH).get(project, hash);
+    const existing = db.prepare(Sql.GET_NOTE_BY_HASH).get(corpus, hash);
     if (!existing) return;
 
     const note = Row.parse(existing);
@@ -106,7 +106,7 @@ export namespace Note {
   }
 
   async function createNote(
-    projectId: number,
+    corpusId: number,
     path: string,
     content: string,
     contentHash: string,
@@ -119,7 +119,7 @@ export namespace Note {
 
     const inserted = db
       .prepare(Sql.INSERT_NOTE)
-      .get(projectId, path, content, contentHash, Date.now()) as {
+      .get(corpusId, path, content, contentHash, Date.now()) as {
       id: number;
     };
 
@@ -133,7 +133,7 @@ export namespace Note {
 
     return {
       id: Id.parse(inserted.id),
-      project: Project.Id.parse(projectId),
+      corpus: Corpus.Id.parse(corpusId),
       path,
       content,
       contentHash,
@@ -142,7 +142,7 @@ export namespace Note {
 
   export const get = api(
     z.object({
-      project: Project.Id,
+      corpus: Corpus.Id,
       path: z.string(),
     }),
     (input): Info => {
@@ -150,7 +150,7 @@ export namespace Note {
 
       const row = db
         .prepare(Sql.GET_NOTE_BY_PATH)
-        .get(input.project, input.path);
+        .get(input.corpus, input.path);
       if (!row) throw new NotFoundError(`Note not found: ${input.path}`);
 
       return Row.parse(row);
@@ -206,27 +206,27 @@ export namespace Note {
 
   export const list = api(
     z.object({
-      project: Project.Id,
+      corpus: Corpus.Id,
     }),
     async (input): Promise<ListItem[]> => {
-      Project.get({ id: input.project });
+      Corpus.get({ id: input.corpus });
       const db = Store.get();
 
-      const rows = db.prepare(Sql.LIST_NOTES).all(input.project) as unknown[];
+      const rows = db.prepare(Sql.LIST_NOTES).all(input.corpus) as unknown[];
       return rows.map((r) => ListItemRow.parse(r));
     },
   );
 
   export const listByPath = api(
     z.object({
-      project: Project.Id,
+      corpus: Corpus.Id,
       path: z.string().optional(),
       limit: z.coerce.number().optional(),
       after: z.string().optional(),
     }),
     (input): Page => {
       const db = Store.ensure();
-      Project.get({ id: input.project });
+      Corpus.get({ id: input.corpus });
 
       const path = input.path ?? "*";
       const limit = input.limit ?? 100;
@@ -234,7 +234,7 @@ export namespace Note {
 
       const rows = db
         .prepare(Sql.LIST_NOTES_PAGINATED)
-        .all(input.project, path, after, limit) as unknown[];
+        .all(input.corpus, path, after, limit) as unknown[];
 
       const notes = rows.map((r) => Row.parse(r));
       const nextCursor =
@@ -248,12 +248,12 @@ export namespace Note {
     z.object({
       directory: z.string(),
       glob: z.string().optional(),
-      project: Project.Id,
+      corpus: Corpus.Id,
     }),
     async (input): Promise<void> => {
       Store.ensure();
       Io.clear();
-      const resolved = Project.get({ id: input.project });
+      const resolved = Corpus.get({ id: input.corpus });
       const pattern = input.glob ?? "**/*.md";
       const prefix = canonicalize(input.directory);
 
@@ -269,31 +269,26 @@ export namespace Note {
 
   export const add = api(
     z.object({
-      project: Project.Id,
+      corpus: Corpus.Id,
       path: z.string(),
       content: z.string(),
       dupe: z.boolean().optional(),
     }),
     async (input): Promise<Info> => {
       const db = Store.ensure();
-      const project = Project.get({ id: input.project });
+      const corpus = Corpus.get({ id: input.corpus });
 
       const hash = getHash(input.content);
-      checkDupe(project.id, hash, input.dupe);
+      checkDupe(corpus.id, hash, input.dupe);
 
       const existing = db
         .prepare(Sql.GET_NOTE_BY_PATH)
-        .get(project.id, input.path);
+        .get(corpus.id, input.path);
       if (existing) {
         throw new ExistsError(input.path);
       }
 
-      const info = await createNote(
-        project.id,
-        input.path,
-        input.content,
-        hash,
-      );
+      const info = await createNote(corpus.id, input.path, input.content, hash);
 
       await Bus.publish({ tag: "note.created", info });
       return info;
@@ -340,7 +335,7 @@ export namespace Note {
         return row;
       }
 
-      checkDupe(row.project, hash, input.dupe, id);
+      checkDupe(row.corpus, hash, input.dupe, id);
 
       // re-embed, store new content
       await Model.load();
@@ -365,7 +360,7 @@ export namespace Note {
 
   export const upsert = api(
     z.object({
-      project: Project.Id,
+      corpus: Corpus.Id,
       path: z.string(),
       content: z.string(),
       dupe: z.boolean().optional(),
@@ -376,7 +371,7 @@ export namespace Note {
       // Check if note exists at this path
       const existing = db
         .prepare(Sql.GET_NOTE_BY_PATH)
-        .get(input.project, input.path);
+        .get(input.corpus, input.path);
 
       if (existing) {
         // Update existing note

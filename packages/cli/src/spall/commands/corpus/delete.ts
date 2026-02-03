@@ -4,11 +4,11 @@ import { Client } from "@spall/sdk";
 import type { CommandDef } from "@spall/cli/shared";
 
 export const remove: CommandDef = {
-  description: "Delete a project by ID",
+  description: "Delete a corpus by ID",
   positionals: {
     id: {
       type: "number",
-      description: "Project ID",
+      description: "Corpus ID",
     },
   },
   handler: async (argv) => {
@@ -19,13 +19,13 @@ export const remove: CommandDef = {
 
     const client = await Client.connect();
 
-    const result = await client.project.delete({ id: String(argv.id) });
+    const result = await client.corpus.delete({ id: String(argv.id) });
 
     if (result.error) {
       consola.error(result.error.message);
       process.exit(1);
     }
 
-    consola.success(`Deleted project ${pc.cyanBright(argv.id)}`);
+    consola.success(`Deleted corpus ${pc.cyanBright(argv.id)}`);
   },
 };

@@ -1,6 +1,6 @@
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { ProjectConfig } from "@spall/core";
+import { WorkspaceConfig } from "@spall/core";
 import type { CommandDef } from "@spall/cli/shared";
 
 export const add: CommandDef = {
@@ -20,7 +20,7 @@ Example:
       description: "Note content",
       required: true,
     },
-    project: { alias: "p", type: "string", description: "Project name" },
+    corpus: { alias: "c", type: "string", description: "Corpus name" },
     update: { alias: "u", type: "boolean", description: "Update if exists" },
     dupe: {
       alias: "d",
@@ -31,20 +31,20 @@ Example:
   handler: async (argv) => {
     const client = await Client.connect();
 
-    const projectName: string =
-      argv.project ?? ProjectConfig.load(process.cwd()).include[0];
+    const corpusName: string =
+      (argv as any).corpus ?? WorkspaceConfig.load(process.cwd()).include[0];
 
-    const project = await client.project
-      .get({ name: projectName })
+    const corpus = await client.corpus
+      .get({ name: corpusName })
       .then(Client.unwrap)
       .catch(() => {
-        consola.error(`Project not found: ${projectName}`);
+        consola.error(`Corpus not found: ${corpusName}`);
         process.exit(1);
       });
 
     if (argv.update) {
       const existing = await client.note
-        .get({ id: project.id.toString(), path: argv.path })
+        .get({ id: corpus.id.toString(), path: argv.path })
         .then(Client.unwrap)
         .catch(() => null);
 
@@ -73,7 +73,7 @@ Example:
       const { stream } = await client.sse.note.add({
         path: argv.path,
         content: argv.text,
-        project: project.id,
+        corpus: corpus.id,
         dupe: argv.dupe,
       });
 

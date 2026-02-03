@@ -6,7 +6,12 @@ export const get: CommandDef = {
     path: { type: "string", description: "Path or glob", default: "*" },
   },
   options: {
-    project: { alias: "p", type: "string", description: "Project name", default: "default" },
+    corpus: {
+      alias: "c",
+      type: "string",
+      description: "Corpus name",
+      default: "default",
+    },
     max: { alias: "n", type: "number", description: "Max notes to return" },
   },
   handler: async () => {

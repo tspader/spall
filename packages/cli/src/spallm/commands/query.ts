@@ -11,10 +11,10 @@ export const query: CommandDef = {
     create: {
       description: "Create a query scope for searching",
       options: {
-        project: {
-          alias: "p",
+        corpus: {
+          alias: "c",
           type: "string",
-          description: "Project name (default: from spall.json)",
+          description: "Corpus name (default: from spall.json)",
         },
       },
       handler: async (argv) => {
@@ -22,7 +22,7 @@ export const query: CommandDef = {
 
         const { query: result, includeNames } = await createEphemeralQuery({
           client,
-          project: argv.project,
+          corpus: (argv as any).corpus,
           tracked: true,
         });
 
@@ -30,7 +30,7 @@ export const query: CommandDef = {
           JSON.stringify(
             {
               queryId: result.id,
-              projects: includeNames,
+              corpora: includeNames,
               hint: `Use --query ${result.id} with vsearch and fetch commands.`,
             },
             null,

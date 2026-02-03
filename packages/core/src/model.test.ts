@@ -9,12 +9,14 @@ import { Config } from "./config";
 describe("Model", () => {
   let tmpDir: string;
 
-  beforeEach(() => {
+  beforeEach(async () => {
+    await Model.dispose();
     tmpDir = mkdtempSync(join(tmpdir(), "spall-model-test-"));
     Config.reset();
     Config.set({
       dirs: { cache: tmpDir, data: tmpDir },
-      models: { embedding: "nonexistent.gguf", reranker: "nonexistent.gguf" },
+      // Empty model URIs should fail deterministically without network.
+      models: { embedding: "", reranker: "" },
     });
   });
 

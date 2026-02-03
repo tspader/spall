@@ -42,42 +42,46 @@ function attach(p?: number) {
   return Client.attach(`http://127.0.0.1:${p ?? port}`);
 }
 
-async function seedProject(name: string): Promise<number> {
+async function seedCorpus(name: string): Promise<number> {
   const client = attach();
-  const project = await client.project
-    .create({ dir: testDir, name })
-    .then(Client.unwrap);
-  return project.id;
+  const corpus = await client.corpus.create({ name }).then(Client.unwrap);
+  return corpus.id;
 }
 
 describe("query routes", () => {
   let defaultId: number;
   let docsId: number;
+  let workspaceId: number;
 
   beforeAll(async () => {
     const client = attach();
-    defaultId = (await client.project.get({ name: "default" }).then(Client.unwrap)).id;
-    docsId = await seedProject("docs");
+    workspaceId = (
+      await client.workspace.create({ name: "ws" }).then(Client.unwrap)
+    ).id;
+    defaultId = (
+      await client.corpus.get({ name: "default" }).then(Client.unwrap)
+    ).id;
+    docsId = await seedCorpus("docs");
 
-    for (const [path, content, project] of [
+    for (const [path, content, corpus] of [
       ["alpha.md", "a", defaultId],
       ["beta.md", "b", defaultId],
       ["gamma.md", "g", defaultId],
       ["doc-a.md", "da", docsId],
       ["doc-b.md", "db", docsId],
     ] as const) {
-      await client.note.add({ project, path, content }).then(Client.unwrap);
+      await client.note.add({ corpus, path, content }).then(Client.unwrap);
     }
   });
 
   test("create + get query via HTTP", async () => {
     const client = attach();
     const created = await client.query
-      .create({ projects: [defaultId, docsId] })
+      .create({ viewer: workspaceId, corpora: [defaultId, docsId] })
       .then(Client.unwrap);
 
     expect(created.id).toBeDefined();
-    expect(created.projects).toEqual([defaultId, docsId]);
+    expect(created.corpora).toEqual([defaultId, docsId]);
 
     const fetched = await client.query
       .get({ id: String(created.id) })
@@ -85,10 +89,10 @@ describe("query routes", () => {
     expect(fetched.id).toEqual(created.id);
   });
 
-  test("query notes returns results from all projects", async () => {
+  test("query notes returns results from all corpora", async () => {
     const client = attach();
     const q = await client.query
-      .create({ projects: [defaultId, docsId] })
+      .create({ viewer: workspaceId, corpora: [defaultId, docsId] })
       .then(Client.unwrap);
 
     const page = await client.query
@@ -98,10 +102,10 @@ describe("query routes", () => {
     expect(page.notes).toHaveLength(5);
   });
 
-  test("query notes excludes other projects", async () => {
+  test("query notes excludes other corpora", async () => {
     const client = attach();
     const q = await client.query
-      .create({ projects: [docsId] })
+      .create({ viewer: workspaceId, corpora: [docsId] })
       .then(Client.unwrap);
 
     const page = await client.query
@@ -115,7 +119,7 @@ describe("query routes", () => {
   test("pagination via HTTP", async () => {
     const client = attach();
     const q = await client.query
-      .create({ projects: [defaultId, docsId] })
+      .create({ viewer: workspaceId, corpora: [defaultId, docsId] })
       .then(Client.unwrap);
 
     const page1 = await client.query
@@ -143,17 +147,22 @@ describe("query routes", () => {
 
 describe("query survives server restart", () => {
   let queryId: number;
-  let projectIds: number[];
+  let corpusIds: number[];
+  let workspaceId: number;
 
   beforeAll(async () => {
     const client = attach();
-    const defaultProject = await client.project
+    workspaceId = (
+      await client.workspace.create({ name: "ws-restart" }).then(Client.unwrap)
+    ).id;
+
+    const defaultCorpus = await client.corpus
       .get({ name: "default" })
       .then(Client.unwrap);
-    projectIds = [defaultProject.id];
+    corpusIds = [defaultCorpus.id];
 
     const q = await client.query
-      .create({ projects: projectIds })
+      .create({ viewer: workspaceId, corpora: corpusIds })
       .then(Client.unwrap);
     queryId = q.id;
 
@@ -206,7 +215,7 @@ describe("query survives server restart", () => {
       .get({ id: String(queryId) })
       .then(Client.unwrap);
     expect(fetched.id).toBe(queryId);
-    expect(fetched.projects).toEqual(projectIds);
+    expect(fetched.corpora).toEqual(corpusIds);
 
     // query still returns notes
     const page = await client.query

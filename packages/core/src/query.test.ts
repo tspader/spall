@@ -7,18 +7,20 @@ import { Store } from "./store";
 import { Sql } from "./sql";
 import { Note } from "./note";
 import { Query } from "./query";
-import { Project } from "./project";
+import { Corpus } from "./corpus";
+import { Workspace } from "./workspace";
 import { Model } from "./model";
 import { Error as SpallError } from "./error";
 
-const PROJECT_ID = Project.Id.parse(1);
+const CORPUS_ID = Corpus.Id.parse(1);
 
 describe("Query", () => {
   let tmpDir: string;
   let originalChunk: typeof Store.chunk;
   let originalLoad: typeof Model.load;
+  let workspaceId: Workspace.Id;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     Config.reset();
     tmpDir = mkdtempSync(join(tmpdir(), "spall-query-test-"));
     Config.set({
@@ -26,6 +28,11 @@ describe("Query", () => {
       models: { embedding: "", reranker: "" },
     });
     Store.ensure();
+
+    // Ensure Model state doesn't leak between tests.
+    await Model.dispose();
+
+    workspaceId = (await Workspace.create({ name: "ws" })).id;
 
     originalChunk = Store.chunk;
     originalLoad = Model.load;
@@ -42,40 +49,40 @@ describe("Query", () => {
   });
 
   async function addNote(
-    project: Project.Id,
+    corpus: Corpus.Id,
     path: string,
     content: string,
   ): Promise<void> {
-    await Note.add({ project, path, content, dupe: true });
+    await Note.add({ corpus, path, content, dupe: true });
   }
 
-  test("create returns query with projects and id", () => {
-    const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+  test("create returns query with corpora and id", () => {
+    const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
     expect(q.id).toBeDefined();
-    expect(q.projects).toEqual([PROJECT_ID]);
+    expect(q.corpora).toEqual([CORPUS_ID]);
     expect(q.tracked).toBe(false);
     expect(q.createdAt).toBeGreaterThan(0);
   });
 
   test("get retrieves a created query", () => {
     const created = Query.create({
-      viewer: PROJECT_ID,
-      projects: [PROJECT_ID],
+      viewer: workspaceId,
+      corpora: [CORPUS_ID],
     });
     const fetched = Query.get({ id: created.id });
     expect(fetched.id).toEqual(created.id);
-    expect(fetched.projects).toEqual(created.projects);
+    expect(fetched.corpora).toEqual(created.corpora);
   });
 
   test("get throws for nonexistent query", () => {
     expect(() => Query.get({ id: Query.Id.parse(999) })).toThrow(/not found/i);
   });
 
-  test("notes returns notes from a single project", async () => {
-    await addNote(PROJECT_ID, "a.md", "alpha");
-    await addNote(PROJECT_ID, "b.md", "beta");
+  test("notes returns notes from a single corpus", async () => {
+    await addNote(CORPUS_ID, "a.md", "alpha");
+    await addNote(CORPUS_ID, "b.md", "beta");
 
-    const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+    const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
     const page = Query.notes({ id: q.id });
 
     expect(page.notes).toHaveLength(2);
@@ -83,15 +90,15 @@ describe("Query", () => {
     expect(paths).toEqual(["a.md", "b.md"]);
   });
 
-  test("notes aggregates across multiple projects", async () => {
-    const p2 = await Project.create({ name: "second" });
+  test("notes aggregates across multiple corpora", async () => {
+    const c2 = await Corpus.create({ name: "second" });
 
-    await addNote(PROJECT_ID, "default.md", "from default");
-    await addNote(p2.id, "second.md", "from second");
+    await addNote(CORPUS_ID, "default.md", "from default");
+    await addNote(c2.id, "second.md", "from second");
 
     const q = Query.create({
-      viewer: PROJECT_ID,
-      projects: [PROJECT_ID, p2.id],
+      viewer: workspaceId,
+      corpora: [CORPUS_ID, c2.id],
     });
     const page = Query.notes({ id: q.id });
 
@@ -100,17 +107,17 @@ describe("Query", () => {
     expect(paths).toEqual(["default.md", "second.md"]);
   });
 
-  test("notes excludes projects not in the query", async () => {
-    const p2 = await Project.create({ name: "second" });
-    const p3 = await Project.create({ name: "third" });
+  test("notes excludes corpora not in the query", async () => {
+    const c2 = await Corpus.create({ name: "second" });
+    const c3 = await Corpus.create({ name: "third" });
 
-    await addNote(PROJECT_ID, "a.md", "a");
-    await addNote(p2.id, "b.md", "b");
-    await addNote(p3.id, "c.md", "c");
+    await addNote(CORPUS_ID, "a.md", "a");
+    await addNote(c2.id, "b.md", "b");
+    await addNote(c3.id, "c.md", "c");
 
     const q = Query.create({
-      viewer: PROJECT_ID,
-      projects: [PROJECT_ID, p2.id],
+      viewer: workspaceId,
+      corpora: [CORPUS_ID, c2.id],
     });
     const page = Query.notes({ id: q.id });
 
@@ -120,11 +127,11 @@ describe("Query", () => {
   });
 
   test("notes path glob filters results", async () => {
-    await addNote(PROJECT_ID, "docs/a.md", "a");
-    await addNote(PROJECT_ID, "docs/b.md", "b");
-    await addNote(PROJECT_ID, "src/c.ts", "c");
+    await addNote(CORPUS_ID, "docs/a.md", "a");
+    await addNote(CORPUS_ID, "docs/b.md", "b");
+    await addNote(CORPUS_ID, "src/c.ts", "c");
 
-    const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+    const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
     const page = Query.notes({ id: q.id, path: "docs/*" });
 
     expect(page.notes).toHaveLength(2);
@@ -134,13 +141,13 @@ describe("Query", () => {
   describe("search", () => {
     test("finds notes by keyword and returns a snippet", async () => {
       await addNote(
-        PROJECT_ID,
+        CORPUS_ID,
         "a.md",
         "We do not use foo.bar here. Always use baz_qux instead.",
       );
-      await addNote(PROJECT_ID, "b.md", "unrelated");
+      await addNote(CORPUS_ID, "b.md", "unrelated");
 
-      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
       const res = Query.search({ id: q.id, q: "foo.bar" });
 
       expect(res.results).toHaveLength(1);
@@ -151,10 +158,10 @@ describe("Query", () => {
     });
 
     test("reflects updates", async () => {
-      await addNote(PROJECT_ID, "a.md", "Always use old_name.");
+      await addNote(CORPUS_ID, "a.md", "Always use old_name.");
 
-      const note = Note.get({ project: PROJECT_ID, path: "a.md" });
-      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+      const note = Note.get({ corpus: CORPUS_ID, path: "a.md" });
+      const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
 
       expect(Query.search({ id: q.id, q: "old_name" }).results).toHaveLength(1);
 
@@ -165,10 +172,10 @@ describe("Query", () => {
     });
 
     test("fts mode accepts raw operators (plain does not)", async () => {
-      await addNote(PROJECT_ID, "a.md", "Always use old_name.");
-      await addNote(PROJECT_ID, "b.md", "Always use new_name.");
+      await addNote(CORPUS_ID, "a.md", "Always use old_name.");
+      await addNote(CORPUS_ID, "b.md", "Always use new_name.");
 
-      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
 
       const plain = Query.search({ id: q.id, q: "old_name OR new_name" });
       expect(plain.results).toHaveLength(0);
@@ -184,13 +191,13 @@ describe("Query", () => {
 
   describe("tracking", () => {
     test("fetch records note_read in staging for tracked queries", async () => {
-      await addNote(PROJECT_ID, "a.md", "alpha");
-      const note = Note.get({ project: PROJECT_ID, path: "a.md" });
+      await addNote(CORPUS_ID, "a.md", "alpha");
+      const note = Note.get({ corpus: CORPUS_ID, path: "a.md" });
 
       const q = Query.create({
-        viewer: PROJECT_ID,
+        viewer: workspaceId,
         tracked: true,
-        projects: [PROJECT_ID],
+        corpora: [CORPUS_ID],
       });
 
       Query.fetch({ id: q.id, ids: [note.id] });
@@ -210,12 +217,12 @@ describe("Query", () => {
     });
 
     test("fetch does not record staging for untracked queries", async () => {
-      await addNote(PROJECT_ID, "a.md", "alpha");
-      const note = Note.get({ project: PROJECT_ID, path: "a.md" });
+      await addNote(CORPUS_ID, "a.md", "alpha");
+      const note = Note.get({ corpus: CORPUS_ID, path: "a.md" });
 
       const q = Query.create({
-        viewer: PROJECT_ID,
-        projects: [PROJECT_ID],
+        viewer: workspaceId,
+        corpora: [CORPUS_ID],
       });
 
       Query.fetch({ id: q.id, ids: [note.id] });
@@ -230,11 +237,11 @@ describe("Query", () => {
 
   describe("pagination", () => {
     test("limit restricts page size and returns cursor", async () => {
-      await addNote(PROJECT_ID, "a.md", "a");
-      await addNote(PROJECT_ID, "b.md", "b");
-      await addNote(PROJECT_ID, "c.md", "c");
+      await addNote(CORPUS_ID, "a.md", "a");
+      await addNote(CORPUS_ID, "b.md", "b");
+      await addNote(CORPUS_ID, "c.md", "c");
 
-      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
       const page1 = Query.notes({ id: q.id, limit: 2 });
 
       expect(page1.notes).toHaveLength(2);
@@ -242,11 +249,11 @@ describe("Query", () => {
     });
 
     test("after cursor returns next page", async () => {
-      await addNote(PROJECT_ID, "a.md", "a");
-      await addNote(PROJECT_ID, "b.md", "b");
-      await addNote(PROJECT_ID, "c.md", "c");
+      await addNote(CORPUS_ID, "a.md", "a");
+      await addNote(CORPUS_ID, "b.md", "b");
+      await addNote(CORPUS_ID, "c.md", "c");
 
-      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: workspaceId, corpora: [CORPUS_ID] });
       const page1 = Query.notes({ id: q.id, limit: 2 });
       const page2 = Query.notes({
         id: q.id,
@@ -259,18 +266,18 @@ describe("Query", () => {
       expect(page2.notes[0]!.path).toBe("c.md");
     });
 
-    test("pagination works across multiple projects", async () => {
-      const p2 = await Project.create({ name: "second" });
+    test("pagination works across multiple corpora", async () => {
+      const c2 = await Corpus.create({ name: "second" });
 
       // notes sort by path globally: a.md, b.md, c.md, d.md
-      await addNote(PROJECT_ID, "a.md", "a");
-      await addNote(p2.id, "b.md", "b");
-      await addNote(PROJECT_ID, "c.md", "c");
-      await addNote(p2.id, "d.md", "d");
+      await addNote(CORPUS_ID, "a.md", "a");
+      await addNote(c2.id, "b.md", "b");
+      await addNote(CORPUS_ID, "c.md", "c");
+      await addNote(c2.id, "d.md", "d");
 
       const q = Query.create({
-        viewer: PROJECT_ID,
-        projects: [PROJECT_ID, p2.id],
+        viewer: workspaceId,
+        corpora: [CORPUS_ID, c2.id],
       });
 
       const page1 = Query.notes({ id: q.id, limit: 2 });
@@ -295,16 +302,16 @@ describe("Query", () => {
     });
 
     test("full drain collects all notes", async () => {
-      const p2 = await Project.create({ name: "second" });
+      const c2 = await Corpus.create({ name: "second" });
 
       for (let i = 0; i < 5; i++) {
-        await addNote(PROJECT_ID, `default-${i}.md`, `d${i}`);
-        await addNote(p2.id, `second-${i}.md`, `s${i}`);
+        await addNote(CORPUS_ID, `default-${i}.md`, `d${i}`);
+        await addNote(c2.id, `second-${i}.md`, `s${i}`);
       }
 
       const q = Query.create({
-        viewer: PROJECT_ID,
-        projects: [PROJECT_ID, p2.id],
+        viewer: workspaceId,
+        corpora: [CORPUS_ID, c2.id],
       });
       const all: Note.Info[] = [];
       let cursor: string | undefined;
@@ -325,7 +332,7 @@ describe("Query", () => {
   });
 });
 
-describe("Project.remove", () => {
+describe("Corpus.remove", () => {
   let tmpDir: string;
   let originalChunk: typeof Store.chunk;
   let originalLoad: typeof Model.load;
@@ -335,7 +342,7 @@ describe("Project.remove", () => {
 
   beforeEach(() => {
     Config.reset();
-    tmpDir = mkdtempSync(join(tmpdir(), "spall-project-rm-test-"));
+    tmpDir = mkdtempSync(join(tmpdir(), "spall-corpus-rm-test-"));
     Config.set({
       dirs: { cache: tmpDir, data: tmpDir },
       models: { embedding: "", reranker: "" },
@@ -368,22 +375,22 @@ describe("Project.remove", () => {
     rmSync(tmpDir, { recursive: true });
   });
 
-  test("deletes project with notes, embeddings, and vectors", async () => {
-    const p = await Project.create({ name: "deleteme" });
-    await Note.add({ project: p.id, path: "a.md", content: "alpha" });
-    await Note.add({ project: p.id, path: "b.md", content: "beta" });
+  test("deletes corpus with notes, embeddings, and vectors", async () => {
+    const c = await Corpus.create({ name: "deleteme" });
+    await Note.add({ corpus: c.id, path: "a.md", content: "alpha" });
+    await Note.add({ corpus: c.id, path: "b.md", content: "beta" });
 
     const db = Store.get();
     const notesBefore = db
-      .prepare("SELECT COUNT(*) as c FROM notes WHERE project_id = ?")
-      .get(p.id) as { c: number };
+      .prepare("SELECT COUNT(*) as c FROM notes WHERE corpus_id = ?")
+      .get(c.id) as { c: number };
     expect(notesBefore.c).toBe(2);
 
-    await Project.remove({ id: p.id });
+    await Corpus.remove({ id: c.id });
 
     const notesAfter = db
-      .prepare("SELECT COUNT(*) as c FROM notes WHERE project_id = ?")
-      .get(p.id) as { c: number };
+      .prepare("SELECT COUNT(*) as c FROM notes WHERE corpus_id = ?")
+      .get(c.id) as { c: number };
     expect(notesAfter.c).toBe(0);
 
     const embeddingsAfter = db
@@ -396,41 +403,44 @@ describe("Project.remove", () => {
       .get() as { c: number };
     expect(vectorsAfter.c).toBe(0);
 
-    expect(() => Project.get({ id: p.id })).toThrow(/not found/i);
+    expect(() => Corpus.get({ id: c.id })).toThrow(/not found/i);
   });
 
   test("NotFoundError has error code for Error.from()", () => {
     try {
-      Project.get({ id: Project.Id.parse(999) });
+      Corpus.get({ id: Corpus.Id.parse(999) });
       expect.unreachable("should have thrown");
     } catch (e) {
       const info = SpallError.from(e);
-      expect(info.code).toBe("project.not_found");
+      expect(info.code).toBe("corpus.not_found");
     }
   });
 
-  test("does not affect other projects", async () => {
-    const p1 = await Project.create({ name: "keep" });
-    const p2 = await Project.create({ name: "remove" });
+  test("does not affect other corpora", async () => {
+    const c1 = await Corpus.create({ name: "keep" });
+    const c2 = await Corpus.create({ name: "remove" });
 
-    await Note.add({ project: p1.id, path: "keep.md", content: "keep this" });
+    await Note.add({ corpus: c1.id, path: "keep.md", content: "keep this" });
     await Note.add({
-      project: p2.id,
+      corpus: c2.id,
       path: "remove.md",
       content: "remove this",
     });
 
-    await Project.remove({ id: p2.id });
+    await Corpus.remove({ id: c2.id });
 
-    const kept = Note.get({ project: p1.id, path: "keep.md" });
+    const kept = Note.get({ corpus: c1.id, path: "keep.md" });
     expect(kept.content).toBe("keep this");
-    expect(() => Project.get({ id: p2.id })).toThrow(/not found/i);
+    expect(() => Corpus.get({ id: c2.id })).toThrow(/not found/i);
   });
 });
 
 describe("Query.vsearch", () => {
   let tmpDir: string;
   let restoreModel: () => void;
+  let workspaceId: Workspace.Id;
+
+  const DEFAULT_CORPUS_ID = Corpus.Id.parse(1);
 
   const CORPUS = [
     { path: "auth.md", content: "JWT tokens login password authentication" },
@@ -464,6 +474,8 @@ describe("Query.vsearch", () => {
     });
     Store.ensure();
 
+    workspaceId = (await Workspace.create({ name: "ws" })).id;
+
     const origLoad = Model.load;
     const origEmbed = Model.embed;
     const origEmbedBatch = Model.embedBatch;
@@ -486,15 +498,23 @@ describe("Query.vsearch", () => {
 
     for (const note of CORPUS) {
       await Note.add({
-        project: Project.Id.parse(1),
+        corpus: DEFAULT_CORPUS_ID,
         path: note.path,
         content: note.content,
       });
     }
+
+    // Sanity check: notes should have produced vectors.
+    const db = Store.get();
+    const vecCount = db.prepare("SELECT COUNT(*) as c FROM vectors").get() as {
+      c: number;
+    };
+    expect(vecCount.c).toBeGreaterThan(0);
   });
 
   afterEach(async () => {
     restoreModel();
+    await Model.dispose();
     Store.close();
     Config.reset();
     rmSync(tmpDir, { recursive: true });
@@ -502,8 +522,8 @@ describe("Query.vsearch", () => {
 
   test("returns auth note for login query", async () => {
     const q = Query.create({
-      viewer: Project.Id.parse(1),
-      projects: [Project.Id.parse(1)],
+      viewer: workspaceId,
+      corpora: [DEFAULT_CORPUS_ID],
     });
     const res = await Query.vsearch({ id: q.id, q: "login password" });
 
@@ -514,8 +534,8 @@ describe("Query.vsearch", () => {
 
   test("returns database note for SQL query", async () => {
     const q = Query.create({
-      viewer: Project.Id.parse(1),
-      projects: [Project.Id.parse(1)],
+      viewer: workspaceId,
+      corpora: [DEFAULT_CORPUS_ID],
     });
     const res = await Query.vsearch({ id: q.id, q: "PostgreSQL migrations" });
 
@@ -525,8 +545,8 @@ describe("Query.vsearch", () => {
 
   test("returns uploads note for S3 query", async () => {
     const q = Query.create({
-      viewer: Project.Id.parse(1),
-      projects: [Project.Id.parse(1)],
+      viewer: workspaceId,
+      corpora: [DEFAULT_CORPUS_ID],
     });
     const res = await Query.vsearch({ id: q.id, q: "S3 file upload" });
 
@@ -536,8 +556,8 @@ describe("Query.vsearch", () => {
 
   test("respects limit parameter", async () => {
     const q = Query.create({
-      viewer: Project.Id.parse(1),
-      projects: [Project.Id.parse(1)],
+      viewer: workspaceId,
+      corpora: [DEFAULT_CORPUS_ID],
     });
     const res = await Query.vsearch({ id: q.id, q: "API", limit: 2 });
 
@@ -546,8 +566,8 @@ describe("Query.vsearch", () => {
 
   test("filters by path glob", async () => {
     const q = Query.create({
-      viewer: Project.Id.parse(1),
-      projects: [Project.Id.parse(1)],
+      viewer: workspaceId,
+      corpora: [DEFAULT_CORPUS_ID],
     });
     const res = await Query.vsearch({
       id: q.id,
@@ -558,17 +578,17 @@ describe("Query.vsearch", () => {
     expect(res.results.every((r) => r.path.startsWith("rate"))).toBe(true);
   });
 
-  test("filters by project scope", async () => {
-    const p2 = await Project.create({ name: "other" });
+  test("filters by corpus scope", async () => {
+    const c2 = await Corpus.create({ name: "other" });
     await Note.add({
-      project: p2.id,
+      corpus: c2.id,
       path: "other-auth.md",
       content: "JWT tokens authentication login",
     });
 
     const q = Query.create({
-      viewer: Project.Id.parse(1),
-      projects: [Project.Id.parse(1)],
+      viewer: workspaceId,
+      corpora: [DEFAULT_CORPUS_ID],
     });
     const res = await Query.vsearch({ id: q.id, q: "JWT tokens" });
 

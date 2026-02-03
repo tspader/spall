@@ -1,4 +1,4 @@
-export { project } from "./project";
+export { corpus } from "./corpus";
 export { review } from "./review";
 export { add } from "./add";
 export { commit } from "./commit";

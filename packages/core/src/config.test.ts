@@ -3,7 +3,7 @@ import {
   Config,
   type ConfigSchema,
   ConfigSchemaZod,
-  ProjectConfigSchemaZod,
+  WorkspaceConfigSchemaZod,
 } from "./config";
 import { homedir } from "os";
 import { join } from "path";
@@ -195,38 +195,51 @@ describe("ConfigSchemaZod", () => {
   });
 });
 
-describe("ProjectConfigSchemaZod", () => {
-  test("validates a complete project config", () => {
+describe("WorkspaceConfigSchemaZod", () => {
+  test("validates a complete workspace config", () => {
     const validConfig = {
-      projects: ["project1", "project2"],
+      workspace: { name: "repo", id: 123 },
+      include: ["default", "docs"],
     };
 
-    const result = ProjectConfigSchemaZod.safeParse(validConfig);
+    const result = WorkspaceConfigSchemaZod.safeParse(validConfig);
     expect(result.success).toBe(true);
   });
 
-  test("rejects projects that are not an array", () => {
-    const invalidConfig = {
-      projects: "project1", // should be array
+  test("allows omitting cached workspace id", () => {
+    const validConfig = {
+      workspace: { name: "repo" },
+      include: ["default"],
     };
 
-    const result = ProjectConfigSchemaZod.safeParse(invalidConfig);
+    const result = WorkspaceConfigSchemaZod.safeParse(validConfig);
+    expect(result.success).toBe(true);
+  });
+
+  test("rejects include that is not an array", () => {
+    const invalidConfig = {
+      workspace: { name: "repo" },
+      include: "default", // should be array
+    };
+
+    const result = WorkspaceConfigSchemaZod.safeParse(invalidConfig);
     expect(result.success).toBe(false);
   });
 
-  test("rejects projects with non-string items", () => {
+  test("rejects include with non-string items", () => {
     const invalidConfig = {
-      projects: ["project1", 123, "project3"],
+      workspace: { name: "repo" },
+      include: ["default", 123, "docs"],
     };
 
-    const result = ProjectConfigSchemaZod.safeParse(invalidConfig);
+    const result = WorkspaceConfigSchemaZod.safeParse(invalidConfig);
     expect(result.success).toBe(false);
   });
 
-  test("partial() allows partial project configs", () => {
+  test("partial() allows partial workspace configs", () => {
     const emptyConfig = {};
 
-    const result = ProjectConfigSchemaZod.partial().safeParse(emptyConfig);
+    const result = WorkspaceConfigSchemaZod.partial().safeParse(emptyConfig);
     expect(result.success).toBe(true);
   });
 });

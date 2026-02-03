@@ -8,7 +8,7 @@ import {
   count,
   stubModelForEmbedding,
   touch,
-} from "./testHarness";
+} from "./harness";
 import { Io } from "./io";
 
 describe("Store embeddings integration", () => {

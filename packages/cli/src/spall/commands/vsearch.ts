@@ -54,10 +54,10 @@ export const vsearch: CommandDef = {
     },
   },
   options: {
-    project: {
-      alias: "p",
+    corpus: {
+      alias: "c",
       type: "string",
-      description: "Project name",
+      description: "Corpus name",
     },
     path: {
       type: "string",
@@ -82,7 +82,7 @@ export const vsearch: CommandDef = {
 
     const { query } = await createEphemeralQuery({
       client,
-      project: argv.project,
+      corpus: (argv as any).corpus,
       tracked: false,
     });
 

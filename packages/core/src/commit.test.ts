@@ -7,11 +7,12 @@ import { Config } from "./config";
 import { Store } from "./store";
 import { Note } from "./note";
 import { Query } from "./query";
-import { Project } from "./project";
+import { Corpus } from "./corpus";
+import { Workspace } from "./workspace";
 import { Commit } from "./commit";
 import { Model } from "./model";
 
-const PROJECT_ID = Project.Id.parse(1);
+const CORPUS_ID = Corpus.Id.parse(1);
 
 describe("Commit", () => {
   let tmpDir: string;
@@ -42,13 +43,15 @@ describe("Commit", () => {
   });
 
   test("moves staging rows to committed", async () => {
-    await Note.add({ project: PROJECT_ID, path: "a.md", content: "alpha" });
-    const note = Note.get({ project: PROJECT_ID, path: "a.md" });
+    const ws = await Workspace.create({ name: "ws" });
+
+    await Note.add({ corpus: CORPUS_ID, path: "a.md", content: "alpha" });
+    const note = Note.get({ corpus: CORPUS_ID, path: "a.md" });
 
     const q = Query.create({
-      viewer: PROJECT_ID,
+      viewer: ws.id,
       tracked: true,
-      projects: [PROJECT_ID],
+      corpora: [CORPUS_ID],
     });
 
     Query.fetch({ id: q.id, ids: [note.id] });

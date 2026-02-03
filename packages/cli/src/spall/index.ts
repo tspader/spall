@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { build, type CliDef } from "@spall/cli/shared";
 import {
-  project,
+  corpus,
   review,
   add,
   commit,
@@ -26,7 +26,7 @@ const cliDef: CliDef = {
     vsearch,
     sync,
     serve,
-    project,
+    corpus,
     review,
     tui,
   },

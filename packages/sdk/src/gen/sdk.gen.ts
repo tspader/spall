@@ -9,6 +9,13 @@ import {
 import { client } from "./client.gen";
 import type {
   CommitRunResponses,
+  CorpusCreateResponses,
+  CorpusDeleteErrors,
+  CorpusDeleteResponses,
+  CorpusGetErrors,
+  CorpusGetResponses,
+  CorpusListErrors,
+  CorpusListResponses,
   EventsResponses,
   HealthResponses,
   NoteAddErrors,
@@ -26,13 +33,6 @@ import type {
   NoteUpdateResponses,
   NoteUpsertErrors,
   NoteUpsertResponses,
-  ProjectCreateResponses,
-  ProjectDeleteErrors,
-  ProjectDeleteResponses,
-  ProjectGetErrors,
-  ProjectGetResponses,
-  ProjectListErrors,
-  ProjectListResponses,
   QueryCreateErrors,
   QueryCreateResponses,
   QueryFetchErrors,
@@ -53,6 +53,13 @@ import type {
   SseNoteSyncResponses,
   SseNoteUpdateResponses,
   SseNoteUpsertResponses,
+  WorkspaceCreateResponses,
+  WorkspaceDeleteErrors,
+  WorkspaceDeleteResponses,
+  WorkspaceGetErrors,
+  WorkspaceGetResponses,
+  WorkspaceListErrors,
+  WorkspaceListResponses,
 } from "./types.gen";
 
 export type Options<
@@ -100,11 +107,119 @@ class HeyApiRegistry<T> {
   }
 }
 
+export class Workspace extends HeyApiClient {
+  /**
+   * Get workspace
+   *
+   * Look up a workspace by name or id.
+   */
+  public get<ThrowOnError extends boolean = false>(
+    parameters?: {
+      name?: string;
+      id?: number;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "query", key: "name" },
+            { in: "query", key: "id" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      WorkspaceGetResponses,
+      WorkspaceGetErrors,
+      ThrowOnError
+    >({
+      url: "/workspace",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Create a workspace
+   *
+   * Get or create a workspace. Returns existing workspace if name matches, creates new one otherwise.
+   */
+  public create<ThrowOnError extends boolean = false>(
+    parameters?: {
+      name?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "body", key: "name" }] }],
+    );
+    return (options?.client ?? this.client).post<
+      WorkspaceCreateResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/workspace",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * List workspaces
+   *
+   * List all workspaces.
+   */
+  public list<ThrowOnError extends boolean = false>(
+    options?: Options<never, ThrowOnError>,
+  ) {
+    return (options?.client ?? this.client).get<
+      WorkspaceListResponses,
+      WorkspaceListErrors,
+      ThrowOnError
+    >({ url: "/workspace/list", ...options });
+  }
+
+  /**
+   * Delete workspace
+   *
+   * Delete a workspace by ID.
+   */
+  public delete<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "path", key: "id" }] }],
+    );
+    return (options?.client ?? this.client).delete<
+      WorkspaceDeleteResponses,
+      WorkspaceDeleteErrors,
+      ThrowOnError
+    >({
+      url: "/workspace/{id}",
+      ...options,
+      ...params,
+    });
+  }
+}
+
 export class Note extends HeyApiClient {
   /**
    * List notes
    *
-   * List all note paths in a project.
+   * List all note paths in a corpus.
    */
   public list<ThrowOnError extends boolean = false>(
     parameters: {
@@ -121,7 +236,7 @@ export class Note extends HeyApiClient {
       NoteListErrors,
       ThrowOnError
     >({
-      url: "/project/{id}/list",
+      url: "/corpus/{id}/list",
       ...options,
       ...params,
     });
@@ -159,7 +274,7 @@ export class Note extends HeyApiClient {
       NoteListByPathErrors,
       ThrowOnError
     >({
-      url: "/project/{id}/notes",
+      url: "/corpus/{id}/notes",
       ...options,
       ...params,
     });
@@ -168,7 +283,7 @@ export class Note extends HeyApiClient {
   /**
    * Get a note
    *
-   * Get a note by path within a project.
+   * Get a note by path within a corpus.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters: {
@@ -193,7 +308,7 @@ export class Note extends HeyApiClient {
       NoteGetErrors,
       ThrowOnError
     >({
-      url: "/project/{id}/note/{path}",
+      url: "/corpus/{id}/note/{path}",
       ...options,
       ...params,
     });
@@ -231,7 +346,7 @@ export class Note extends HeyApiClient {
       NoteUpsertErrors,
       ThrowOnError
     >({
-      url: "/project/{id}/note/{path}",
+      url: "/corpus/{id}/note/{path}",
       ...options,
       ...params,
       headers: {
@@ -245,13 +360,13 @@ export class Note extends HeyApiClient {
   /**
    * Sync a directory as notes
    *
-   * Scan a directory, add matching notes to path, remove non-matches
+   * Scan a directory, add matching notes, remove non-matches
    */
   public sync<ThrowOnError extends boolean = false>(
     parameters?: {
       directory?: string;
       glob?: string;
-      project?: number;
+      corpus?: number;
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -262,7 +377,7 @@ export class Note extends HeyApiClient {
           args: [
             { in: "body", key: "directory" },
             { in: "body", key: "glob" },
-            { in: "body", key: "project" },
+            { in: "body", key: "corpus" },
           ],
         },
       ],
@@ -272,7 +387,7 @@ export class Note extends HeyApiClient {
       unknown,
       ThrowOnError
     >({
-      url: "/project/sync",
+      url: "/corpus/sync",
       ...options,
       ...params,
       headers: {
@@ -286,11 +401,11 @@ export class Note extends HeyApiClient {
   /**
    * Add a note
    *
-   * Add a note to a project and embed it. Requires project ID.
+   * Add a note to a corpus and embed it. Requires corpus ID.
    */
   public add<ThrowOnError extends boolean = false>(
     parameters?: {
-      project?: number;
+      corpus?: number;
       path?: string;
       content?: string;
       dupe?: boolean;
@@ -302,7 +417,7 @@ export class Note extends HeyApiClient {
       [
         {
           args: [
-            { in: "body", key: "project" },
+            { in: "body", key: "corpus" },
             { in: "body", key: "path" },
             { in: "body", key: "content" },
             { in: "body", key: "dupe" },
@@ -315,7 +430,7 @@ export class Note extends HeyApiClient {
       NoteAddErrors,
       ThrowOnError
     >({
-      url: "/project/note",
+      url: "/corpus/note",
       ...options,
       ...params,
       headers: {
@@ -394,11 +509,11 @@ export class Note extends HeyApiClient {
   }
 }
 
-export class Project extends HeyApiClient {
+export class Corpus extends HeyApiClient {
   /**
-   * Get project
+   * Get corpus
    *
-   * Look up a project by name or id. Returns default project if neither specified.
+   * Look up a corpus by name or id. Returns default corpus if neither specified.
    */
   public get<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -419,20 +534,20 @@ export class Project extends HeyApiClient {
       ],
     );
     return (options?.client ?? this.client).get<
-      ProjectGetResponses,
-      ProjectGetErrors,
+      CorpusGetResponses,
+      CorpusGetErrors,
       ThrowOnError
     >({
-      url: "/project",
+      url: "/corpus",
       ...options,
       ...params,
     });
   }
 
   /**
-   * Create a project
+   * Create a corpus
    *
-   * Get or create a project. Returns existing project if name matches, creates new one otherwise.
+   * Get or create a corpus. Returns existing corpus if name matches, creates new one otherwise.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
@@ -445,11 +560,11 @@ export class Project extends HeyApiClient {
       [{ args: [{ in: "body", key: "name" }] }],
     );
     return (options?.client ?? this.client).post<
-      ProjectCreateResponses,
+      CorpusCreateResponses,
       unknown,
       ThrowOnError
     >({
-      url: "/project",
+      url: "/corpus",
       ...options,
       ...params,
       headers: {
@@ -461,24 +576,24 @@ export class Project extends HeyApiClient {
   }
 
   /**
-   * List projects
+   * List corpora
    *
-   * List all projects.
+   * List all corpora.
    */
   public list<ThrowOnError extends boolean = false>(
     options?: Options<never, ThrowOnError>,
   ) {
     return (options?.client ?? this.client).get<
-      ProjectListResponses,
-      ProjectListErrors,
+      CorpusListResponses,
+      CorpusListErrors,
       ThrowOnError
-    >({ url: "/project/list", ...options });
+    >({ url: "/corpus/list", ...options });
   }
 
   /**
-   * Delete project
+   * Delete corpus
    *
-   * Delete a project and all associated notes by ID.
+   * Delete a corpus and all associated notes by ID.
    */
   public delete<ThrowOnError extends boolean = false>(
     parameters: {
@@ -491,11 +606,11 @@ export class Project extends HeyApiClient {
       [{ args: [{ in: "path", key: "id" }] }],
     );
     return (options?.client ?? this.client).delete<
-      ProjectDeleteResponses,
-      ProjectDeleteErrors,
+      CorpusDeleteResponses,
+      CorpusDeleteErrors,
       ThrowOnError
     >({
-      url: "/project/{id}",
+      url: "/corpus/{id}",
       ...options,
       ...params,
     });
@@ -506,13 +621,13 @@ export class Query extends HeyApiClient {
   /**
    * Create a query
    *
-   * Create a query scope for aggregating notes across multiple projects.
+   * Create a query scope for aggregating notes across multiple corpora.
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
       viewer?: number;
       tracked?: boolean;
-      projects?: Array<number>;
+      corpora?: Array<number>;
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -523,7 +638,7 @@ export class Query extends HeyApiClient {
           args: [
             { in: "body", key: "viewer" },
             { in: "body", key: "tracked" },
-            { in: "body", key: "projects" },
+            { in: "body", key: "corpora" },
           ],
         },
       ],
@@ -599,7 +714,7 @@ export class Query extends HeyApiClient {
   /**
    * Query notes
    *
-   * List notes across all projects in a query with keyset pagination.
+   * List notes across all corpora in a query with keyset pagination.
    */
   public notes<ThrowOnError extends boolean = false>(
     parameters: {
@@ -637,7 +752,7 @@ export class Query extends HeyApiClient {
   /**
    * Keyword search
    *
-   * Search note content across all projects in a query using FTS5.
+   * Search note content across all corpora in a query using FTS5.
    */
   public search<ThrowOnError extends boolean = false>(
     parameters: {
@@ -677,7 +792,7 @@ export class Query extends HeyApiClient {
   /**
    * Vector search
    *
-   * Semantic search across all projects in a query using embeddings.
+   * Semantic search across all corpora in a query using embeddings.
    */
   public vsearch<ThrowOnError extends boolean = false>(
     parameters: {
@@ -754,7 +869,7 @@ export class Query extends HeyApiClient {
   /**
    * List paths
    *
-   * List all note paths across projects in a query, grouped by project.
+   * List all note paths across corpora in a query, grouped by corpus.
    */
   public paths<ThrowOnError extends boolean = false>(
     parameters: {
@@ -831,7 +946,7 @@ export class Note2 extends HeyApiClient {
     parameters?: {
       directory?: string;
       glob?: string;
-      project?: number;
+      corpus?: number;
     },
     options?: Options<never, ThrowOnError>,
   ) {
@@ -842,7 +957,7 @@ export class Note2 extends HeyApiClient {
           args: [
             { in: "body", key: "directory" },
             { in: "body", key: "glob" },
-            { in: "body", key: "project" },
+            { in: "body", key: "corpus" },
           ],
         },
       ],
@@ -852,7 +967,7 @@ export class Note2 extends HeyApiClient {
       unknown,
       ThrowOnError
     >({
-      url: "/sse/project/sync",
+      url: "/sse/corpus/sync",
       ...options,
       ...params,
       headers: {
@@ -866,11 +981,11 @@ export class Note2 extends HeyApiClient {
   /**
    * Add a note (SSE)
    *
-   * Add a note to a project and embed it. Streams progress events.
+   * Add a note to a corpus and embed it. Streams progress events.
    */
   public add<ThrowOnError extends boolean = false>(
     parameters?: {
-      project?: number;
+      corpus?: number;
       path?: string;
       content?: string;
       dupe?: boolean;
@@ -882,7 +997,7 @@ export class Note2 extends HeyApiClient {
       [
         {
           args: [
-            { in: "body", key: "project" },
+            { in: "body", key: "corpus" },
             { in: "body", key: "path" },
             { in: "body", key: "content" },
             { in: "body", key: "dupe" },
@@ -895,7 +1010,7 @@ export class Note2 extends HeyApiClient {
       unknown,
       ThrowOnError
     >({
-      url: "/sse/project/note",
+      url: "/sse/corpus/note",
       ...options,
       ...params,
       headers: {
@@ -938,7 +1053,7 @@ export class Note2 extends HeyApiClient {
       unknown,
       ThrowOnError
     >({
-      url: "/sse/project/{id}/note/{path}",
+      url: "/sse/corpus/{id}/note/{path}",
       ...options,
       ...params,
       headers: {
@@ -1053,14 +1168,19 @@ export class SpallClient extends HeyApiClient {
     >({ url: "/events", ...options });
   }
 
+  private _workspace?: Workspace;
+  get workspace(): Workspace {
+    return (this._workspace ??= new Workspace({ client: this.client }));
+  }
+
   private _note?: Note;
   get note(): Note {
     return (this._note ??= new Note({ client: this.client }));
   }
 
-  private _project?: Project;
-  get project(): Project {
-    return (this._project ??= new Project({ client: this.client }));
+  private _corpus?: Corpus;
+  get corpus(): Corpus {
+    return (this._corpus ??= new Corpus({ client: this.client }));
   }
 
   private _query?: Query;

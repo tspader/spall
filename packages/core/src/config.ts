@@ -4,9 +4,8 @@ import { basename, dirname, join, resolve } from "path";
 import { z } from "zod";
 
 const CONFIG_PATH = join(homedir(), ".config", "spall", "spall.json");
-const PROJECT_CONFIG_NAME = ".spall/spall.json";
+const WORKSPACE_CONFIG_NAME = ".spall/spall.json";
 
-// Zod schemas for runtime validation
 export const ConfigSchemaZod = z.object({
   dirs: z.object({
     cache: z
@@ -38,22 +37,17 @@ export const ConfigSchemaZod = z.object({
   }),
 });
 
-export const ProjectConfigSchemaZod = z.object({
-  project: z.object({
-    name: z.string().describe("Viewer project name"),
-    id: z
-      .number()
-      .int()
-      .positive()
-      .optional()
-      .describe("Cached viewer project ID"),
+export const WorkspaceConfigSchemaZod = z.object({
+  workspace: z.object({
+    name: z.string().describe("Workspace name"),
+    id: z.number().int().positive().optional().describe("Cached workspace ID"),
   }),
-  include: z.array(z.string()).describe("List of included projects"),
+  include: z.array(z.string()).describe("List of included corpora"),
 });
 
 // TypeScript types inferred from Zod schemas
 export type ConfigSchema = z.infer<typeof ConfigSchemaZod>;
-export type ProjectConfigSchema = z.infer<typeof ProjectConfigSchemaZod>;
+export type WorkspaceConfigSchema = z.infer<typeof WorkspaceConfigSchemaZod>;
 
 // Partial types for the set() functions
 export type PartialConfig = {
@@ -63,8 +57,8 @@ export type PartialConfig = {
   embedding?: Partial<ConfigSchema["embedding"]>;
 };
 
-export type PartialProjectConfig = {
-  project?: {
+export type PartialWorkspaceConfig = {
+  workspace?: {
     name?: string;
     id?: number;
   };
@@ -94,9 +88,9 @@ function getDefaults(): ConfigSchema {
   };
 }
 
-function getProjectDefaults(): ProjectConfigSchema {
+function getWorkspaceDefaults(): WorkspaceConfigSchema {
   return {
-    project: {
+    workspace: {
       name: "default",
       id: undefined,
     },
@@ -153,8 +147,8 @@ export namespace Config {
   }
 }
 
-export namespace ProjectConfig {
-  let config: ProjectConfigSchema | null = null;
+export namespace WorkspaceConfig {
+  let config: WorkspaceConfigSchema | null = null;
   let loadedFrom: string | null = null;
 
   export type Located = {
@@ -163,13 +157,13 @@ export namespace ProjectConfig {
   };
 
   export function path(root: string): string {
-    return join(root, PROJECT_CONFIG_NAME);
+    return join(root, WORKSPACE_CONFIG_NAME);
   }
 
   export function findRoot(start: string): string | null {
     let dir = resolve(start);
     while (true) {
-      // prefer an explicit project config file, but allow a bare `.spall/` dir
+      // prefer an explicit workspace config file, but allow a bare `.spall/` dir
       // so callers can create `.spall/spall.json` on-demand.
       if (existsSync(path(dir)) || existsSync(join(dir, ".spall"))) return dir;
       const parent = dirname(dir);
@@ -184,19 +178,19 @@ export namespace ProjectConfig {
     return { root, path: path(root) };
   }
 
-  export function write(root: string, next: ProjectConfigSchema): void {
+  export function write(root: string, next: WorkspaceConfigSchema): void {
     const configPath = path(root);
     const dir = dirname(configPath);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
     writeFileSync(configPath, JSON.stringify(next, null, 2) + "\n", "utf-8");
   }
 
-  export function patch(root: string, values: PartialProjectConfig): void {
+  export function patch(root: string, values: PartialWorkspaceConfig): void {
     const current = load(root);
-    const next: ProjectConfigSchema = {
-      project: {
-        name: values.project?.name ?? current.project.name,
-        id: values.project?.id ?? current.project.id,
+    const next: WorkspaceConfigSchema = {
+      workspace: {
+        name: values.workspace?.name ?? current.workspace.name,
+        id: values.workspace?.id ?? current.workspace.id,
       },
       include: values.include ?? current.include,
     };
@@ -206,14 +200,14 @@ export namespace ProjectConfig {
     loadedFrom = root;
   }
 
-  export function load(start: string): ProjectConfigSchema {
+  export function load(start: string): WorkspaceConfigSchema {
     const located = locate(start);
     const root = located?.root ?? resolve(start);
     if (config && loadedFrom === root) return config;
 
-    const defaults = getProjectDefaults();
+    const defaults = getWorkspaceDefaults();
 
-    // Not in a project (no `.spall/` found). Use defaults and don't try to
+    // No workspace found (no `.spall/` found). Use defaults and don't try to
     // infer names from arbitrary directories.
     if (!located) {
       config = defaults;
@@ -227,23 +221,23 @@ export namespace ProjectConfig {
       if (existsSync(configPath)) {
         const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
         // Validate using Zod
-        const fileConfig: PartialProjectConfig =
-          ProjectConfigSchemaZod.partial().parse(rawConfig);
+        const fileConfig: PartialWorkspaceConfig =
+          WorkspaceConfigSchemaZod.partial().parse(rawConfig);
 
         config = {
-          project: {
+          workspace: {
             name:
-              fileConfig.project?.name ??
+              fileConfig.workspace?.name ??
               basename(root) ??
-              defaults.project.name,
-            id: fileConfig.project?.id,
+              defaults.workspace.name,
+            id: fileConfig.workspace?.id,
           },
           include: fileConfig.include ?? defaults.include,
         };
       } else {
         config = {
-          project: {
-            name: basename(root) ?? defaults.project.name,
+          workspace: {
+            name: basename(root) ?? defaults.workspace.name,
             id: undefined,
           },
           include: defaults.include,
@@ -251,8 +245,8 @@ export namespace ProjectConfig {
       }
     } catch {
       config = {
-        project: {
-          name: basename(root) ?? defaults.project.name,
+        workspace: {
+          name: basename(root) ?? defaults.workspace.name,
           id: undefined,
         },
         include: defaults.include,
@@ -263,7 +257,7 @@ export namespace ProjectConfig {
     return config;
   }
 
-  export function get(start: string): ProjectConfigSchema {
+  export function get(start: string): WorkspaceConfigSchema {
     return load(start);
   }
 

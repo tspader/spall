@@ -11,7 +11,7 @@ export const QueryRoutes = lazy(() =>
       describeRoute({
         summary: "Create a query",
         description:
-          "Create a query scope for aggregating notes across multiple projects.",
+          "Create a query scope for aggregating notes across multiple corpora.",
         operationId: "query.create",
         responses: {
           200: {
@@ -107,7 +107,7 @@ export const QueryRoutes = lazy(() =>
       describeRoute({
         summary: "Query notes",
         description:
-          "List notes across all projects in a query with keyset pagination.",
+          "List notes across all corpora in a query with keyset pagination.",
         operationId: "query.notes",
         responses: {
           200: {
@@ -148,7 +148,7 @@ export const QueryRoutes = lazy(() =>
       describeRoute({
         summary: "Keyword search",
         description:
-          "Search note content across all projects in a query using FTS5.",
+          "Search note content across all corpora in a query using FTS5.",
         operationId: "query.search",
         responses: {
           200: {
@@ -189,7 +189,7 @@ export const QueryRoutes = lazy(() =>
       describeRoute({
         summary: "Vector search",
         description:
-          "Semantic search across all projects in a query using embeddings.",
+          "Semantic search across all corpora in a query using embeddings.",
         operationId: "query.vsearch",
         responses: {
           200: {
@@ -271,11 +271,11 @@ export const QueryRoutes = lazy(() =>
       describeRoute({
         summary: "List paths",
         description:
-          "List all note paths across projects in a query, grouped by project.",
+          "List all note paths across corpora in a query, grouped by corpus.",
         operationId: "query.paths",
         responses: {
           200: {
-            description: "Paths grouped by project",
+            description: "Paths grouped by corpus",
             content: {
               "application/json": {
                 schema: resolver(Query.PathsResults),
