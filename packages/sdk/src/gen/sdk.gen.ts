@@ -34,10 +34,14 @@ import type {
   ProjectListResponses,
   QueryCreateErrors,
   QueryCreateResponses,
+  QueryFetchErrors,
+  QueryFetchResponses,
   QueryGetErrors,
   QueryGetResponses,
   QueryNotesErrors,
   QueryNotesResponses,
+  QueryPathsErrors,
+  QueryPathsResponses,
   QuerySearchErrors,
   QuerySearchResponses,
   QueryVsearchErrors,
@@ -664,6 +668,79 @@ export class Query extends HeyApiClient {
       ThrowOnError
     >({
       url: "/query/{id}/vsearch",
+      ...options,
+      ...params,
+    });
+  }
+
+  /**
+   * Fetch notes by ID
+   *
+   * Fetch full note content for a list of note IDs through a query scope. Records access for reweighting.
+   */
+  public fetch<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      ids?: Array<number>;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "body", key: "ids" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).post<
+      QueryFetchResponses,
+      QueryFetchErrors,
+      ThrowOnError
+    >({
+      url: "/query/{id}/fetch",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+
+  /**
+   * List paths
+   *
+   * List all note paths across projects in a query, grouped by project.
+   */
+  public paths<ThrowOnError extends boolean = false>(
+    parameters: {
+      id: string;
+      path?: string;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [
+        {
+          args: [
+            { in: "path", key: "id" },
+            { in: "query", key: "path" },
+          ],
+        },
+      ],
+    );
+    return (options?.client ?? this.client).get<
+      QueryPathsResponses,
+      QueryPathsErrors,
+      ThrowOnError
+    >({
+      url: "/query/{id}/paths",
       ...options,
       ...params,
     });

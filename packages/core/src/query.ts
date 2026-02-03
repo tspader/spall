@@ -249,6 +249,37 @@ export namespace Query {
     },
   );
 
+  export const FetchResults = z.object({
+    notes: Note.Info.array(),
+  });
+  export type FetchResults = z.infer<typeof FetchResults>;
+
+  export const PathsItem = z.object({
+    project: Project.Id,
+    paths: z.array(z.string()),
+  });
+  export type PathsItem = z.infer<typeof PathsItem>;
+
+  export const PathsResults = z.object({
+    paths: PathsItem.array(),
+  });
+  export type PathsResults = z.infer<typeof PathsResults>;
+
+  export const fetch = api(
+    z.object({
+      id: Id,
+      ids: z.array(Note.Id),
+    }),
+    (input): FetchResults => {
+      // validate the query exists
+      get({ id: input.id });
+
+      // TODO: record access for reweighting
+      const notes = Note.getByIds({ ids: input.ids });
+      return { notes };
+    },
+  );
+
   function matchGlob(pattern: string, path: string): boolean {
     const regex = new RegExp(
       "^" +
@@ -260,4 +291,30 @@ export namespace Query {
     );
     return regex.test(path);
   }
+
+  export const paths = api(
+    z.object({
+      id: Id,
+      path: z.string().optional(),
+    }),
+    (input): PathsResults => {
+      const db = Store.ensure();
+
+      const query = get({ id: input.id });
+      const projects = JSON.stringify(query.projects);
+      const path = input.path ?? "*";
+
+      const rows = db.prepare(Sql.LIST_QUERY_PATHS).all(projects, path) as {
+        project_id: number;
+        paths: string;
+      }[];
+
+      const results: PathsItem[] = rows.map((row) => ({
+        project: Project.Id.parse(row.project_id),
+        paths: JSON.parse(row.paths) as string[],
+      }));
+
+      return { paths: results };
+    },
+  );
 }

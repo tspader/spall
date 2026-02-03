@@ -200,5 +200,87 @@ export const QueryRoutes = lazy(() =>
           return c.json(Error.from(error), 404);
         }
       },
+    )
+    .post(
+      "/:id/fetch",
+      describeRoute({
+        summary: "Fetch notes by ID",
+        description:
+          "Fetch full note content for a list of note IDs through a query scope. Records access for reweighting.",
+        operationId: "query.fetch",
+        responses: {
+          200: {
+            description: "Fetched notes",
+            content: {
+              "application/json": {
+                schema: resolver(Query.FetchResults),
+              },
+            },
+          },
+          404: {
+            description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
+        },
+      }),
+      validator("json", Query.fetch.schema.omit({ id: true })),
+      async (c) => {
+        const id = c.req.param("id");
+        const body = c.req.valid("json");
+        try {
+          const result = Query.fetch({
+            id: Query.Id.parse(id),
+            ...body,
+          });
+          return c.json(result);
+        } catch (error: any) {
+          return c.json(Error.from(error), 404);
+        }
+      },
+    )
+    .get(
+      "/:id/paths",
+      describeRoute({
+        summary: "List paths",
+        description:
+          "List all note paths across projects in a query, grouped by project.",
+        operationId: "query.paths",
+        responses: {
+          200: {
+            description: "Paths grouped by project",
+            content: {
+              "application/json": {
+                schema: resolver(Query.PathsResults),
+              },
+            },
+          },
+          404: {
+            description: "Query not found",
+            content: {
+              "application/json": {
+                schema: resolver(Error.Info),
+              },
+            },
+          },
+        },
+      }),
+      validator("query", Query.paths.schema.omit({ id: true })),
+      async (c) => {
+        const id = c.req.param("id");
+        const query = c.req.valid("query");
+        try {
+          const result = Query.paths({
+            id: Query.Id.parse(id),
+            ...query,
+          });
+          return c.json(result);
+        } catch (error: any) {
+          return c.json(Error.from(error), 404);
+        }
+      },
     ),
 );

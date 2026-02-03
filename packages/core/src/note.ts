@@ -171,6 +171,21 @@ export namespace Note {
     },
   );
 
+  export const getByIds = api(
+    z.object({
+      ids: z.array(Id),
+    }),
+    (input): Info[] => {
+      const db = Store.ensure();
+
+      const rows = db
+        .prepare(Sql.GET_NOTES_BY_IDS)
+        .all(JSON.stringify(input.ids)) as unknown[];
+
+      return rows.map((r) => Row.parse(r));
+    },
+  );
+
   export const ListItem = z.object({
     id: Id,
     path: z.string(),

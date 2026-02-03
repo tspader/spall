@@ -622,6 +622,83 @@ export type QueryVsearchResponses = {
 export type QueryVsearchResponse =
   QueryVsearchResponses[keyof QueryVsearchResponses];
 
+export type QueryFetchData = {
+  body?: {
+    ids: Array<number>;
+  };
+  path: {
+    id: string;
+  };
+  query?: never;
+  url: "/query/{id}/fetch";
+};
+
+export type QueryFetchErrors = {
+  /**
+   * Query not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type QueryFetchError = QueryFetchErrors[keyof QueryFetchErrors];
+
+export type QueryFetchResponses = {
+  /**
+   * Fetched notes
+   */
+  200: {
+    notes: Array<{
+      id: number;
+      project: number;
+      path: string;
+      content: string;
+      contentHash: string;
+    }>;
+  };
+};
+
+export type QueryFetchResponse = QueryFetchResponses[keyof QueryFetchResponses];
+
+export type QueryPathsData = {
+  body?: never;
+  path: {
+    id: string;
+  };
+  query?: {
+    path?: string;
+  };
+  url: "/query/{id}/paths";
+};
+
+export type QueryPathsErrors = {
+  /**
+   * Query not found
+   */
+  404: {
+    code: string;
+    message: string;
+  };
+};
+
+export type QueryPathsError = QueryPathsErrors[keyof QueryPathsErrors];
+
+export type QueryPathsResponses = {
+  /**
+   * Paths grouped by project
+   */
+  200: {
+    paths: Array<{
+      project: number;
+      paths: Array<string>;
+    }>;
+  };
+};
+
+export type QueryPathsResponse = QueryPathsResponses[keyof QueryPathsResponses];
+
 export type SseNoteSyncData = {
   body?: {
     directory: string;

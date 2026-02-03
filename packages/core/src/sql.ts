@@ -266,6 +266,12 @@ export namespace Sql {
     SELECT id, projects, created_at FROM queries WHERE id = ?
   `;
 
+  export const GET_NOTES_BY_IDS = `
+    SELECT id, project_id, path, content, content_hash
+    FROM notes
+    WHERE id IN (SELECT value FROM json_each(?))
+  `;
+
   export const LIST_QUERY_NOTES_PAGINATED = `
     SELECT id, project_id, path, content, content_hash
     FROM notes
@@ -274,5 +280,13 @@ export namespace Sql {
       AND path > ?
     ORDER BY path
     LIMIT ?
+  `;
+
+  export const LIST_QUERY_PATHS = `
+    SELECT project_id, json_group_array(path) as paths
+    FROM notes
+    WHERE project_id IN (SELECT value FROM json_each(?))
+      AND path GLOB ?
+    GROUP BY project_id
   `;
 }
