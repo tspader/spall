@@ -6,6 +6,9 @@ import { getHunkIndexForRow, parseFileDiff } from "../lib/diff";
 import { useTheme } from "../context/theme";
 import { EmptyBorder } from "./HalfLineShadow";
 
+/** Number of diff rows to keep visible above/below cursor (line mode). */
+const LINE_SCROLL_BUFFER = 8;
+
 function getFiletype(filename: string): string {
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
   const extMap: Record<string, string> = {
@@ -114,14 +117,15 @@ export function DiffPanel(props: DiffPanelProps) {
         flexDirection="row"
         justifyContent="flex-start"
         gap={1}
-        backgroundColor={props.focused() ? theme.backgroundElement : theme.backgroundPanel}
-      border={["left"]}
-      borderColor={props.focused() ? theme.primary : theme.indicatorDefault}
+        backgroundColor={
+          props.focused() ? theme.backgroundElement : theme.backgroundPanel
+        }
+        border={["left"]}
+        borderColor={props.focused() ? theme.primary : theme.indicatorDefault}
         customBorderChars={{
           ...EmptyBorder,
-        vertical: "\u258C",
-      }}
-
+          vertical: "\u258C",
+        }}
       >
         <box paddingLeft={1} flexDirection="row" gap={1}>
           <text>
@@ -164,10 +168,22 @@ export function DiffPanel(props: DiffPanelProps) {
               scrollLine = Math.max(0, row - 1 + separatorOffset);
               const scrollTop = scrollbox.scrollTop;
               const viewportHeight = scrollbox.viewport.height;
-              if (scrollLine < scrollTop) {
-                scrollbox.scrollTo(scrollLine);
-              } else if (scrollLine >= scrollTop + viewportHeight) {
-                scrollbox.scrollTo(scrollLine - viewportHeight + 1);
+
+              const topBound = scrollTop + LINE_SCROLL_BUFFER;
+              const bottomBound =
+                scrollTop + viewportHeight - 1 - LINE_SCROLL_BUFFER;
+
+              if (scrollLine < topBound) {
+                scrollbox.scrollTo(
+                  Math.max(0, scrollLine - LINE_SCROLL_BUFFER),
+                );
+              } else if (scrollLine > bottomBound) {
+                scrollbox.scrollTo(
+                  Math.max(
+                    0,
+                    scrollLine + LINE_SCROLL_BUFFER - viewportHeight + 1,
+                  ),
+                );
               }
               return;
             }
