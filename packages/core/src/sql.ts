@@ -301,4 +301,68 @@ export namespace Sql {
       AND path GLOB ?
     GROUP BY project_id
   `;
+
+  export const CREATE_STAGING_TABLE = `
+    CREATE TABLE IF NOT EXISTS staging (
+      id INTEGER PRIMARY KEY,
+      note_id INTEGER NOT NULL,
+      query_id INTEGER NOT NULL,
+      kind INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      payload TEXT NOT NULL DEFAULT '{}',
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+      FOREIGN KEY (query_id) REFERENCES queries(id) ON DELETE CASCADE
+    )
+  `;
+
+  export const CREATE_STAGING_INDEXES = `
+    CREATE INDEX IF NOT EXISTS staging_query_id ON staging(query_id);
+    CREATE INDEX IF NOT EXISTS staging_note_id ON staging(note_id);
+    CREATE INDEX IF NOT EXISTS staging_created_at ON staging(created_at);
+    CREATE INDEX IF NOT EXISTS staging_kind ON staging(kind);
+  `;
+
+  export const CREATE_COMMITTED_TABLE = `
+    CREATE TABLE IF NOT EXISTS committed (
+      id INTEGER PRIMARY KEY,
+      note_id INTEGER NOT NULL,
+      query_id INTEGER NOT NULL,
+      kind INTEGER NOT NULL,
+      created_at INTEGER NOT NULL,
+      payload TEXT NOT NULL,
+      committed_at INTEGER NOT NULL,
+      FOREIGN KEY (note_id) REFERENCES notes(id) ON DELETE CASCADE,
+      FOREIGN KEY (query_id) REFERENCES queries(id) ON DELETE CASCADE
+    )
+  `;
+
+  export const CREATE_COMMITTED_INDEXES = `
+    CREATE INDEX IF NOT EXISTS committed_query_id ON committed(query_id);
+    CREATE INDEX IF NOT EXISTS committed_note_id ON committed(note_id);
+    CREATE INDEX IF NOT EXISTS committed_committed_at ON committed(committed_at);
+    CREATE INDEX IF NOT EXISTS committed_kind ON committed(kind);
+  `;
+
+  export const INSERT_STAGING = `
+    INSERT INTO staging (note_id, query_id, kind, created_at, payload)
+    VALUES (?, ?, ?, ?, ?)
+  `;
+
+  export const COUNT_STAGING = `
+    SELECT COUNT(*) as count FROM staging
+  `;
+
+  export const COMMIT_STAGING_TO_COMMITTED = `
+    INSERT INTO committed (note_id, query_id, kind, created_at, payload, committed_at)
+    SELECT note_id, query_id, kind, created_at, payload, ?
+    FROM staging
+  `;
+
+  export const CLEAR_STAGING = `
+    DELETE FROM staging
+  `;
+
+  export const COUNT_COMMITTED = `
+    SELECT COUNT(*) as count FROM committed
+  `;
 }

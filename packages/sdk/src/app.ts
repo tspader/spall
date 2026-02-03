@@ -7,6 +7,7 @@ import { Server } from "./server";
 import { ProjectRoutes } from "./routes/project";
 import { NoteRoutes } from "./routes/note";
 import { QueryRoutes } from "./routes/query";
+import { CommitRoutes } from "./routes/commit";
 import { SseRoutes } from "./routes/sse";
 import { Sse } from "./sse";
 import { EventUnion } from "@spall/core";
@@ -32,6 +33,7 @@ export namespace App {
       .route("/project", ProjectRoutes())
       .route("/note", NoteRoutes())
       .route("/query", QueryRoutes())
+      .route("/commit", CommitRoutes())
       .route("/sse", SseRoutes())
       .get(
         "/health",
@@ -75,6 +77,37 @@ export namespace App {
           return Sse.subscribe(c);
         },
       );
+
+    app.post(
+      "/shutdown",
+      describeRoute({
+        summary: "Shutdown server",
+        description: "Request the server to stop.",
+        operationId: "server.shutdown",
+        responses: {
+          200: {
+            description: "Shutdown acknowledged",
+            content: {
+              "application/json": {
+                schema: resolver(z.object({ ok: z.literal(true) })),
+              },
+            },
+          },
+        },
+      }),
+      async (c) => {
+        // Let the response flush before stopping.
+        setTimeout(() => {
+          try {
+            process.kill(process.pid, "SIGTERM");
+          } catch {
+            // ignore
+          }
+        }, 0);
+        return c.json({ ok: true as const });
+      },
+    );
+
     return app;
   }
 

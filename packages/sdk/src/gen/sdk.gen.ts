@@ -8,6 +8,7 @@ import {
 } from "./client";
 import { client } from "./client.gen";
 import type {
+  CommitRunResponses,
   EventsResponses,
   HealthResponses,
   NoteAddErrors,
@@ -47,6 +48,7 @@ import type {
   QuerySearchResponses,
   QueryVsearchErrors,
   QueryVsearchResponses,
+  ServerShutdownResponses,
   SseNoteAddResponses,
   SseNoteSyncResponses,
   SseNoteUpdateResponses,
@@ -784,6 +786,41 @@ export class Query extends HeyApiClient {
   }
 }
 
+export class Commit extends HeyApiClient {
+  /**
+   * Commit staged events
+   *
+   * Move all rows from staging to committed.
+   */
+  public run<ThrowOnError extends boolean = false>(
+    parameters?: {
+      body?: {
+        [key: string]: unknown;
+      };
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ key: "body", map: "body" }] }],
+    );
+    return (options?.client ?? this.client).post<
+      CommitRunResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/commit",
+      ...options,
+      ...params,
+      headers: {
+        "Content-Type": "application/json",
+        ...options?.headers,
+        ...params.headers,
+      },
+    });
+  }
+}
+
 export class Note2 extends HeyApiClient {
   /**
    * Index a directory (SSE)
@@ -961,6 +998,23 @@ export class Sse extends HeyApiClient {
   }
 }
 
+export class Server extends HeyApiClient {
+  /**
+   * Shutdown server
+   *
+   * Request the server to stop.
+   */
+  public shutdown<ThrowOnError extends boolean = false>(
+    options?: Options<never, ThrowOnError>,
+  ) {
+    return (options?.client ?? this.client).post<
+      ServerShutdownResponses,
+      unknown,
+      ThrowOnError
+    >({ url: "/shutdown", ...options });
+  }
+}
+
 export class SpallClient extends HeyApiClient {
   public static readonly __registry = new HeyApiRegistry<SpallClient>();
 
@@ -1014,8 +1068,18 @@ export class SpallClient extends HeyApiClient {
     return (this._query ??= new Query({ client: this.client }));
   }
 
+  private _commit?: Commit;
+  get commit(): Commit {
+    return (this._commit ??= new Commit({ client: this.client }));
+  }
+
   private _sse?: Sse;
   get sse(): Sse {
     return (this._sse ??= new Sse({ client: this.client }));
+  }
+
+  private _server?: Server;
+  get server(): Server {
+    return (this._server ??= new Server({ client: this.client }));
   }
 }

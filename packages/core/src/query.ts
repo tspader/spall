@@ -303,11 +303,23 @@ export namespace Query {
       ids: z.array(Note.Id),
     }),
     (input): FetchResults => {
-      // validate the query exists
-      get({ id: input.id });
+      const db = Store.ensure();
 
-      // TODO: record access for reweighting
+      // validate the query exists
+      const query = get({ id: input.id });
+
       const notes = Note.getByIds({ ids: input.ids });
+
+      if (query.tracked && notes.length > 0) {
+        const createdAt = Date.now();
+        const payload = "{}";
+        const statement = db.prepare(Sql.INSERT_STAGING);
+        db.transaction(() => {
+          for (const note of notes) {
+            statement.run(Number(note.id), Number(query.id), 1, createdAt, payload);
+          }
+        })();
+      }
       return { notes };
     },
   );

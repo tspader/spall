@@ -1,6 +1,7 @@
 export { project } from "./project";
 export { review } from "./review";
 export { add } from "./add";
+export { commit } from "./commit";
 export { serve } from "./serve";
 export { get } from "./get";
 export { list } from "./list";

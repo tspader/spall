@@ -11,6 +11,7 @@ import { Store } from "@spall/core";
 
 export { Lock } from "./lock";
 export { ensure } from "./lock";
+export { isProcessAlive, checkHealth } from "./lock";
 
 function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -115,7 +116,8 @@ export namespace Server {
         return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
       case "note.updated":
         return `${pc.cyanBright(event.info.path)} (${formatBytes(event.info.content.length)}, hash: ${event.info.contentHash})`;
-      case "embed.cancel": return "Cancelled embedding";
+      case "embed.cancel":
+        return "Cancelled embedding";
     }
 
     return event.tag;
@@ -235,5 +237,4 @@ export namespace Server {
     }
     resolved();
   }
-
 }

@@ -732,6 +732,27 @@ export type QueryPathsResponses = {
 
 export type QueryPathsResponse = QueryPathsResponses[keyof QueryPathsResponses];
 
+export type CommitRunData = {
+  body?: {
+    [key: string]: unknown;
+  };
+  path?: never;
+  query?: never;
+  url: "/commit";
+};
+
+export type CommitRunResponses = {
+  /**
+   * Commit result
+   */
+  200: {
+    moved: number;
+    committedAt: number;
+  };
+};
+
+export type CommitRunResponse = CommitRunResponses[keyof CommitRunResponses];
+
 export type SseNoteSyncData = {
   body?: {
     directory: string;
@@ -1570,3 +1591,22 @@ export type EventsResponses = {
 };
 
 export type EventsResponse = EventsResponses[keyof EventsResponses];
+
+export type ServerShutdownData = {
+  body?: never;
+  path?: never;
+  query?: never;
+  url: "/shutdown";
+};
+
+export type ServerShutdownResponses = {
+  /**
+   * Shutdown acknowledged
+   */
+  200: {
+    ok: true;
+  };
+};
+
+export type ServerShutdownResponse =
+  ServerShutdownResponses[keyof ServerShutdownResponses];

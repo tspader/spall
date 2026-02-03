@@ -4,6 +4,7 @@ import {
   project,
   review,
   add,
+  commit,
   serve,
   get,
   list,
@@ -18,6 +19,7 @@ const cliDef: CliDef = {
   description: "Local semantic note store with embeddings",
   commands: {
     add,
+    commit,
     get,
     list,
     search,

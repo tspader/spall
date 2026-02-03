@@ -182,6 +182,52 @@ describe("Query", () => {
     });
   });
 
+  describe("tracking", () => {
+    test("fetch records note_read in staging for tracked queries", async () => {
+      await addNote(PROJECT_ID, "a.md", "alpha");
+      const note = Note.get({ project: PROJECT_ID, path: "a.md" });
+
+      const q = Query.create({
+        viewer: PROJECT_ID,
+        tracked: true,
+        projects: [PROJECT_ID],
+      });
+
+      Query.fetch({ id: q.id, ids: [note.id] });
+
+      const db = Store.get();
+      const row = db.prepare("SELECT COUNT(*) as count FROM staging").get() as {
+        count: number;
+      };
+      expect(row.count).toBe(1);
+
+      const entry = db
+        .prepare("SELECT note_id, query_id, kind FROM staging LIMIT 1")
+        .get() as { note_id: number; query_id: number; kind: number };
+      expect(entry.note_id).toBe(Number(note.id));
+      expect(entry.query_id).toBe(Number(q.id));
+      expect(entry.kind).toBe(1);
+    });
+
+    test("fetch does not record staging for untracked queries", async () => {
+      await addNote(PROJECT_ID, "a.md", "alpha");
+      const note = Note.get({ project: PROJECT_ID, path: "a.md" });
+
+      const q = Query.create({
+        viewer: PROJECT_ID,
+        projects: [PROJECT_ID],
+      });
+
+      Query.fetch({ id: q.id, ids: [note.id] });
+
+      const db = Store.get();
+      const row = db.prepare("SELECT COUNT(*) as count FROM staging").get() as {
+        count: number;
+      };
+      expect(row.count).toBe(0);
+    });
+  });
+
   describe("pagination", () => {
     test("limit restricts page size and returns cursor", async () => {
       await addNote(PROJECT_ID, "a.md", "a");

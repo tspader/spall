@@ -1702,6 +1702,47 @@
         ]
       }
     },
+    "/commit": {
+      "post": {
+        "operationId": "commit.run",
+        "summary": "Commit staged events",
+        "description": "Move all rows from staging to committed.",
+        "responses": {
+          "200": {
+            "description": "Commit result",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "moved": {
+                      "type": "number"
+                    },
+                    "committedAt": {
+                      "type": "number"
+                    }
+                  },
+                  "required": [
+                    "moved",
+                    "committedAt"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {}
+              }
+            }
+          }
+        }
+      }
+    },
     "/sse/project/sync": {
       "post": {
         "operationId": "sse.note.sync",
@@ -4843,6 +4884,34 @@
                         "info"
                       ]
                     }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shutdown": {
+      "post": {
+        "operationId": "server.shutdown",
+        "summary": "Shutdown server",
+        "description": "Request the server to stop.",
+        "responses": {
+          "200": {
+            "description": "Shutdown acknowledged",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "ok": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "required": [
+                    "ok"
                   ]
                 }
               }

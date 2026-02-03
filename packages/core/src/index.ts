@@ -14,6 +14,7 @@ export {
 export { Project } from "./project";
 export { Note } from "./note";
 export { Query } from "./query";
+export { Commit } from "./commit";
 export { Error } from "./error";
 export { Context } from "./context";
 

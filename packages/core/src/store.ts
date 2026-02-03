@@ -135,6 +135,13 @@ export namespace Store {
     if (dbExists) {
       db = new Database(dbPath);
       configure(db);
+
+      // Keep newer tables available even if the DB already exists.
+      db.run(Sql.CREATE_STAGING_TABLE);
+      db.exec(Sql.CREATE_STAGING_INDEXES);
+      db.run(Sql.CREATE_COMMITTED_TABLE);
+      db.exec(Sql.CREATE_COMMITTED_INDEXES);
+
       return db;
     }
 
@@ -157,6 +164,10 @@ export namespace Store {
     db.run(Sql.CREATE_EMBEDDINGS_TABLE);
     db.run(Sql.CREATE_FILES_TABLE);
     db.run(Sql.CREATE_QUERIES_TABLE);
+    db.run(Sql.CREATE_STAGING_TABLE);
+    db.exec(Sql.CREATE_STAGING_INDEXES);
+    db.run(Sql.CREATE_COMMITTED_TABLE);
+    db.exec(Sql.CREATE_COMMITTED_INDEXES);
 
     db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
     db.run(Sql.INSERT_DEFAULT_PROJECT);
