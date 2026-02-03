@@ -30,6 +30,20 @@ function mockClient(calls: Call[], allNotes: NoteInfo[] = makeNotes(1)) {
 
   return {
     project: {
+      create(params: any) {
+        calls.push({ method: "project.create", args: params });
+        const name = String(params?.name ?? "");
+        const id = name === "docs" ? 2 : name === "other" ? 3 : 1;
+        return Promise.resolve(
+          ok({
+            id,
+            name,
+            noteCount: 0,
+            createdAt: 0,
+            updatedAt: 0,
+          }),
+        );
+      },
       list() {
         calls.push({ method: "project.list", args: {} });
         return Promise.resolve(
@@ -234,14 +248,17 @@ describe("spall get", () => {
     }
 
     const printed = lines.map(stripAnsi);
-    expect(printed).toContain("...");
+    expect(printed).toContain("(...truncated)");
   });
 
   test("uses ProjectConfig projects when --project not specified", async () => {
     mkdirSync(join(tmpDir, ".spall"), { recursive: true });
     writeFileSync(
       join(tmpDir, ".spall", "spall.json"),
-      JSON.stringify({ projects: ["default", "docs"] }),
+      JSON.stringify({
+        project: { name: "default" },
+        include: ["default", "docs"],
+      }),
     );
 
     await get.handler!({ path: "*", output: "json" });
@@ -251,6 +268,8 @@ describe("spall get", () => {
 
     const creates = calls.filter((c) => c.method === "query.create");
     expect(creates).toHaveLength(1);
+    expect(creates[0]!.args.viewer).toEqual(1);
+    expect(creates[0]!.args.tracked).toEqual(false);
     expect(creates[0]!.args.projects).toEqual([1, 2]);
 
     const notesCalls = calls.filter((c) => c.method === "query.notes");
@@ -262,13 +281,18 @@ describe("spall get", () => {
     mkdirSync(join(tmpDir, ".spall"), { recursive: true });
     writeFileSync(
       join(tmpDir, ".spall", "spall.json"),
-      JSON.stringify({ projects: ["default", "docs", "other"] }),
+      JSON.stringify({
+        project: { name: "default" },
+        include: ["default", "docs", "other"],
+      }),
     );
 
     await get.handler!({ path: "*", project: "docs", output: "json" });
 
     const creates = calls.filter((c) => c.method === "query.create");
     expect(creates).toHaveLength(1);
+    expect(creates[0]!.args.viewer).toEqual(1);
+    expect(creates[0]!.args.tracked).toEqual(false);
     expect(creates[0]!.args.projects).toEqual([2]);
   });
 
@@ -277,6 +301,8 @@ describe("spall get", () => {
 
     const creates = calls.filter((c) => c.method === "query.create");
     expect(creates).toHaveLength(1);
+    expect(creates[0]!.args.viewer).toEqual(1);
+    expect(creates[0]!.args.tracked).toEqual(false);
     expect(creates[0]!.args.projects).toEqual([3]);
   });
 
@@ -285,6 +311,8 @@ describe("spall get", () => {
 
     const creates = calls.filter((c) => c.method === "query.create");
     expect(creates).toHaveLength(1);
+    expect(creates[0]!.args.viewer).toEqual(1);
+    expect(creates[0]!.args.tracked).toEqual(false);
     expect(creates[0]!.args.projects).toEqual([1]);
   });
 

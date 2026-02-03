@@ -32,7 +32,7 @@ Example:
     const client = await Client.connect();
 
     const projectName: string =
-      argv.project ?? ProjectConfig.load(process.cwd()).projects[0];
+      argv.project ?? ProjectConfig.load(process.cwd()).include[0];
 
     const project = await client.project
       .get({ name: projectName })

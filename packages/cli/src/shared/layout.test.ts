@@ -117,8 +117,8 @@ describe("table", () => {
     expect(row2.indexOf("012")).toBe(contentStart);
 
     // content is truncated in the middle with ...
-    expect(row1).toContain("abcdef...vwxyz");
-    expect(row2).toContain("012345...VWXYZ");
+    expect(row1).toContain("abcd...wxyz");
+    expect(row2).toContain("0123...WXYZ");
   });
 
   test("cleanEscapes is applied before measuring and printing", () => {

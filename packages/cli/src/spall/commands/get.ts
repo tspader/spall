@@ -1,9 +1,7 @@
-import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { ProjectConfig } from "@spall/core";
 import {
   type CommandDef,
-  defaultTheme as theme,
+  createEphemeralQuery,
   displayResults,
 } from "@spall/cli/shared";
 
@@ -41,31 +39,17 @@ export const get: CommandDef = {
   handler: async (argv) => {
     const client = await Client.connect();
 
-    // resolve project names to IDs
-    const projectNames: string[] = argv.project
-      ? [argv.project]
-      : ProjectConfig.load(process.cwd()).projects;
-
-    const projects = await client.project.list().then(Client.unwrap);
-    const byName = new Map(projects.map((p) => [p.name, p.id]));
-
-    const projectIds = projectNames.map((name) => {
-      const id = byName.get(name);
-      if (id === undefined) {
-        consola.error(`Project not found: ${theme.command(name)}`);
-        process.exit(1);
-      }
-      return id;
+    const { query } = await createEphemeralQuery({
+      client,
+      project: argv.project,
+      tracked: false,
     });
 
     const output = argv.output ?? (argv.path === "*" ? "tree" : "list");
 
     const showAll = argv.all === true;
 
-    // create query
-    const query = await client.query
-      .create({ projects: projectIds })
-      .then(Client.unwrap);
+    // query already created
 
     type NoteInfo = {
       id: number;
@@ -79,8 +63,12 @@ export const get: CommandDef = {
     let cursor: string | undefined = undefined;
 
     // Limit fetching to roughly what we'd display, to avoid over-fetching.
+    // Keep this aligned with the renderer's own row budgets.
     const termRows = process.stdout.rows ?? 24;
-    const displayRows = showAll ? Infinity : Math.max(1, termRows - 4);
+    const displayRows =
+      showAll || output === "json"
+        ? Infinity
+        : Math.max(1, termRows - (output === "table" ? 4 : 3));
     const fetchLimit = Math.min(argv.max ?? Infinity, displayRows + 1);
 
     while (notes.length < fetchLimit) {

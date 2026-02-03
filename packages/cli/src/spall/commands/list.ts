@@ -1,9 +1,7 @@
-import consola from "consola";
 import { Client } from "@spall/sdk/client";
-import { ProjectConfig } from "@spall/core";
 import {
   type CommandDef,
-  defaultTheme as theme,
+  createEphemeralQuery,
   displayPathTree,
 } from "@spall/cli/shared";
 
@@ -31,27 +29,11 @@ export const list: CommandDef = {
   handler: async (argv) => {
     const client = await Client.connect();
 
-    // resolve project names to IDs
-    const projectNames: string[] = argv.project
-      ? [argv.project]
-      : ProjectConfig.load(process.cwd()).projects;
-
-    const projects = await client.project.list().then(Client.unwrap);
-    const byName = new Map(projects.map((p) => [p.name, p.id]));
-
-    const projectIds = projectNames.map((name) => {
-      const id = byName.get(name);
-      if (id === undefined) {
-        consola.error(`Project not found: ${theme.command(name)}`);
-        process.exit(1);
-      }
-      return id;
+    const { query } = await createEphemeralQuery({
+      client,
+      project: argv.project,
+      tracked: false,
     });
-
-    // create query
-    const query = await client.query
-      .create({ projects: projectIds })
-      .then(Client.unwrap);
 
     // normalize path: if doesn't end with glob char, treat as prefix
     let path = argv.path;

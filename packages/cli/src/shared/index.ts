@@ -26,3 +26,9 @@ export {
   createModelProgressHandler,
   formatStreamError,
 } from "./progress";
+
+export {
+  resolveProjectScope,
+  createEphemeralQuery,
+  type ResolvedProjectScope,
+} from "./project";
