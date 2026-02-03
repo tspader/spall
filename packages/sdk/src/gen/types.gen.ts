@@ -424,6 +424,8 @@ export type NoteUpdateResponse = NoteUpdateResponses[keyof NoteUpdateResponses];
 
 export type QueryCreateData = {
   body?: {
+    viewer: number;
+    tracked?: boolean;
     projects: Array<number>;
   };
   path?: never;
@@ -449,6 +451,8 @@ export type QueryCreateResponses = {
    */
   200: {
     id: number;
+    viewer: number;
+    tracked: boolean;
     projects: Array<number>;
     createdAt: number;
   };
@@ -456,6 +460,33 @@ export type QueryCreateResponses = {
 
 export type QueryCreateResponse =
   QueryCreateResponses[keyof QueryCreateResponses];
+
+export type QueryRecentData = {
+  body?: never;
+  path?: never;
+  query?: {
+    limit?: number;
+  };
+  url: "/query/recent";
+};
+
+export type QueryRecentResponses = {
+  /**
+   * Recent queries
+   */
+  200: {
+    queries: Array<{
+      id: number;
+      viewer: number;
+      tracked: boolean;
+      projects: Array<number>;
+      createdAt: number;
+    }>;
+  };
+};
+
+export type QueryRecentResponse =
+  QueryRecentResponses[keyof QueryRecentResponses];
 
 export type QueryGetData = {
   body?: never;
@@ -484,6 +515,8 @@ export type QueryGetResponses = {
    */
   200: {
     id: number;
+    viewer: number;
+    tracked: boolean;
     projects: Array<number>;
     createdAt: number;
   };

@@ -44,6 +44,30 @@ export const QueryRoutes = lazy(() =>
       },
     )
     .get(
+      "/recent",
+      describeRoute({
+        summary: "List recent queries",
+        description: "Get the most recently created queries.",
+        operationId: "query.recent",
+        responses: {
+          200: {
+            description: "Recent queries",
+            content: {
+              "application/json": {
+                schema: resolver(Query.RecentResults),
+              },
+            },
+          },
+        },
+      }),
+      validator("query", Query.recent.schema),
+      async (c) => {
+        const query = c.req.valid("query");
+        const result = Query.recent(query);
+        return c.json(result);
+      },
+    )
+    .get(
       "/:id",
       describeRoute({
         summary: "Get a query",

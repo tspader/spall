@@ -1,6 +1,6 @@
-import { readFileSync, existsSync } from "fs";
+import { readFileSync, existsSync, writeFileSync, mkdirSync } from "fs";
 import { homedir } from "os";
-import { join } from "path";
+import { basename, dirname, join, resolve } from "path";
 import { z } from "zod";
 
 const CONFIG_PATH = join(homedir(), ".config", "spall", "spall.json");
@@ -39,7 +39,16 @@ export const ConfigSchemaZod = z.object({
 });
 
 export const ProjectConfigSchemaZod = z.object({
-  projects: z.array(z.string()).describe("List of project names"),
+  project: z.object({
+    name: z.string().describe("Viewer project name"),
+    id: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe("Cached viewer project ID"),
+  }),
+  include: z.array(z.string()).describe("List of included projects"),
 });
 
 // TypeScript types inferred from Zod schemas
@@ -55,7 +64,11 @@ export type PartialConfig = {
 };
 
 export type PartialProjectConfig = {
-  projects?: string[];
+  project?: {
+    name?: string;
+    id?: number;
+  };
+  include?: string[];
 };
 
 function getDefaults(): ConfigSchema {
@@ -83,7 +96,11 @@ function getDefaults(): ConfigSchema {
 
 function getProjectDefaults(): ProjectConfigSchema {
   return {
-    projects: ["default"],
+    project: {
+      name: "default",
+      id: undefined,
+    },
+    include: ["default"],
   };
 }
 
@@ -140,14 +157,70 @@ export namespace ProjectConfig {
   let config: ProjectConfigSchema | null = null;
   let loadedFrom: string | null = null;
 
+  export type Located = {
+    root: string;
+    path: string;
+  };
+
   export function path(root: string): string {
     return join(root, PROJECT_CONFIG_NAME);
   }
 
-  export function load(root: string): ProjectConfigSchema {
+  export function findRoot(start: string): string | null {
+    let dir = resolve(start);
+    while (true) {
+      // prefer an explicit project config file, but allow a bare `.spall/` dir
+      // so callers can create `.spall/spall.json` on-demand.
+      if (existsSync(path(dir)) || existsSync(join(dir, ".spall"))) return dir;
+      const parent = dirname(dir);
+      if (parent === dir) return null;
+      dir = parent;
+    }
+  }
+
+  export function locate(start: string): Located | null {
+    const root = findRoot(start);
+    if (!root) return null;
+    return { root, path: path(root) };
+  }
+
+  export function write(root: string, next: ProjectConfigSchema): void {
+    const configPath = path(root);
+    const dir = dirname(configPath);
+    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+    writeFileSync(configPath, JSON.stringify(next, null, 2) + "\n", "utf-8");
+  }
+
+  export function patch(root: string, values: PartialProjectConfig): void {
+    const current = load(root);
+    const next: ProjectConfigSchema = {
+      project: {
+        name: values.project?.name ?? current.project.name,
+        id: values.project?.id ?? current.project.id,
+      },
+      include: values.include ?? current.include,
+    };
+    write(root, next);
+    // keep cache coherent
+    config = next;
+    loadedFrom = root;
+  }
+
+  export function load(start: string): ProjectConfigSchema {
+    const located = locate(start);
+    const root = located?.root ?? resolve(start);
     if (config && loadedFrom === root) return config;
 
     const defaults = getProjectDefaults();
+
+    // Not in a project (no `.spall/` found). Use defaults and don't try to
+    // infer names from arbitrary directories.
+    if (!located) {
+      config = defaults;
+      loadedFrom = root;
+      return config;
+    }
+
     const configPath = path(root);
 
     try {
@@ -156,22 +229,42 @@ export namespace ProjectConfig {
         // Validate using Zod
         const fileConfig: PartialProjectConfig =
           ProjectConfigSchemaZod.partial().parse(rawConfig);
+
         config = {
-          projects: fileConfig.projects ?? defaults.projects,
+          project: {
+            name:
+              fileConfig.project?.name ??
+              basename(root) ??
+              defaults.project.name,
+            id: fileConfig.project?.id,
+          },
+          include: fileConfig.include ?? defaults.include,
         };
       } else {
-        config = defaults;
+        config = {
+          project: {
+            name: basename(root) ?? defaults.project.name,
+            id: undefined,
+          },
+          include: defaults.include,
+        };
       }
     } catch {
-      config = defaults;
+      config = {
+        project: {
+          name: basename(root) ?? defaults.project.name,
+          id: undefined,
+        },
+        include: defaults.include,
+      };
     }
 
     loadedFrom = root;
     return config;
   }
 
-  export function get(root: string): ProjectConfigSchema {
-    return load(root);
+  export function get(start: string): ProjectConfigSchema {
+    return load(start);
   }
 
   export function reset(): void {

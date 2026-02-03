@@ -42,6 +42,7 @@ import type {
   QueryNotesResponses,
   QueryPathsErrors,
   QueryPathsResponses,
+  QueryRecentResponses,
   QuerySearchErrors,
   QuerySearchResponses,
   QueryVsearchErrors,
@@ -507,13 +508,23 @@ export class Query extends HeyApiClient {
    */
   public create<ThrowOnError extends boolean = false>(
     parameters?: {
+      viewer?: number;
+      tracked?: boolean;
       projects?: Array<number>;
     },
     options?: Options<never, ThrowOnError>,
   ) {
     const params = buildClientParams(
       [parameters],
-      [{ args: [{ in: "body", key: "projects" }] }],
+      [
+        {
+          args: [
+            { in: "body", key: "viewer" },
+            { in: "body", key: "tracked" },
+            { in: "body", key: "projects" },
+          ],
+        },
+      ],
     );
     return (options?.client ?? this.client).post<
       QueryCreateResponses,
@@ -528,6 +539,32 @@ export class Query extends HeyApiClient {
         ...options?.headers,
         ...params.headers,
       },
+    });
+  }
+
+  /**
+   * List recent queries
+   *
+   * Get the most recently created queries.
+   */
+  public recent<ThrowOnError extends boolean = false>(
+    parameters?: {
+      limit?: number;
+    },
+    options?: Options<never, ThrowOnError>,
+  ) {
+    const params = buildClientParams(
+      [parameters],
+      [{ args: [{ in: "query", key: "limit" }] }],
+    );
+    return (options?.client ?? this.client).get<
+      QueryRecentResponses,
+      unknown,
+      ThrowOnError
+    >({
+      url: "/query/recent",
+      ...options,
+      ...params,
     });
   }
 

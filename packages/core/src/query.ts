@@ -13,6 +13,8 @@ export namespace Query {
 
   export const Info = z.object({
     id: Id,
+    viewer: Project.Id,
+    tracked: z.boolean(),
     projects: z.array(Project.Id),
     createdAt: z.number(),
   });
@@ -49,6 +51,8 @@ export namespace Query {
 
   type Row = {
     id: number;
+    viewer: number;
+    tracked: number;
     projects: string;
     created_at: number;
   };
@@ -56,6 +60,8 @@ export namespace Query {
   function parse(row: Row): Info {
     return {
       id: Id.parse(row.id),
+      viewer: Project.Id.parse(row.viewer),
+      tracked: Boolean(row.tracked),
       projects: JSON.parse(row.projects).map((id: number) =>
         Project.Id.parse(id),
       ),
@@ -85,16 +91,42 @@ export namespace Query {
 
   export const create = api(
     z.object({
+      viewer: Project.Id,
+      tracked: z.boolean().optional(),
       projects: z.array(Project.Id),
     }),
     (input): Info => {
       const db = Store.ensure();
 
+      const tracked = input.tracked ?? false;
+
       const row = db
         .prepare(Sql.INSERT_QUERY)
-        .get(JSON.stringify(input.projects), Date.now()) as Row;
+        .get(
+          input.viewer,
+          tracked ? 1 : 0,
+          JSON.stringify(input.projects),
+          Date.now(),
+        ) as Row;
 
       return parse(row);
+    },
+  );
+
+  export const RecentResults = z.object({
+    queries: Info.array(),
+  });
+  export type RecentResults = z.infer<typeof RecentResults>;
+
+  export const recent = api(
+    z.object({
+      limit: z.coerce.number().int().positive().optional(),
+    }),
+    (input): RecentResults => {
+      const db = Store.ensure();
+      const limit = input.limit ?? 10;
+      const rows = db.prepare(Sql.LIST_RECENT_QUERIES).all(limit) as Row[];
+      return { queries: rows.map(parse) };
     },
   );
 

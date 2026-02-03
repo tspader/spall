@@ -253,17 +253,29 @@ export namespace Sql {
   export const CREATE_QUERIES_TABLE = `
     CREATE TABLE IF NOT EXISTS queries (
       id INTEGER PRIMARY KEY,
+      viewer INTEGER NOT NULL,
+      tracked INTEGER NOT NULL DEFAULT 0,
       projects TEXT NOT NULL,
-      created_at INTEGER NOT NULL
+      created_at INTEGER NOT NULL,
+      FOREIGN KEY (viewer) REFERENCES projects(id)
     )
   `;
 
   export const INSERT_QUERY = `
-    INSERT INTO queries (projects, created_at) VALUES (?, ?) RETURNING id, projects, created_at
+    INSERT INTO queries (viewer, tracked, projects, created_at)
+    VALUES (?, ?, ?, ?)
+    RETURNING id, viewer, tracked, projects, created_at
   `;
 
   export const GET_QUERY = `
-    SELECT id, projects, created_at FROM queries WHERE id = ?
+    SELECT id, viewer, tracked, projects, created_at FROM queries WHERE id = ?
+  `;
+
+  export const LIST_RECENT_QUERIES = `
+    SELECT id, viewer, tracked, projects, created_at
+    FROM queries
+    ORDER BY created_at DESC
+    LIMIT ?
   `;
 
   export const GET_NOTES_BY_IDS = `

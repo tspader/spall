@@ -938,6 +938,12 @@
                     "id": {
                       "type": "number"
                     },
+                    "viewer": {
+                      "type": "number"
+                    },
+                    "tracked": {
+                      "type": "boolean"
+                    },
                     "projects": {
                       "type": "array",
                       "items": {
@@ -950,6 +956,8 @@
                   },
                   "required": [
                     "id",
+                    "viewer",
+                    "tracked",
                     "projects",
                     "createdAt"
                   ]
@@ -986,6 +994,12 @@
               "schema": {
                 "type": "object",
                 "properties": {
+                  "viewer": {
+                    "type": "number"
+                  },
+                  "tracked": {
+                    "type": "boolean"
+                  },
                   "projects": {
                     "type": "array",
                     "items": {
@@ -994,12 +1008,81 @@
                   }
                 },
                 "required": [
+                  "viewer",
                   "projects"
                 ]
               }
             }
           }
         }
+      }
+    },
+    "/query/recent": {
+      "get": {
+        "operationId": "query.recent",
+        "summary": "List recent queries",
+        "description": "Get the most recently created queries.",
+        "responses": {
+          "200": {
+            "description": "Recent queries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "queries": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "number"
+                          },
+                          "viewer": {
+                            "type": "number"
+                          },
+                          "tracked": {
+                            "type": "boolean"
+                          },
+                          "projects": {
+                            "type": "array",
+                            "items": {
+                              "type": "number"
+                            }
+                          },
+                          "createdAt": {
+                            "type": "number"
+                          }
+                        },
+                        "required": [
+                          "id",
+                          "viewer",
+                          "tracked",
+                          "projects",
+                          "createdAt"
+                        ]
+                      }
+                    }
+                  },
+                  "required": [
+                    "queries"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "exclusiveMinimum": 0,
+              "maximum": 9007199254740991
+            }
+          }
+        ]
       }
     },
     "/query/{id}": {
@@ -1018,6 +1101,12 @@
                     "id": {
                       "type": "number"
                     },
+                    "viewer": {
+                      "type": "number"
+                    },
+                    "tracked": {
+                      "type": "boolean"
+                    },
                     "projects": {
                       "type": "array",
                       "items": {
@@ -1030,6 +1119,8 @@
                   },
                   "required": [
                     "id",
+                    "viewer",
+                    "tracked",
                     "projects",
                     "createdAt"
                   ]

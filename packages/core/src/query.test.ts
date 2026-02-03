@@ -50,14 +50,18 @@ describe("Query", () => {
   }
 
   test("create returns query with projects and id", () => {
-    const q = Query.create({ projects: [PROJECT_ID] });
+    const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
     expect(q.id).toBeDefined();
     expect(q.projects).toEqual([PROJECT_ID]);
+    expect(q.tracked).toBe(false);
     expect(q.createdAt).toBeGreaterThan(0);
   });
 
   test("get retrieves a created query", () => {
-    const created = Query.create({ projects: [PROJECT_ID] });
+    const created = Query.create({
+      viewer: PROJECT_ID,
+      projects: [PROJECT_ID],
+    });
     const fetched = Query.get({ id: created.id });
     expect(fetched.id).toEqual(created.id);
     expect(fetched.projects).toEqual(created.projects);
@@ -71,7 +75,7 @@ describe("Query", () => {
     await addNote(PROJECT_ID, "a.md", "alpha");
     await addNote(PROJECT_ID, "b.md", "beta");
 
-    const q = Query.create({ projects: [PROJECT_ID] });
+    const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
     const page = Query.notes({ id: q.id });
 
     expect(page.notes).toHaveLength(2);
@@ -85,7 +89,10 @@ describe("Query", () => {
     await addNote(PROJECT_ID, "default.md", "from default");
     await addNote(p2.id, "second.md", "from second");
 
-    const q = Query.create({ projects: [PROJECT_ID, p2.id] });
+    const q = Query.create({
+      viewer: PROJECT_ID,
+      projects: [PROJECT_ID, p2.id],
+    });
     const page = Query.notes({ id: q.id });
 
     expect(page.notes).toHaveLength(2);
@@ -101,7 +108,10 @@ describe("Query", () => {
     await addNote(p2.id, "b.md", "b");
     await addNote(p3.id, "c.md", "c");
 
-    const q = Query.create({ projects: [PROJECT_ID, p2.id] });
+    const q = Query.create({
+      viewer: PROJECT_ID,
+      projects: [PROJECT_ID, p2.id],
+    });
     const page = Query.notes({ id: q.id });
 
     expect(page.notes).toHaveLength(2);
@@ -114,7 +124,7 @@ describe("Query", () => {
     await addNote(PROJECT_ID, "docs/b.md", "b");
     await addNote(PROJECT_ID, "src/c.ts", "c");
 
-    const q = Query.create({ projects: [PROJECT_ID] });
+    const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
     const page = Query.notes({ id: q.id, path: "docs/*" });
 
     expect(page.notes).toHaveLength(2);
@@ -130,7 +140,7 @@ describe("Query", () => {
       );
       await addNote(PROJECT_ID, "b.md", "unrelated");
 
-      const q = Query.create({ projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
       const res = Query.search({ id: q.id, q: "foo.bar" });
 
       expect(res.results).toHaveLength(1);
@@ -144,7 +154,7 @@ describe("Query", () => {
       await addNote(PROJECT_ID, "a.md", "Always use old_name.");
 
       const note = Note.get({ project: PROJECT_ID, path: "a.md" });
-      const q = Query.create({ projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
 
       expect(Query.search({ id: q.id, q: "old_name" }).results).toHaveLength(1);
 
@@ -158,7 +168,7 @@ describe("Query", () => {
       await addNote(PROJECT_ID, "a.md", "Always use old_name.");
       await addNote(PROJECT_ID, "b.md", "Always use new_name.");
 
-      const q = Query.create({ projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
 
       const plain = Query.search({ id: q.id, q: "old_name OR new_name" });
       expect(plain.results).toHaveLength(0);
@@ -178,7 +188,7 @@ describe("Query", () => {
       await addNote(PROJECT_ID, "b.md", "b");
       await addNote(PROJECT_ID, "c.md", "c");
 
-      const q = Query.create({ projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
       const page1 = Query.notes({ id: q.id, limit: 2 });
 
       expect(page1.notes).toHaveLength(2);
@@ -190,7 +200,7 @@ describe("Query", () => {
       await addNote(PROJECT_ID, "b.md", "b");
       await addNote(PROJECT_ID, "c.md", "c");
 
-      const q = Query.create({ projects: [PROJECT_ID] });
+      const q = Query.create({ viewer: PROJECT_ID, projects: [PROJECT_ID] });
       const page1 = Query.notes({ id: q.id, limit: 2 });
       const page2 = Query.notes({
         id: q.id,
@@ -212,7 +222,10 @@ describe("Query", () => {
       await addNote(PROJECT_ID, "c.md", "c");
       await addNote(p2.id, "d.md", "d");
 
-      const q = Query.create({ projects: [PROJECT_ID, p2.id] });
+      const q = Query.create({
+        viewer: PROJECT_ID,
+        projects: [PROJECT_ID, p2.id],
+      });
 
       const page1 = Query.notes({ id: q.id, limit: 2 });
       expect(page1.notes.map((n) => n.path)).toEqual(["a.md", "b.md"]);
@@ -243,7 +256,10 @@ describe("Query", () => {
         await addNote(p2.id, `second-${i}.md`, `s${i}`);
       }
 
-      const q = Query.create({ projects: [PROJECT_ID, p2.id] });
+      const q = Query.create({
+        viewer: PROJECT_ID,
+        projects: [PROJECT_ID, p2.id],
+      });
       const all: Note.Info[] = [];
       let cursor: string | undefined;
 
@@ -439,7 +455,10 @@ describe("Query.vsearch", () => {
   });
 
   test("returns auth note for login query", async () => {
-    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const q = Query.create({
+      viewer: Project.Id.parse(1),
+      projects: [Project.Id.parse(1)],
+    });
     const res = await Query.vsearch({ id: q.id, q: "login password" });
 
     expect(res.results.length).toBeGreaterThan(0);
@@ -448,7 +467,10 @@ describe("Query.vsearch", () => {
   });
 
   test("returns database note for SQL query", async () => {
-    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const q = Query.create({
+      viewer: Project.Id.parse(1),
+      projects: [Project.Id.parse(1)],
+    });
     const res = await Query.vsearch({ id: q.id, q: "PostgreSQL migrations" });
 
     expect(res.results.length).toBeGreaterThan(0);
@@ -456,7 +478,10 @@ describe("Query.vsearch", () => {
   });
 
   test("returns uploads note for S3 query", async () => {
-    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const q = Query.create({
+      viewer: Project.Id.parse(1),
+      projects: [Project.Id.parse(1)],
+    });
     const res = await Query.vsearch({ id: q.id, q: "S3 file upload" });
 
     expect(res.results.length).toBeGreaterThan(0);
@@ -464,14 +489,20 @@ describe("Query.vsearch", () => {
   });
 
   test("respects limit parameter", async () => {
-    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const q = Query.create({
+      viewer: Project.Id.parse(1),
+      projects: [Project.Id.parse(1)],
+    });
     const res = await Query.vsearch({ id: q.id, q: "API", limit: 2 });
 
     expect(res.results).toHaveLength(2);
   });
 
   test("filters by path glob", async () => {
-    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const q = Query.create({
+      viewer: Project.Id.parse(1),
+      projects: [Project.Id.parse(1)],
+    });
     const res = await Query.vsearch({
       id: q.id,
       q: "tokens authentication",
@@ -489,7 +520,10 @@ describe("Query.vsearch", () => {
       content: "JWT tokens authentication login",
     });
 
-    const q = Query.create({ projects: [Project.Id.parse(1)] });
+    const q = Query.create({
+      viewer: Project.Id.parse(1),
+      projects: [Project.Id.parse(1)],
+    });
     const res = await Query.vsearch({ id: q.id, q: "JWT tokens" });
 
     expect(res.results.every((r) => r.path !== "other-auth.md")).toBe(true);
