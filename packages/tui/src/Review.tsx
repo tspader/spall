@@ -622,12 +622,6 @@ function App(props: AppProps) {
           <text fg="brightBlack">switch</text>
         </box>
       </Show>
-      <Show when={focusPanel() === "sidebar" && sidebarMode() === "comments"}>
-        <box flexDirection="row">
-          <text>h/l </text>
-          <text fg="brightBlack">collapse/expand</text>
-        </box>
-      </Show>
       <Show
         when={
           focusPanel() === "diff" &&
@@ -638,12 +632,6 @@ function App(props: AppProps) {
         <box flexDirection="row">
           <text>c </text>
           <text fg="brightBlack">comment</text>
-        </box>
-      </Show>
-      <Show when={review.activePatchId() !== null}>
-        <box flexDirection="row">
-          <text>w </text>
-          <text fg="brightBlack">workspace</text>
         </box>
       </Show>
       <Show when={focusPanel() === "editor"}>
