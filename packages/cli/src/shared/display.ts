@@ -1,4 +1,4 @@
-import { table, cleanEscapes } from "./layout";
+import { table, cleanEscapes, displayLen, truncateMiddle } from "./layout";
 import { defaultTheme as theme } from "./theme";
 
 export { cleanEscapes };
@@ -27,22 +27,54 @@ export function highlightSnippet(s: string): string {
   return result;
 }
 
-const ANSI_RE = /\x1b\[[0-9;]*m/g;
+type PathTreeNode<TLeaf> = {
+  name: string;
+  children: Map<string, PathTreeNode<TLeaf>>;
+  leaf?: TLeaf;
+};
 
-function stripAnsi(s: string): string {
-  return s.replace(ANSI_RE, "");
+function makePathTreeNode<TLeaf>(name: string): PathTreeNode<TLeaf> {
+  return { name, children: new Map() };
 }
 
-function displayLen(s: string): number {
-  return cleanEscapes(stripAnsi(s)).length;
+function buildPathTree<TItem, TLeaf>(
+  items: TItem[],
+  path: (item: TItem) => string,
+  initLeaf: () => TLeaf,
+  addToLeaf: (leaf: TLeaf, item: TItem) => void,
+): PathTreeNode<TLeaf> {
+  const root = makePathTreeNode<TLeaf>("");
+
+  for (const item of items) {
+    const parts = path(item).split("/");
+    let current = root;
+    for (const part of parts) {
+      let child = current.children.get(part);
+      if (!child) {
+        child = makePathTreeNode<TLeaf>(part);
+        current.children.set(part, child);
+      }
+      current = child;
+    }
+
+    current.leaf ??= initLeaf();
+    addToLeaf(current.leaf, item);
+  }
+
+  return root;
 }
 
-function truncateMiddle(s: string, max: number): string {
-  if (max <= 0) return "";
-  if (s.length <= max) return s;
-  if (max <= 3) return "...".slice(0, max);
-  const half = (max - 3) >> 1;
-  return s.slice(0, half + ((max - 3) & 1)) + "..." + s.slice(-half);
+function sortedChildren<TLeaf>(
+  node: PathTreeNode<TLeaf>,
+): Array<[string, PathTreeNode<TLeaf>]> {
+  const entries = Array.from(node.children.entries());
+  entries.sort((a, b) => {
+    const aDir = a[1].children.size > 0;
+    const bDir = b[1].children.size > 0;
+    if (aDir !== bDir) return aDir ? -1 : 1;
+    return a[0].localeCompare(b[0]);
+  });
+  return entries;
 }
 
 export type ColumnDef<T> = {
@@ -135,71 +167,40 @@ export function displayResults<T>(items: T[], opts: DisplayOpts<T>): void {
   );
 }
 
-type TreeNode<T> = {
-  name: string;
-  isDir: boolean;
-  children: Map<string, TreeNode<T>>;
-  items: T[];
-};
-
 function displayTree<T>(items: T[], opts: DisplayOpts<T>): void {
   const termRows = process.stdout.rows ?? 24;
   const maxRows = opts.showAll ? Infinity : Math.max(1, termRows - 3);
   const truncated = items.length > maxRows;
   const visible = truncated ? items.slice(0, maxRows) : items;
 
-  const root: TreeNode<T> = {
-    name: "",
-    isDir: true,
-    children: new Map(),
-    items: [],
-  };
-
-  for (const item of visible) {
-    const parts = opts.path(item).split("/");
-    let current = root;
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]!;
-      const isLast = i === parts.length - 1;
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          name: part,
-          isDir: !isLast,
-          children: new Map(),
-          items: [],
-        });
-      }
-      current = current.children.get(part)!;
-      if (isLast) {
-        current.items.push(item);
-      }
-    }
-  }
+  const root = buildPathTree(
+    visible,
+    (item) => opts.path(item),
+    () => [] as T[],
+    (leaf, item) => {
+      leaf.push(item);
+    },
+  );
 
   const MAX_PER_LEAF = 3;
   const termWidth = process.stdout.columns ?? 80;
   const showAll = opts.showAll ?? false;
 
-  function printNode(node: TreeNode<T>, indent: string): void {
-    const sorted = Array.from(node.children.entries()).sort((a, b) => {
-      if (a[1].isDir !== b[1].isDir) return a[1].isDir ? -1 : 1;
-      return a[0].localeCompare(b[0]);
-    });
-
-    for (const [name, child] of sorted) {
-      if (child.isDir) {
+  function printNode(node: PathTreeNode<T[]>, indent: string): void {
+    for (const [name, child] of sortedChildren(node)) {
+      if (child.children.size > 0) {
         console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
         printNode(child, indent + " ");
       } else {
         const toShow = showAll
-          ? child.items
-          : child.items.slice(0, MAX_PER_LEAF);
+          ? (child.leaf ?? [])
+          : (child.leaf ?? []).slice(0, MAX_PER_LEAF);
 
         for (let i = 0; i < toShow.length; i++) {
           const item = toShow[i]!;
           const index =
-            toShow.length > 1 || child.items.length > 1
-              ? `[${i + 1}/${child.items.length}] `
+            toShow.length > 1 || (child.leaf?.length ?? 0) > 1
+              ? `[${i + 1}/${child.leaf?.length ?? 0}] `
               : "";
 
           const left = `${indent}${index}${name}`;
@@ -213,8 +214,8 @@ function displayTree<T>(items: T[], opts: DisplayOpts<T>): void {
           console.log(preview ? `${leftStyled} ${preview}` : leftStyled);
         }
 
-        if (!showAll && child.items.length > MAX_PER_LEAF) {
-          const remaining = child.items.length - MAX_PER_LEAF;
+        if (!showAll && (child.leaf?.length ?? 0) > MAX_PER_LEAF) {
+          const remaining = (child.leaf?.length ?? 0) - MAX_PER_LEAF;
           console.log(
             `${theme.dim(indent)}  ${theme.dim(`( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`)}`,
           );
@@ -327,12 +328,6 @@ export function displayLlmFetch<T>(items: T[], opts: LlmFetchOpts<T>): void {
 
 // --- Path tree display ---
 
-type PathTreeNode = {
-  name: string;
-  children: Map<string, PathTreeNode>;
-  noteCount: number;
-};
-
 export type PathTreeOpts = {
   showAll?: boolean;
   empty?: string;
@@ -344,72 +339,47 @@ export function displayPathTree(paths: string[], opts?: PathTreeOpts): void {
     return;
   }
 
-  const root: PathTreeNode = {
-    name: "",
-    children: new Map(),
-    noteCount: 0,
-  };
-
-  // Build tree from paths
-  for (const path of paths) {
-    const parts = path.split("/");
-    let current = root;
-
-    for (let i = 0; i < parts.length; i++) {
-      const part = parts[i]!;
-      const isLast = i === parts.length - 1;
-
-      if (!current.children.has(part)) {
-        current.children.set(part, {
-          name: part,
-          children: new Map(),
-          noteCount: 0,
-        });
-      }
-
-      current = current.children.get(part)!;
-
-      if (isLast) {
-        current.noteCount++;
-      }
-    }
-  }
+  const root = buildPathTree(
+    paths,
+    (p) => p,
+    () => ({ count: 0 }),
+    (leaf) => {
+      leaf.count++;
+    },
+  );
 
   const showFiles = opts?.showAll ?? false;
 
-  function printNode(node: PathTreeNode, indent: string): void {
-    // Separate directories and files
-    const dirs: [string, PathTreeNode][] = [];
-    const files: [string, PathTreeNode][] = [];
+  function printNode(
+    node: PathTreeNode<{ count: number }>,
+    indent: string,
+  ): void {
+    const sorted = sortedChildren(node);
+    const dirs: Array<[string, PathTreeNode<{ count: number }>]> = [];
+    const files: Array<[string, PathTreeNode<{ count: number }>]> = [];
 
-    for (const [name, child] of node.children.entries()) {
-      if (child.children.size > 0) {
-        dirs.push([name, child]);
-      } else {
-        files.push([name, child]);
-      }
+    for (const entry of sorted) {
+      if (entry[1].children.size > 0) dirs.push(entry);
+      else files.push(entry);
     }
 
-    // Sort each group alphabetically
-    dirs.sort((a, b) => a[0].localeCompare(b[0]));
-    files.sort((a, b) => a[0].localeCompare(b[0]));
-
-    // Print directories first
     for (const [name, child] of dirs) {
       console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
       printNode(child, indent + " ");
     }
 
-    // Print files or count
     if (files.length > 0) {
       if (showFiles) {
-        // Show individual files
-        for (const [name] of files) {
-          console.log(`${theme.dim(indent)}${theme.primary(name)}`);
+        for (const [name, child] of files) {
+          const n = child.leaf?.count ?? 0;
+          const suffix = n > 1 ? theme.dim(` (x${n})`) : "";
+          console.log(`${theme.dim(indent)}${theme.primary(name)}${suffix}`);
         }
       } else {
-        // Show count
-        const count = files.length;
+        const count = files.reduce(
+          (sum, [, child]) => sum + (child.leaf?.count ?? 0),
+          0,
+        );
         console.log(
           `${theme.dim(indent)}${theme.primary(`(${count} note${count !== 1 ? "s" : ""})`)}`,
         );

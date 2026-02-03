@@ -8,7 +8,7 @@ function stripAnsi(s: string): string {
   return s.replace(ANSI_RE, "");
 }
 
-function truncateMiddle(s: string, max: number): string {
+export function truncateMiddle(s: string, max: number): string {
   if (max <= 0) return "";
   if (s.length <= max) return s;
   if (max <= 3) return s.slice(0, max);
@@ -38,6 +38,10 @@ export function cleanEscapes(s: string): string {
 function displayText(s: string): string {
   // Make width calculations match what we print.
   return cleanEscapes(stripAnsi(s));
+}
+
+export function displayLen(s: string): number {
+  return displayText(s).length;
 }
 
 export type TableOptions = {
@@ -175,7 +179,9 @@ export function table(
             if (surplus > 0 && uncappedWeight > 0) {
               for (const a of alloc) {
                 if (!a.capped) {
-                  const share = Math.floor((surplus * a.weight) / uncappedWeight);
+                  const share = Math.floor(
+                    (surplus * a.weight) / uncappedWeight,
+                  );
                   a.base += share;
                 }
               }

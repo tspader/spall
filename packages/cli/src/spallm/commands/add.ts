@@ -59,7 +59,7 @@ Example:
         dupe: argv.dupe,
       });
 
-      for await (const event of stream as AsyncGenerator<any>) {
+      for await (const event of stream) {
         if (event.tag === "error") {
           console.log(JSON.stringify({ error: event.error }));
           process.exit(1);
@@ -77,7 +77,7 @@ Example:
         dupe: argv.dupe,
       });
 
-      for await (const event of stream as AsyncGenerator<any>) {
+      for await (const event of stream) {
         if (event.tag === "error") {
           console.log(JSON.stringify({ error: event.error }));
           process.exit(1);

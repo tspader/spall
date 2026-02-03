@@ -35,10 +35,17 @@ export namespace Client {
     tag: TTag,
     handler?: (event: TEvent) => void,
   ): Promise<Extract<TEvent, { tag: TTag }>> {
-    for await (const event of stream as AsyncGenerator<any>) {
+    const isErrorEvent = (
+      event: TEvent,
+    ): event is TEvent & {
+      tag: "error";
+      error?: { code?: string; message?: string };
+    } => event.tag === "error" && "error" in (event as Record<string, unknown>);
+
+    for await (const event of stream) {
       handler?.(event);
 
-      if (event?.tag === "error") {
+      if (isErrorEvent(event)) {
         const e = event.error;
         const err = new Error(e?.message ?? "unknown error");
         (err as any).code = e?.code ?? "error";
