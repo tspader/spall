@@ -21,6 +21,7 @@ export type PositionalDef = {
 
 export type CommandDef = {
   description: string;
+  summary?: string; // Short description for command list; defaults to description
   positionals?: Record<string, PositionalDef>;
   options?: Record<string, OptionDef>;
   commands?: Record<string, CommandDef>;
@@ -128,7 +129,7 @@ export function help(
     const rows: string[][] = [];
     for (const [k, v] of Object.entries(cmds)) {
       const args = v.positionals ? Object.keys(v.positionals).join(" ") : "";
-      rows.push([`  ${k}`, args, v.description]);
+      rows.push([`  ${k}`, args, v.summary ?? v.description]);
     }
     cols(rows, [t.command, t.arg, t.description]);
   }

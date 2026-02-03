@@ -11,11 +11,11 @@ import {
 } from "@spall/cli/shared";
 
 export const sync: CommandDef = {
-  description: "Sync a directory to a path in the database",
+  description: "Sync a dir tree to a path in the database",
   positionals: {
-    directory: {
+    dir: {
       type: "string",
-      description: "Directory to scan recursively",
+      description: "Directory to scan, recursively",
       required: true,
     },
   },
@@ -33,7 +33,7 @@ export const sync: CommandDef = {
     },
   },
   handler: async (argv) => {
-    const dir = argv.directory as string;
+    const dir = argv.dir as string;
     if (!existsSync(dir) || !statSync(dir).isDirectory()) {
       consola.error(`Not a directory: ${theme.primary(dir)}`);
       process.exit(1);

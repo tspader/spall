@@ -203,8 +203,7 @@ function displayTree<T>(items: T[], opts: DisplayOpts<T>): void {
               : "";
 
           const left = `${indent}${index}${name}`;
-          const leftStyled =
-            theme.dim(indent + index) + theme.primary(name);
+          const leftStyled = theme.dim(indent + index) + theme.primary(name);
           const content = cleanEscapes(opts.preview(item));
 
           const contentBudget = termWidth - displayLen(left) - 1;
@@ -230,9 +229,7 @@ function displayTree<T>(items: T[], opts: DisplayOpts<T>): void {
 
 function displayList<T>(items: T[], opts: DisplayOpts<T>): void {
   const termRows = process.stdout.rows ?? 24;
-  const maxItems = opts.showAll
-    ? items.length
-    : Math.max(1, termRows - 3);
+  const maxItems = opts.showAll ? items.length : Math.max(1, termRows - 3);
 
   for (let i = 0; i < Math.min(items.length, maxItems); i++) {
     const item = items[i]!;
@@ -246,9 +243,179 @@ function displayList<T>(items: T[], opts: DisplayOpts<T>): void {
   if (items.length > maxItems && !opts.showAll) {
     const remaining = items.length - maxItems;
     console.log(
-      theme.dim(
-        `( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`,
-      ),
+      theme.dim(`( ... ${remaining} more note${remaining > 1 ? "s" : ""} )`),
     );
   }
+}
+
+// --- LLM output modes ---
+
+export function printQueryId(queryId: number): void {
+  console.log("");
+  console.log(`Your query ID is ${queryId}`);
+}
+
+export type LlmSearchOpts<T> = {
+  empty?: string;
+  path: (item: T) => string;
+  id: (item: T) => string;
+  score: (item: T) => number;
+  preview: (item: T) => string;
+  queryId: number;
+};
+
+function scoreBucket(score: number): string {
+  if (score >= 0.9) return "perfect";
+  if (score >= 0.85) return "very high";
+  if (score >= 0.75) return "high";
+  if (score >= 0.6) return "medium";
+  return "low";
+}
+
+function truncatePreview(s: string, maxChars: number = 200): string {
+  const collapsed = s.replace(/\s+/g, " ").trim();
+  if (collapsed.length <= maxChars) return collapsed;
+  return collapsed.slice(0, maxChars - 3) + "...";
+}
+
+export function displayLlmSearch<T>(items: T[], opts: LlmSearchOpts<T>): void {
+  if (items.length === 0) {
+    console.log(opts.empty ?? "(no results)");
+    printQueryId(opts.queryId);
+    return;
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    const path = opts.path(item);
+    const id = opts.id(item);
+    const bucket = scoreBucket(opts.score(item));
+    const preview = truncatePreview(opts.preview(item));
+
+    console.log(`[${bucket}] (id: ${id}) ${path}`);
+    console.log(preview);
+    if (i < items.length - 1) console.log("");
+  }
+
+  printQueryId(opts.queryId);
+}
+
+export type LlmFetchOpts<T> = {
+  empty?: string;
+  path: (item: T) => string;
+  id: (item: T) => string;
+  content: (item: T) => string;
+};
+
+export function displayLlmFetch<T>(items: T[], opts: LlmFetchOpts<T>): void {
+  if (items.length === 0) {
+    console.log(opts.empty ?? "(no notes found)");
+    return;
+  }
+
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!;
+    const path = opts.path(item);
+    const id = opts.id(item);
+    const content = opts.content(item);
+
+    console.log(`${path} (id: ${id})`);
+    console.log(content);
+    if (i < items.length - 1) console.log();
+  }
+}
+
+// --- Path tree display ---
+
+type PathTreeNode = {
+  name: string;
+  children: Map<string, PathTreeNode>;
+  noteCount: number;
+};
+
+export type PathTreeOpts = {
+  showAll?: boolean;
+  empty?: string;
+};
+
+export function displayPathTree(paths: string[], opts?: PathTreeOpts): void {
+  if (paths.length === 0) {
+    console.log(theme.dim(opts?.empty ?? "(no notes)"));
+    return;
+  }
+
+  const root: PathTreeNode = {
+    name: "",
+    children: new Map(),
+    noteCount: 0,
+  };
+
+  // Build tree from paths
+  for (const path of paths) {
+    const parts = path.split("/");
+    let current = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]!;
+      const isLast = i === parts.length - 1;
+
+      if (!current.children.has(part)) {
+        current.children.set(part, {
+          name: part,
+          children: new Map(),
+          noteCount: 0,
+        });
+      }
+
+      current = current.children.get(part)!;
+
+      if (isLast) {
+        current.noteCount++;
+      }
+    }
+  }
+
+  const showFiles = opts?.showAll ?? false;
+
+  function printNode(node: PathTreeNode, indent: string): void {
+    // Separate directories and files
+    const dirs: [string, PathTreeNode][] = [];
+    const files: [string, PathTreeNode][] = [];
+
+    for (const [name, child] of node.children.entries()) {
+      if (child.children.size > 0) {
+        dirs.push([name, child]);
+      } else {
+        files.push([name, child]);
+      }
+    }
+
+    // Sort each group alphabetically
+    dirs.sort((a, b) => a[0].localeCompare(b[0]));
+    files.sort((a, b) => a[0].localeCompare(b[0]));
+
+    // Print directories first
+    for (const [name, child] of dirs) {
+      console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
+      printNode(child, indent + " ");
+    }
+
+    // Print files or count
+    if (files.length > 0) {
+      if (showFiles) {
+        // Show individual files
+        for (const [name] of files) {
+          console.log(`${theme.dim(indent)}${theme.primary(name)}`);
+        }
+      } else {
+        // Show count
+        const count = files.length;
+        console.log(
+          `${theme.dim(indent)}${theme.primary(`(${count} note${count !== 1 ? "s" : ""})`)}`,
+        );
+      }
+    }
+  }
+
+  printNode(root, "");
 }

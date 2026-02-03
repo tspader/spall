@@ -3,6 +3,7 @@ export { review } from "./review";
 export { add } from "./add";
 export { serve } from "./serve";
 export { get } from "./get";
+export { list } from "./list";
 export { search } from "./search";
 export { sync } from "./sync";
 export { tui } from "./tui";

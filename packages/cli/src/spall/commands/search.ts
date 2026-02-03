@@ -13,9 +13,9 @@ type Mode = "plain" | "fts";
 export const search: CommandDef = {
   description: "Search note content (FTS)",
   positionals: {
-    q: {
+    query: {
       type: "string",
-      description: "Search text (plain) or raw FTS query (fts mode)",
+      description: "Search corpus by keyword",
       required: true,
     },
   },
@@ -82,7 +82,7 @@ export const search: CommandDef = {
     const res = await client.query
       .search({
         id: String(query.id),
-        q: argv.q,
+        q: argv.query,
         path: argv.path,
         limit: argv.limit,
         mode,

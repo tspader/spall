@@ -6,6 +6,7 @@ import {
   add,
   serve,
   get,
+  list,
   search,
   sync,
   tui,
@@ -15,7 +16,18 @@ import {
 const cliDef: CliDef = {
   name: "spall",
   description: "Local semantic note store with embeddings",
-  commands: { add, get, search, sync, serve, project, review, tui, vsearch },
+  commands: {
+    add,
+    get,
+    list,
+    search,
+    vsearch,
+    sync,
+    serve,
+    project,
+    review,
+    tui,
+  },
 };
 
 build(cliDef).parse();
