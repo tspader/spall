@@ -22,6 +22,7 @@ export type PositionalDef = {
 export type CommandDef = {
   description: string;
   summary?: string; // Short description for command list; defaults to description
+  hidden?: boolean; // Hide from help text
   positionals?: Record<string, PositionalDef>;
   options?: Record<string, OptionDef>;
   commands?: Record<string, CommandDef>;
@@ -128,6 +129,7 @@ export function help(
 
     const rows: string[][] = [];
     for (const [k, v] of Object.entries(cmds)) {
+      if (v.hidden) continue;
       const args = v.positionals ? Object.keys(v.positionals).join(" ") : "";
       rows.push([`  ${k}`, args, v.summary ?? v.description]);
     }

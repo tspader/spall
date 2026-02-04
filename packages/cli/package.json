@@ -26,6 +26,7 @@
     "@opentui/core": "0.1.75",
     "@opentui/solid": "0.1.75",
     "@spall/core": "workspace:*",
+    "@spall/integration": "workspace:*",
     "@spall/tui": "workspace:*",
     "@spall/sdk": "workspace:*",
     "consola": "catalog:",

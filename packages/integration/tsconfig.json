@@ -9,12 +9,5 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": ["src"],
-  "exclude": ["**/*.test.ts"],
-  "references": [
-    { "path": "../core" },
-    { "path": "../integration" },
-    { "path": "../sdk" },
-    { "path": "../tui" }
-  ]
+  "include": ["index.ts", "text.d.ts"]
 }

@@ -190,7 +190,7 @@ function displayTree<T>(items: T[], opts: DisplayOpts<T>): void {
     for (const [name, child] of sortedChildren(node)) {
       if (child.children.size > 0) {
         console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
-        printNode(child, indent + " ");
+        printNode(child, indent + "  ");
       } else {
         const toShow = showAll
           ? (child.leaf ?? [])
@@ -373,7 +373,7 @@ export function displayPathTree(paths: string[], opts?: PathTreeOpts): void {
         for (const [name, child] of files) {
           const n = child.leaf?.count ?? 0;
           const suffix = n > 1 ? theme.dim(` (x${n})`) : "";
-          console.log(`${theme.dim(indent)}${name}${suffix}`);
+          console.log(`${theme.dim(indent)}${theme.primary(name)}${suffix}`);
         }
       } else {
         const count = files.reduce(

@@ -6,6 +6,8 @@ import {
   review,
   add,
   commit,
+  hook,
+  integrate,
   serve,
   get,
   list,
@@ -30,6 +32,8 @@ const cliDef: CliDef = {
     serve,
     corpus,
     tui,
+    integrate,
+    hook,
   },
 };
 

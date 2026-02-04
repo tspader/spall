@@ -23,6 +23,7 @@
         "@opentui/core": "0.1.75",
         "@opentui/solid": "0.1.75",
         "@spall/core": "workspace:*",
+        "@spall/integration": "workspace:*",
         "@spall/sdk": "workspace:*",
         "@spall/tui": "workspace:*",
         "consola": "catalog:",
@@ -53,6 +54,10 @@
         "@types/bun": "catalog:",
         "typescript": "catalog:",
       },
+    },
+    "packages/integration": {
+      "name": "@spall/integration",
+      "version": "0.0.1",
     },
     "packages/sdk": {
       "name": "@spall/sdk",
@@ -372,6 +377,8 @@
     "@spall/cli": ["@spall/cli@workspace:packages/cli"],
 
     "@spall/core": ["@spall/core@workspace:packages/core"],
+
+    "@spall/integration": ["@spall/integration@workspace:packages/integration"],
 
     "@spall/sdk": ["@spall/sdk@workspace:packages/sdk"],
 

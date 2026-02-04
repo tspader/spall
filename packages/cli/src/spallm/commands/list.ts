@@ -2,6 +2,7 @@ import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
   createEphemeralQuery,
+  noteTreeEntries,
   printQueryId,
 } from "@spall/cli/shared";
 
@@ -26,11 +27,6 @@ Example:
       type: "string",
       description: "Corpus name (default: from spall.json)",
     },
-    limit: {
-      alias: "n",
-      type: "number",
-      description: "Max notes to list (default: 50)",
-    },
   },
   handler: async (argv) => {
     const client = await Client.connect();
@@ -41,14 +37,23 @@ Example:
       tracked: true,
     });
 
-    const limit = Number(argv.limit ?? 50);
     const path = String(argv.path ?? "*");
 
-    const page = await client.query
-      .notes({ id: String(query.id), path, limit })
-      .then(Client.unwrap);
+    type NoteInfo = { id: number; path: string };
+    type Page = { notes: NoteInfo[]; nextCursor: string | null };
+    const notes: NoteInfo[] = [];
+    let cursor: string | undefined = undefined;
 
-    const notes = (page.notes as Array<{ id: number; path: string }>).slice();
+    while (true) {
+      const page: Page = await client.query
+        .notes({ id: String(query.id), path, limit: 100, after: cursor })
+        .then(Client.unwrap);
+
+      for (const n of page.notes) notes.push({ id: n.id, path: n.path });
+      if (!page.nextCursor) break;
+      cursor = page.nextCursor;
+    }
+
     notes.sort((a, b) => a.path.localeCompare(b.path));
 
     if (notes.length === 0) {
@@ -57,22 +62,14 @@ Example:
       return;
     }
 
-    // Simple tree printer: directories once, then files as "name (id: N)".
-    const seenDirs = new Set<string>();
-    for (const note of notes) {
-      const parts = note.path.split("/");
-      let prefix = "";
-      for (let i = 0; i < parts.length - 1; i++) {
-        prefix = prefix ? `${prefix}/${parts[i]}` : parts[i]!;
-        if (!seenDirs.has(prefix)) {
-          seenDirs.add(prefix);
-          console.log(`${" ".repeat(i)}${parts[i]}/`);
-        }
+    const entries = noteTreeEntries(notes);
+    for (const e of entries) {
+      const indent = "  ".repeat(e.depth);
+      if (e.type === "dir") {
+        console.log(`${indent}${e.name}`);
+      } else {
+        console.log(`${indent}${e.name} (id: ${e.id})`);
       }
-      const fileIndent = Math.max(0, parts.length - 1);
-      console.log(
-        `${" ".repeat(fileIndent)}${parts[parts.length - 1]} (id: ${note.id})`,
-      );
     }
 
     printQueryId(query.id);

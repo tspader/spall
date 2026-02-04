@@ -33,3 +33,9 @@ export {
   createEphemeralQuery,
   type ResolvedProjectScope,
 } from "./workspace";
+
+export {
+  noteTreeEntries,
+  type NotePathId,
+  type NoteTreeEntry,
+} from "./note_tree";

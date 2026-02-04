@@ -27,11 +27,11 @@ const code = rgb(212, 212, 161);
 
 export const defaultTheme: Theme = {
   primary,
+  code,
   header: dim,
   command: primary,
   arg: rgb(161, 212, 212),
   option,
-  code,
   type: dim,
   description: (s) => s,
   dim,

@@ -3,6 +3,7 @@ import {
   type CommandDef,
   createEphemeralQuery,
   displayResults,
+  help,
 } from "@spall/cli/shared";
 
 export const get: CommandDef = {
@@ -45,8 +46,9 @@ export const get: CommandDef = {
       tracked: false,
     });
 
-    const output = argv.output ?? "table";
-    const showAll = true;
+    const output = argv.output ?? (argv.path === "*" ? "tree" : "list");
+
+    const showAll = argv.all === true;
 
     // query already created
 
@@ -61,7 +63,14 @@ export const get: CommandDef = {
     const notes: NoteInfo[] = [];
     let cursor: string | undefined = undefined;
 
-    const fetchLimit = argv.max ?? Infinity;
+    // Limit fetching to roughly what we'd display, to avoid over-fetching.
+    // Keep this aligned with the renderer's own row budgets.
+    const termRows = process.stdout.rows ?? 24;
+    const displayRows =
+      showAll || output === "json"
+        ? Infinity
+        : Math.max(1, termRows - (output === "table" ? 4 : 3));
+    const fetchLimit = Math.min(argv.max ?? Infinity, displayRows + 1);
 
     while (notes.length < fetchLimit) {
       const page: Page = await client.query
