@@ -4,7 +4,7 @@ import { type CommandDef, defaultTheme as theme } from "@spall/cli/shared";
 
 export const commit: CommandDef = {
   description:
-    "Move all staged events into committed (used for personalization/weights)",
+    "Update note weights based on queries since last commit",
   handler: async () => {
     const client = await Client.connect();
 

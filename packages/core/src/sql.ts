@@ -165,6 +165,15 @@ export namespace Sql {
     VALUES (1, 'default', strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000)
   `;
 
+  export const GET_DEFAULT_WORKSPACE = `
+    SELECT id FROM workspaces WHERE id = 1
+  `;
+
+  export const INSERT_DEFAULT_WORKSPACE = `
+    INSERT OR IGNORE INTO workspaces (id, name, created_at, updated_at)
+    VALUES (1, 'default', strftime('%s', 'now') * 1000, strftime('%s', 'now') * 1000)
+  `;
+
   export const INSERT_NOTE = `
     INSERT INTO notes (corpus_id, path, content, content_hash, mtime) VALUES (?, ?, ?, ?, ?) RETURNING id
   `;

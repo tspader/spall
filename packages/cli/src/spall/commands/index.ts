@@ -1,4 +1,5 @@
 export { corpus } from "./corpus";
+export { workspace } from "./workspace";
 export { review } from "./review";
 export { add } from "./add";
 export { commit } from "./commit";

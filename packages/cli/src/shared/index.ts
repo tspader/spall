@@ -29,6 +29,7 @@ export {
 
 export {
   resolveProjectScope,
+  gitRoot,
   createEphemeralQuery,
   type ResolvedProjectScope,
 } from "./workspace";

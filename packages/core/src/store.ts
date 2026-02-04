@@ -144,6 +144,9 @@ export namespace Store {
       db.run(Sql.CREATE_COMMITTED_TABLE);
       db.exec(Sql.CREATE_COMMITTED_INDEXES);
 
+      // Ensure defaults exist even on older DBs.
+      db.run(Sql.INSERT_DEFAULT_WORKSPACE);
+      db.run(Sql.INSERT_DEFAULT_CORPUS);
       return db;
     }
 
@@ -173,6 +176,7 @@ export namespace Store {
     db.exec(Sql.CREATE_COMMITTED_INDEXES);
 
     db.run(Sql.INSERT_META, ["embeddinggemma-300M", Sql.EMBEDDING_DIMS]);
+    db.run(Sql.INSERT_DEFAULT_WORKSPACE);
     db.run(Sql.INSERT_DEFAULT_CORPUS);
 
     Bus.publish({ tag: "store.created", path: dbPath });

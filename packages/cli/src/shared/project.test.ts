@@ -92,9 +92,12 @@ describe("cli workspace scope", () => {
     });
 
     expect(scope.viewer.id).toBe(1);
-    expect(scope.viewer.name).toBe("repo");
+    expect(scope.viewer.name).toBe("default");
     expect(scope.includeNames).toEqual(["default", "docs"]);
     expect(scope.includeIds).toEqual([1, 2]);
+
+    const wsCreates = calls.filter((c) => c.method === "workspace.create");
+    expect(wsCreates).toHaveLength(0);
   });
 
   test("--corpus override selects a single corpus", async () => {
@@ -115,6 +118,9 @@ describe("cli workspace scope", () => {
 
     expect(scope.includeNames).toEqual(["other"]);
     expect(scope.includeIds).toEqual([3]);
+
+    const wsCreates = calls.filter((c) => c.method === "workspace.create");
+    expect(wsCreates).toHaveLength(0);
   });
 
   test("patches cached workspace id when config is located and differs", async () => {
@@ -131,6 +137,7 @@ describe("cli workspace scope", () => {
     await resolveProjectScope({
       client: mockClient(calls, { viewerId: 1 }),
       cwd: dir,
+      tracked: true,
     });
 
     const raw = JSON.parse(

@@ -9,7 +9,7 @@ import {
 } from "@spall/cli/shared";
 
 export const add: CommandDef = {
-  description: "Add a note to the corpus",
+  description: "Add a note to a corpus",
   positionals: {
     path: {
       type: "string",
@@ -33,11 +33,6 @@ export const add: CommandDef = {
       alias: "u",
       type: "boolean",
       description: "Update if note exists (upsert)",
-    },
-    dupe: {
-      alias: "d",
-      type: "boolean",
-      description: "Allow duplicate content",
     },
   },
   handler: async (argv) => {
@@ -80,7 +75,7 @@ export const add: CommandDef = {
       const { stream } = await client.sse.note.update({
         id: existing.id.toString(),
         content: argv.text,
-        dupe: argv.dupe,
+        dupe: true
       });
 
       let result: {
@@ -109,7 +104,7 @@ export const add: CommandDef = {
         path: argv.path,
         content: argv.text,
         corpus: corpus.id,
-        dupe: argv.dupe,
+        dupe: true
       });
 
       let result: {

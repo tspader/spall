@@ -47,7 +47,7 @@ function heatColor(score: number): (s: string) => string {
 export const vsearch: CommandDef = {
   description: "Semantic search (vector)",
   positionals: {
-    q: {
+    query: {
       type: "string",
       description: "Search query",
       required: true,
@@ -89,7 +89,7 @@ export const vsearch: CommandDef = {
     const res = await client.query
       .vsearch({
         id: String(query.id),
-        q: argv.q,
+        q: argv.query,
         path: argv.path,
         limit: argv.limit,
       })
