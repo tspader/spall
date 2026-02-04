@@ -11,7 +11,7 @@ import {
 } from "@spall/cli/shared";
 
 export const sync: CommandDef = {
-  description: "Sync a dir tree to a path in the database",
+  description: "Sync a directory under a path in a corpus",
   positionals: {
     dir: {
       type: "string",

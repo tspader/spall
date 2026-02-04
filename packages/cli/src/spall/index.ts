@@ -29,10 +29,10 @@ const cliDef: CliDef = {
     vsearch,
     sync,
     commit,
-    serve,
-    corpus,
-    tui,
     integrate,
+    corpus,
+    serve,
+    tui,
     hook,
   },
 };

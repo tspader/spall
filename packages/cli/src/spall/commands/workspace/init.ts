@@ -10,7 +10,7 @@ import { Client } from "@spall/sdk/client";
 import { gitRoot, type CommandDef } from "@spall/cli/shared";
 
 export const init: CommandDef = {
-  description: "Initialize workspace config in this repo",
+  description: "Initialize a workspace in this directory",
   options: {
     path: {
       alias: "p",

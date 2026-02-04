@@ -36,11 +36,14 @@ export type CliDef = {
   commands: Record<string, CommandDef>;
 };
 
+const isSearchCommand = (s: string) => s.toLowerCase().includes("search");
+
 function usage(def: CommandDef | CliDef, path: string[], t: Theme): string {
   const parts: string[] = [];
   const last = path.length - 1;
   for (let i = 0; i < path.length; i++) {
-    parts.push(i === last ? t.command(path[i]!) : path[i]!);
+    const fmt = i === last && isSearchCommand(path[i]!) ? t.guide : t.command;
+    parts.push(i === last ? fmt(path[i]!) : path[i]!);
   }
 
   if ("positionals" in def && def.positionals) {
@@ -101,8 +104,8 @@ export function help(
   }
 
   const opts: Record<string, OptionDef> = {
-    help: { alias: "h", type: "boolean", description: "Show help" },
     ...(def.options ?? {}),
+    help: { alias: "h", type: "boolean", description: "Show help" },
   };
 
   if (Object.keys(opts).length > 0) {
@@ -112,7 +115,7 @@ export function help(
 
     const rows: string[][] = [];
     for (const [k, v] of Object.entries(opts)) {
-      const short = v.alias ? `-${v.alias} ` : "   ";
+      const short = v.alias ? `-${v.alias}, ` : "    ";
       let desc = v.description;
       if (v.default !== undefined && v.type !== "boolean") {
         desc += ` ${t.dim(`(default: ${v.default})`)}`;
@@ -128,12 +131,15 @@ export function help(
     console.log(t.header("commands"));
 
     const rows: string[][] = [];
+    const rowCmdFmt: ((s: string) => string)[] = [];
     for (const [k, v] of Object.entries(cmds)) {
       if (v.hidden) continue;
       const args = v.positionals ? Object.keys(v.positionals).join(" ") : "";
       rows.push([`  ${k}`, args, v.summary ?? v.description]);
+      rowCmdFmt.push(isSearchCommand(k) ? t.guide : t.command);
     }
-    cols(rows, [t.command, t.arg, t.description]);
+    let ri = 0;
+    cols(rows, [(s) => rowCmdFmt[ri++]!(s), t.arg, t.description]);
   }
 }
 

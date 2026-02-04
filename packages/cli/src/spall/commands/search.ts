@@ -11,40 +11,42 @@ import {
 type Mode = "plain" | "fts";
 
 export const search: CommandDef = {
-  description: "Search note content (FTS)",
+  description: `Full text ${theme.search()} against note content`,
   positionals: {
     query: {
       type: "string",
-      description: "Search corpus by keyword",
+      description: "Keyword query, or FTS query if using FTS mode",
       required: true,
     },
   },
   options: {
+    output: {
+      alias: "o",
+      type: "string",
+      description: "Output format (table, json, tree, list)",
+      default: "table",
+    },
     corpus: {
       alias: "c",
       type: "string",
-      description: "Corpus name",
+      description: `Corpus to ${theme.guide("search")}; overrides workspace setting`,
     },
     path: {
       type: "string",
-      description: "Path glob filter (default: *)",
+      description: "Only include notes which pass this glob filter",
+      default: "*"
     },
     limit: {
       alias: "n",
       type: "number",
-      description: "Maximum number of results (default: 20)",
+      description: "Maximum number of results",
+      default: 20
     },
     mode: {
       alias: "m",
       type: "string",
-      description: "Query mode: plain | fts (default: plain)",
+      description: "Query mode (plain, fts)",
       default: "plain",
-    },
-    output: {
-      alias: "o",
-      type: "string",
-      description: "Output format: table | json | tree | list",
-      default: "table",
     },
   },
   handler: async (argv) => {

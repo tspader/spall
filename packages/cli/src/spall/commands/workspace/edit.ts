@@ -6,7 +6,7 @@ import { Client } from "@spall/sdk/client";
 import type { CommandDef } from "@spall/cli/shared";
 
 export const edit: CommandDef = {
-  description: "Interactively edit the workspace include list",
+  description: "Interactively edit the workspace",
   handler: async () => {
     const located = WorkspaceConfig.locate(process.cwd());
     if (!located) {
