@@ -147,7 +147,7 @@ export function displayResults<T>(items: T[], opts: DisplayOpts<T>): void {
   ];
 
   const termRows = process.stdout.rows ?? 24;
-  const maxRows = opts.showAll ? items.length : Math.max(1, termRows - 4);
+  const maxRows = opts.showAll ? Infinity : Math.max(1, termRows - 4);
 
   table(
     columns.map((c) => c.header),
@@ -365,7 +365,7 @@ export function displayPathTree(paths: string[], opts?: PathTreeOpts): void {
 
     for (const [name, child] of dirs) {
       console.log(`${theme.dim(indent)}${theme.dim(name + "/")}`);
-      printNode(child, indent + " ");
+      printNode(child, indent + "  ");
     }
 
     if (files.length > 0) {
@@ -373,7 +373,7 @@ export function displayPathTree(paths: string[], opts?: PathTreeOpts): void {
         for (const [name, child] of files) {
           const n = child.leaf?.count ?? 0;
           const suffix = n > 1 ? theme.dim(` (x${n})`) : "";
-          console.log(`${theme.dim(indent)}${theme.primary(name)}${suffix}`);
+          console.log(`${theme.dim(indent)}${name}${suffix}`);
         }
       } else {
         const count = files.reduce(

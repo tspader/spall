@@ -144,9 +144,6 @@ export namespace Store {
       db.run(Sql.CREATE_COMMITTED_TABLE);
       db.exec(Sql.CREATE_COMMITTED_INDEXES);
 
-      // Ensure defaults exist even on older DBs.
-      db.run(Sql.INSERT_DEFAULT_WORKSPACE);
-      db.run(Sql.INSERT_DEFAULT_CORPUS);
       return db;
     }
 

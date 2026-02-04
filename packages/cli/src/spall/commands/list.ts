@@ -23,7 +23,7 @@ export const list: CommandDef = {
     all: {
       alias: "a",
       type: "boolean",
-      description: "Show individual filenames instead of counts",
+      description: "(deprecated) Always on",
     },
   },
   handler: async (argv) => {
@@ -56,7 +56,7 @@ export const list: CommandDef = {
     allPaths.sort();
 
     displayPathTree(allPaths, {
-      showAll: argv.all === true,
+      showAll: true,
       empty: "(no notes matching pattern)",
     });
   },
