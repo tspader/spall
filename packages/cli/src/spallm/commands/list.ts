@@ -2,6 +2,7 @@ import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
   createEphemeralQuery,
+  noteDirEntries,
   noteTreeEntries,
   printQueryId,
 } from "@spall/cli/shared";
@@ -27,6 +28,11 @@ Example:
       type: "string",
       description: "Corpus name (default: from spall.json)",
     },
+    all: {
+      type: "boolean",
+      description: "List all files (default: directories only)",
+      default: false,
+    },
   },
   handler: async (argv) => {
     const client = await Client.connect();
@@ -37,7 +43,11 @@ Example:
       tracked: true,
     });
 
-    const path = String(argv.path ?? "*");
+    // normalize path: if doesn't end with glob char, treat as prefix
+    let path = String(argv.path ?? "*");
+    if (!/[*?\]]$/.test(path)) {
+      path = path.replace(/\/?$/, "/*");
+    }
 
     type NoteInfo = { id: number; path: string };
     type Page = { notes: NoteInfo[]; nextCursor: string | null };
@@ -62,11 +72,16 @@ Example:
       return;
     }
 
-    const entries = noteTreeEntries(notes);
+    const showAll = Boolean((argv as any).all);
+    const entries = showAll ? noteTreeEntries(notes) : noteDirEntries(notes);
     for (const e of entries) {
       const indent = "  ".repeat(e.depth);
       if (e.type === "dir") {
-        console.log(`${indent}${e.name}`);
+        const suffix =
+          typeof e.noteCount === "number"
+            ? ` (${e.noteCount} note${e.noteCount === 1 ? "" : "s"})`
+            : "";
+        console.log(`${indent}${e.name}${suffix}`);
       } else {
         console.log(`${indent}${e.name} (id: ${e.id})`);
       }

@@ -3,16 +3,17 @@ import {
   type CommandDef,
   createEphemeralQuery,
   displayLlmSearch,
+  defaultTheme as theme
 } from "@spall/cli/shared";
 
 export const search: CommandDef = {
-  summary: "Keyword search (FTS)",
-  description: `Full-text keyword search. Returns truncated previews with note IDs.
+  summary: `Keyword ${theme.search()} (FTS)`,
+  description: `Full-text keyword ${theme.search()}. Returns truncated previews with note IDs.
 
 Use \`fetch\` with the returned Query ID and note IDs to get full content.
 
 Example:
-  spallm search "R2Bucket"
+  spallm ${theme.search()} "R2Bucket"
 `,
   positionals: {
     query: {

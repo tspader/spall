@@ -29,7 +29,7 @@ export const search: CommandDef = {
     corpus: {
       alias: "c",
       type: "string",
-      description: `Corpus to ${theme.guide("search")}; overrides workspace setting`,
+      description: `Corpus to ${theme.search()}; overrides workspace setting`,
     },
     path: {
       type: "string",

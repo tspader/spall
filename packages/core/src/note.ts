@@ -248,6 +248,7 @@ export namespace Note {
     z.object({
       directory: z.string(),
       glob: z.string().optional(),
+      path: z.string().optional(),
       corpus: Corpus.Id,
     }),
     async (input): Promise<void> => {
@@ -255,7 +256,16 @@ export namespace Note {
       Io.clear();
       const resolved = Corpus.get({ id: input.corpus });
       const pattern = input.glob ?? "**/*.md";
-      const prefix = canonicalize(input.directory);
+      if (input.path) {
+        const parts = input.path.replace(/\\/g, "/").split("/");
+        if (parts.includes("..")) {
+          throw new Error.SpallError(
+            "note.invalid_path",
+            "Sync path must not contain '..' segments",
+          );
+        }
+      }
+      const prefix = canonicalize(input.path ?? input.directory);
 
       const files = await Store.scan(
         input.directory,

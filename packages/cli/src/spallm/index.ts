@@ -1,4 +1,8 @@
 #!/usr/bin/env bun
+import { setColorEnabled } from "@spall/cli/shared";
+
+setColorEnabled(false);
+
 import { build, type CliDef } from "@spall/cli/shared";
 import { vsearch } from "./commands/vsearch";
 import { search } from "./commands/search";

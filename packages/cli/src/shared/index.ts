@@ -1,5 +1,6 @@
 export { table, cols, CLEAR, cleanEscapes } from "./layout";
 export { type Theme, defaultTheme } from "./theme";
+export { setColorEnabled } from "./theme";
 export {
   displayResults,
   displayPathTree,
@@ -36,6 +37,7 @@ export {
 
 export {
   noteTreeEntries,
+  noteDirEntries,
   type NotePathId,
   type NoteTreeEntry,
-} from "./note_tree";
+} from "./tree";

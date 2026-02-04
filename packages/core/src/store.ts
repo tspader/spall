@@ -9,7 +9,6 @@ import { Sql } from "./sql";
 import { Io } from "./io";
 import { Model } from "./model";
 import { Config } from "./config";
-import { FileStatus } from "./schema";
 import { Context } from "./context";
 import { Error as SpallError } from "./error";
 
@@ -51,6 +50,7 @@ export function convertFilePath(prefix: string, file: string): string {
 
 export namespace Store {
   type Statement = ReturnType<Database["prepare"]>;
+  type FileStatus = z.infer<typeof Event.ScanProgress>["status"];
   export const Event = {
     Create: Bus.define("store.create", {
       path: z.string(),

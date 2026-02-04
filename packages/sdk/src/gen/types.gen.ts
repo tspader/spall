@@ -417,6 +417,7 @@ export type NoteSyncData = {
   body?: {
     directory: string;
     glob?: string;
+    path?: string;
     corpus: number;
   };
   path?: never;
@@ -883,6 +884,7 @@ export type SseNoteSyncData = {
   body?: {
     directory: string;
     glob?: string;
+    path?: string;
     corpus: number;
   };
   path?: never;

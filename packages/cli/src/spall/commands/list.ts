@@ -3,6 +3,7 @@ import {
   type CommandDef,
   createEphemeralQuery,
   defaultTheme,
+  noteDirEntries,
   noteTreeEntries,
 } from "@spall/cli/shared";
 
@@ -24,6 +25,11 @@ export const list: CommandDef = {
     completion: {
       type: "boolean",
       description: "Output bare paths for shell completion",
+    },
+    all: {
+      type: "boolean",
+      description: "List all files (default: directories only)",
+      default: false,
     },
   },
   handler: async (argv) => {
@@ -78,13 +84,21 @@ export const list: CommandDef = {
       return;
     }
 
-    const entries = noteTreeEntries(notes);
+    const showAll = Boolean((argv as any).all);
+    const entries = showAll ? noteTreeEntries(notes) : noteDirEntries(notes);
+
     for (const e of entries) {
       const indent = "  ".repeat(e.depth);
       if (e.type === "dir") {
-        console.log(`${theme.dim(indent)}${theme.dim(e.name)}`);
+        const suffix =
+          typeof e.noteCount === "number"
+            ? theme.dim(` (${e.noteCount} note${e.noteCount === 1 ? "" : "s"})`)
+            : "";
+        console.log(`${indent}${e.name}${suffix}`);
       } else {
-        console.log(`${theme.dim(indent)}${e.name}${theme.dim(` (id: ${e.id})`)}`);
+        console.log(
+          `${theme.dim(indent)}${e.name}${theme.dim(` (id: ${e.id})`)}`,
+        );
       }
     }
   },

@@ -10,13 +10,17 @@ async function runCli(
   opts: { cwd: string; env: Record<string, string> },
 ): Promise<RunResult> {
   const entry = join(import.meta.dir, "..", "index.ts");
-  const proc = Bun.spawn([process.execPath, entry, ...args], {
-    cwd: opts.cwd,
-    env: { ...process.env, ...opts.env },
-    stdin: "ignore",
-    stdout: "pipe",
-    stderr: "pipe",
-  });
+  const preload = join(import.meta.dir, "e2e.preload.ts");
+  const proc = Bun.spawn(
+    [process.execPath, "--preload", preload, entry, ...args],
+    {
+      cwd: opts.cwd,
+      env: { ...process.env, ...opts.env },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    },
+  );
 
   const [stdout, stderr, exitCode] = await Promise.all([
     new Response(proc.stdout).text(),

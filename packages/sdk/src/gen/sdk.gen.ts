@@ -366,6 +366,7 @@ export class Note extends HeyApiClient {
     parameters?: {
       directory?: string;
       glob?: string;
+      path?: string;
       corpus?: number;
     },
     options?: Options<never, ThrowOnError>,
@@ -377,6 +378,7 @@ export class Note extends HeyApiClient {
           args: [
             { in: "body", key: "directory" },
             { in: "body", key: "glob" },
+            { in: "body", key: "path" },
             { in: "body", key: "corpus" },
           ],
         },
@@ -946,6 +948,7 @@ export class Note2 extends HeyApiClient {
     parameters?: {
       directory?: string;
       glob?: string;
+      path?: string;
       corpus?: number;
     },
     options?: Options<never, ThrowOnError>,
@@ -957,6 +960,7 @@ export class Note2 extends HeyApiClient {
           args: [
             { in: "body", key: "directory" },
             { in: "body", key: "glob" },
+            { in: "body", key: "path" },
             { in: "body", key: "corpus" },
           ],
         },

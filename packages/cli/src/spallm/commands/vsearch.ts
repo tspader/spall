@@ -3,21 +3,22 @@ import {
   type CommandDef,
   createEphemeralQuery,
   displayLlmSearch,
+  defaultTheme as theme
 } from "@spall/cli/shared";
 
 export const vsearch: CommandDef = {
-  summary: "Semantic search (vector)",
-  description: `Semantic search using embeddings. Returns truncated previews with note IDs.
+  summary: `Semantic vector ${theme.search()}`,
+  description: `Semantic vector ${theme.search()} using embeddings. Returns truncated previews with note IDs.
 
 Use \`fetch\` with the returned Query ID and note IDs to get full content.
 
 Example:
-  spallm vsearch "how to configure r2 bindings"
+  spallm ${theme.search({ prefix: "v" })} "how to configure r2 bindings"
 `,
   positionals: {
     query: {
       type: "string",
-      description: "Natural language search query",
+      description: `Natural language ${theme.search()} query`,
       required: true,
     },
   },

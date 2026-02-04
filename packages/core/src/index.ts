@@ -3,7 +3,6 @@ export { Model, type Token } from "./model";
 export { Bus } from "./event";
 export { Sql } from "./sql";
 export { Io } from "./io";
-export { FileStatus } from "./schema";
 export {
   Config,
   type ConfigSchema,
