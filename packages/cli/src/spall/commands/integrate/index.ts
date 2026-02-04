@@ -6,6 +6,7 @@ import { bash, zsh } from "./shell";
 
 export type Integration = {
   label: string;
+  hint?: string;
   handler: () => Promise<void>;
 };
 
@@ -20,9 +21,10 @@ export const integrate: CommandDef = {
     prompts.intro("Integrations");
 
     const choice = await prompts.select({
-      message: "Select a tool to install integrations for",
+      message: "Select a tool",
       options: Object.entries(integrations).map(([key, cfg]) => ({
         value: key,
+        hint: cfg.hint,
         label: cfg.label,
       })),
     });

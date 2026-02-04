@@ -15,11 +15,13 @@ type ShellConfig = {
 
 export const bash: Integration = {
   label: "bash",
+  hint: "path completions, cli completions",
   handler: () => shellIntegration("bash"),
 };
 
 export const zsh: Integration = {
   label: "zsh",
+  hint: "path completions, cli completions",
   handler: () => shellIntegration("zsh"),
 };
 
@@ -64,5 +66,16 @@ export async function shellIntegration(shell: Shell): Promise<void> {
 
   appendFileSync(rc, "\n" + snippet);
   prompts.log.info(`Added hook to ${theme.primary(rc)}`);
-  prompts.outro(`Run ${theme.code(`source ${rc}`)} or restart your shell to activate`);
+  prompts.note(
+`Run ${theme.code(`source ${rc}`)} or restart your shell to activate
+
+Get completions for available commands:
+> ${theme.code("spall")} <tab>
+
+Get completions for paths:
+> ${theme.code("spall list ai-gateway/tutorials/")} <tab>
+ai-gateway/tutorials/create-first-aig-workers.mdx
+ai-gateway/tutorials/index.mdx
+ai-gateway/tutorials/deploy-aig-worker.mdx`
+  );
 }
