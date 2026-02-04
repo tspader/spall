@@ -4,7 +4,6 @@ import {
   createSignal,
   createEffect,
   onMount,
-  onCleanup,
   type ParentProps,
   type Accessor,
 } from "solid-js";
@@ -28,11 +27,39 @@ export interface CommentWithNote {
   noteContent: string | null;
 }
 
+export function pickCommentForRange(
+  list: CommentWithNote[],
+  preferredPatchId: number | null,
+  file: string,
+  startRow: number,
+  endRow: number,
+): CommentWithNote | null {
+  if (preferredPatchId !== null) {
+    const exact =
+      list.find(
+        (c) =>
+          c.patchId === preferredPatchId &&
+          c.file === file &&
+          c.startRow === startRow &&
+          c.endRow === endRow,
+      ) ?? null;
+    if (exact) return exact;
+  }
+
+  const matches = list.filter(
+    (c) => c.file === file && c.startRow === startRow && c.endRow === endRow,
+  );
+  if (matches.length === 0) return null;
+  return matches.reduce((best, c) => (c.createdAt > best.createdAt ? c : best));
+}
+
 export interface ReviewContextValue {
-  // Project state
-  projectId: Accessor<number | null>;
-  projectName: Accessor<string | null>;
-  noteCount: Accessor<number>;
+  // Corpus state
+  corpusId: Accessor<number | null>;
+  corpusName: Accessor<string>;
+
+  // Current working tree snapshot (stored as a patch)
+  workingTreePatchId: Accessor<number | null>;
 
   // Repo state
   repoRoot: Accessor<string | null>;
@@ -62,6 +89,7 @@ export interface ReviewContextValue {
 
   // Actions
   setActivePatch: (patchId: number | null, preserveFilePath?: string) => void;
+  refreshWorkingTree: (preserveFilePath?: string) => Promise<void>;
   getCommentById: (commentId: number) => CommentWithNote | null;
   getCommentForRange: (
     file: string,
@@ -89,21 +117,33 @@ function repoName(path: string): string {
   return segments[segments.length - 1] || "unknown";
 }
 
-function projectDbName(root: string): string {
+const REVIEW_CORPUS_NAME = "spall-review";
+
+function repoKey(root: string): string {
   const base = repoName(root).replace(/[^a-zA-Z0-9._-]+/g, "-");
   const h = Bun.hash(root);
   const n = typeof h === "bigint" ? Number(h % 0xffffffffn) : h;
   const suffix = Math.abs(n).toString(36).slice(0, 6);
-  return `spall-review-${base}-${suffix}`;
+  return `${base}-${suffix}`;
+}
+
+function reviewNotePath(input: {
+  root: string;
+  commitSha: string;
+  patchSeq: number;
+  file: string;
+  startRow: number;
+  endRow: number;
+}): string {
+  const filePath = input.file.replace(/\\/g, "/");
+  return `review/${repoKey(input.root)}/${input.commitSha}/p${input.patchSeq}/${filePath}__${input.startRow}-${input.endRow}.md`;
 }
 
 export function ReviewProvider(props: ReviewProviderProps) {
   const server = useServer();
 
-  // Project state
-  const [projectId, setProjectId] = createSignal<number | null>(null);
-  const [projectName, setProjectName] = createSignal<string | null>(null);
-  const [noteCount, setNoteCount] = createSignal<number>(0);
+  const [corpusId, setCorpusId] = createSignal<number | null>(null);
+  const corpusName = () => REVIEW_CORPUS_NAME;
 
   // Repo state
   const [repoRoot, setRepoRoot] = createSignal<string | null>(null);
@@ -115,16 +155,24 @@ export function ReviewProvider(props: ReviewProviderProps) {
     null,
   );
 
+  const [workingTreePatchId, setWorkingTreePatchId] = createSignal<
+    number | null
+  >(null);
+
   // Diff state
   const [workspaceEntries, setWorkspaceEntries] = createSignal<Git.Entry[]>([]);
+  const [workspaceDiff, setWorkspaceDiff] = createSignal<string>("");
   const [entries, setEntries] = createSignal<Git.Entry[]>([]);
   const [loading, setLoading] = createSignal(true);
 
-  // Patch id for the current working-tree snapshot (if any). Used for comment
-  // lookup/editing while viewing the working tree.
-  const [workspacePatchId, setWorkspacePatchId] = createSignal<number | null>(
-    null,
-  );
+  const ensureReviewId = (root: string, head: string): number => {
+    const current = reviewId();
+    if (current !== null) return current;
+    const repo = Repo.getOrCreate(root);
+    const review = ReviewStore.getOrCreate(repo.id, head);
+    setReviewId(review.id);
+    return review.id;
+  };
 
   // Patches state
   const [patches, setPatches] = createSignal<Patch.Info[]>([]);
@@ -152,8 +200,14 @@ export function ReviewProvider(props: ReviewProviderProps) {
     preserveFilePath?: string,
   ) => {
     if (patchId === null) {
+      const wt = workingTreePatchId();
+      if (wt !== null) {
+        setActivePatch(wt, preserveFilePath);
+        return;
+      }
+
       setActivePatchIdState(null);
-      const ws = workspaceEntries();
+      const ws = parsePatchEntries(workspaceDiff());
       setEntries(ws);
       setSelectedFilePath(
         preserveSelectedFilePath(ws, preserveFilePath ?? selectedFilePath()),
@@ -176,176 +230,178 @@ export function ReviewProvider(props: ReviewProviderProps) {
     );
   };
 
-  // gate hydration work that touches either database with:
-  // - a signal, to ensure data we use is ready
-  // - some plain booleans, to make sure we don't double-pull from the db
-  const [projectInitialized, setProjectInitialized] = createSignal(false);
-  let projectCreated = false;
+  const refreshWorkingTree = async (preserveFilePath?: string) => {
+    const newEntries = await Git.entries(props.repoPath);
+    setWorkspaceEntries(newEntries);
+    const fullDiff = newEntries.map((x) => x.content).join("\n");
+    setWorkspaceDiff(fullDiff);
+
+    const root = repoRoot();
+    const head = commitSha();
+
+    // If we can't associate this with a review yet, still update the view.
+    if (!root || !head) {
+      if (activePatchId() === null) {
+        const ws = parsePatchEntries(fullDiff);
+        setEntries(ws);
+        setSelectedFilePath(
+          preserveSelectedFilePath(ws, preserveFilePath ?? selectedFilePath()),
+        );
+      }
+      setWorkingTreePatchId(null);
+      return;
+    }
+
+    const revId = ensureReviewId(root, head);
+    const patch = Patch.getOrCreate(revId, fullDiff);
+
+    const prevWt = workingTreePatchId();
+    setWorkingTreePatchId(patch.id);
+
+    setPatches((prev) => {
+      if (prev.some((p) => p.id === patch.id)) return prev;
+      return [...prev, patch].sort((a, b) => a.seq - b.seq);
+    });
+
+    // If we were viewing the working tree snapshot, advance it.
+    const active = activePatchId();
+    if (active === null || (prevWt !== null && active === prevWt)) {
+      setActivePatch(patch.id, preserveFilePath);
+    }
+  };
+
+  // Gate hydration work that touches either database with:
+  // - a signal, to ensure local review/comments are loaded
+  // - some booleans, to keep it one-shot
+  const [initialized, setInitialized] = createSignal(false);
+  let corpusInitInFlight = false;
   let commentsHydrated = false;
 
   createEffect(() => {
     const client = server.client();
-    if (!client || !projectInitialized()) return;
+    if (!client || !initialized()) return;
 
-    if (!projectCreated) {
-      projectCreated = true;
-      const root = repoRoot()!;
+    if (corpusId() === null && !corpusInitInFlight) {
+      corpusInitInFlight = true;
       void (async () => {
         try {
-          const result = await client.project.create({
-            name: projectDbName(root),
+          const result = await client.corpus.create({
+            name: REVIEW_CORPUS_NAME,
           });
           if (result.data) {
-            setProjectId(result.data.id);
-            setProjectName(repoName(root));
-            setNoteCount(result.data.noteCount);
+            setCorpusId(result.data.id);
           }
         } catch {
-          // we failed to create a project; since project.create() is a
-          // get-or-create operation, either the connection dropped or we have
-          // a bad bug in the backend
+          // no-op: we'll try again if the client reconnects
         } finally {
-          projectCreated = false;
+          corpusInitInFlight = false;
         }
       })();
     }
 
-    if (!commentsHydrated) {
-      const pending = comments().filter(
-        (c) => c.notePath === null || c.noteContent === null,
-      );
-      if (pending.length === 0) {
-        commentsHydrated = true;
-        return;
-      }
+    if (commentsHydrated) return;
+    const pending = comments().filter(
+      (c) => c.notePath === null || c.noteContent === null,
+    );
+    if (pending.length === 0) {
       commentsHydrated = true;
-      setCommentsLoading(true);
-      void (async () => {
-        try {
-          const results = await Promise.all(
-            pending.map(async (comment) => {
-              try {
-                const result = await client.note.getById({
-                  id: comment.noteId.toString(),
-                });
-                if (!result.data) return null;
-                return {
-                  id: comment.id,
-                  notePath: result.data.path,
-                  noteContent: result.data.content,
-                };
-              } catch {
-                return null;
-              }
-            }),
-          );
-
-          const byId = new Map(
-            results.filter(Boolean).map((r) => [r!.id, r!] as const),
-          );
-
-          setComments((prev) =>
-            prev.map((c) => {
-              const upd = byId.get(c.id);
-              return upd
-                ? { ...c, notePath: upd.notePath, noteContent: upd.noteContent }
-                : c;
-            }),
-          );
-        } finally {
-          setCommentsLoading(false);
-        }
-      })();
+      return;
     }
+
+    commentsHydrated = true;
+    setCommentsLoading(true);
+    void (async () => {
+      try {
+        const results = await Promise.all(
+          pending.map(async (comment) => {
+            try {
+              const result = await client.note.getById({
+                id: comment.noteId.toString(),
+              });
+              if (!result.data) return null;
+              return {
+                id: comment.id,
+                notePath: result.data.path,
+                noteContent: result.data.content,
+              };
+            } catch {
+              return null;
+            }
+          }),
+        );
+
+        const byId = new Map(
+          results.filter(Boolean).map((r) => [r!.id, r!] as const),
+        );
+
+        setComments((prev) =>
+          prev.map((c) => {
+            const upd = byId.get(c.id);
+            return upd
+              ? { ...c, notePath: upd.notePath, noteContent: upd.noteContent }
+              : c;
+          }),
+        );
+      } finally {
+        setCommentsLoading(false);
+      }
+    })();
   });
 
   onMount(async () => {
     // load everything from the tui db
     const root = await Git.root(props.repoPath);
     setRepoRoot(root);
-    if (root) setProjectName(repoName(root));
 
     const head = await Git.head(props.repoPath);
     setCommitSha(head);
 
-    const diffEntries = await Git.entries(props.repoPath);
-    setWorkspaceEntries(diffEntries);
-    setEntries(diffEntries);
-    setLoading(false);
-
-    // reviews are unique to (repo, commit), so grab current one if exists
+    // Ensure a review exists for this (repo, commit) so the working tree
+    // snapshot can be treated as a normal patch.
     if (root && head) {
-      const repo = Repo.getByPath(root);
-      if (repo) {
-        const review = ReviewStore.getByRepoAndCommit(repo.id, head);
-        if (review) {
-          setReviewId(review.id);
-
-          // Load comments from local DB
-          const local = ReviewComment.list(review.id);
-          setComments(
-            local.map((c) => ({
-              id: c.id,
-              reviewId: c.review,
-              noteId: c.noteId,
-              file: c.file,
-              patchId: c.patchId,
-              startRow: c.startRow,
-              endRow: c.endRow,
-              createdAt: c.createdAt,
-              notePath: null,
-              noteContent: null,
-            })),
-          );
-
-          // Load all patches for this review
-          setPatchesLoading(true);
-          const reviewPatches = Patch.list(review.id);
-          setPatches(reviewPatches);
-          setPatchesLoading(false);
-
-          // Check current patch against stored patches
-          const fullDiff = await Git.diff(props.repoPath);
-          const hash = String(Bun.hash(fullDiff));
-          const existingPatch = Patch.getByHash(review.id, hash);
-          if (existingPatch) {
-            // Stay on working tree view, but remember which patch matches it
-            // so existing comments can be found/edited without switching views.
-            setWorkspacePatchId(existingPatch.id);
-          }
-        }
-      }
+      ensureReviewId(root, head);
     }
 
-    setProjectInitialized(true);
+    const revId = reviewId();
+    if (revId) {
+      // Load comments from local DB
+      const local = ReviewComment.list(revId);
+      setComments(
+        local.map((c) => ({
+          id: c.id,
+          reviewId: c.review,
+          noteId: c.noteId,
+          file: c.file,
+          patchId: c.patchId,
+          startRow: c.startRow,
+          endRow: c.endRow,
+          createdAt: c.createdAt,
+          notePath: null,
+          noteContent: null,
+        })),
+      );
 
-    // Poll for git changes every second
-    let lastHash = await Git.hash(props.repoPath);
-    const pollInterval = setInterval(async () => {
-      try {
-        const hash = await Git.hash(props.repoPath);
-        if (hash === lastHash) return;
+      // Load patches
+      setPatchesLoading(true);
+      setPatches(Patch.list(revId));
+      setPatchesLoading(false);
+    }
 
-        lastHash = hash;
-        const newEntries = await Git.entries(props.repoPath);
+    // Capture the working tree snapshot and select it.
+    await refreshWorkingTree(selectedFilePath() ?? undefined);
 
-        // Update workspace entries if viewing live diff
-        setWorkspaceEntries(newEntries);
-        if (activePatchId() === null) {
-          setEntries(newEntries);
-          setSelectedFilePath(
-            preserveSelectedFilePath(newEntries, selectedFilePath()),
-          );
-        }
+    // Prune unreferenced patches; keep the current working tree snapshot.
+    if (revId) {
+      const wt = workingTreePatchId();
+      Patch.pruneUnreferenced(revId, wt !== null ? [wt] : []);
+      setPatches(Patch.list(revId));
+    }
 
-        // Working tree changed; any previous snapshot id is stale.
-        setWorkspacePatchId(null);
-      } catch {
-        // something very bad happened; we're probably just fucked
-        clearInterval(pollInterval);
-      }
-    }, 1000);
-    onCleanup(() => clearInterval(pollInterval));
+    setLoading(false);
+
+    setInitialized(true);
+
+    // No automatic polling; user refreshes explicitly.
   });
 
   const getCommentById = (commentId: number): CommentWithNote | null => {
@@ -357,17 +413,8 @@ export function ReviewProvider(props: ReviewProviderProps) {
     startRow: number,
     endRow: number,
   ): CommentWithNote | null => {
-    const patchId = activePatchId() ?? workspacePatchId();
-    if (patchId === null) return null;
-    return (
-      comments().find(
-        (c) =>
-          c.patchId === patchId &&
-          c.file === file &&
-          c.startRow === startRow &&
-          c.endRow === endRow,
-      ) ?? null
-    );
+    const patchId = activePatchId();
+    return pickCommentForRange(comments(), patchId, file, startRow, endRow);
   };
 
   const createComment = async (
@@ -379,7 +426,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
     const root = repoRoot();
     const head = commitSha();
     const c = server.client();
-    const pid = projectId();
+    let cid = corpusId();
 
     if (!root || !head) return null;
     if (!content.trim()) return null;
@@ -397,32 +444,50 @@ export function ReviewProvider(props: ReviewProviderProps) {
     // ensure the current changeset exists in the patches table
     let patch = activePatchId() ? Patch.get(activePatchId()!) : null;
     if (!patch) {
-      const fullDiff = await Git.diff(props.repoPath);
-      patch = Patch.getOrCreate(revId, fullDiff);
+      const wt = workingTreePatchId();
+      patch = wt !== null ? Patch.get(wt) : null;
 
-      // If we're viewing the working tree, don't switch to the patch snapshot.
-      if (activePatchId() === null) {
-        setWorkspacePatchId(patch.id);
-      } else {
-        setActivePatch(patch.id);
+      // As a fallback (shouldn't happen), persist the current working tree diff.
+      if (!patch) {
+        const fullDiff = workspaceDiff();
+        patch = Patch.getOrCreate(revId, fullDiff);
+        setWorkingTreePatchId(patch.id);
+        setPatches((prev) => {
+          if (prev.some((p) => p.id === patch!.id)) return prev;
+          return [...prev, patch!].sort((a, b) => a.seq - b.seq);
+        });
+        if (activePatchId() === null) setActivePatch(patch.id);
       }
-
-      setPatches((prev) => {
-        if (prev.some((p) => p.id === patch!.id)) return prev;
-        return [...prev, patch!].sort((a, b) => a.seq - b.seq);
-      });
     }
 
     if (!patch) return null;
 
-    // If we have a server connection, create note via SDK
-    if (c && pid) {
-      const name = repoName(root);
-      const shortFile = file.split("/").pop() ?? file;
-      const path = `review/${name}/${head}/${patch.seq}/${shortFile}_${startRow}-${endRow}.md`;
+    // If we have a server connection, upsert the note via SDK
+    if (c) {
+      if (cid === null) {
+        try {
+          const ensured = await c.corpus.create({ name: REVIEW_CORPUS_NAME });
+          if (ensured.data) {
+            cid = ensured.data.id;
+            setCorpusId(cid);
+          }
+        } catch {
+          // ignore
+        }
+      }
+      if (cid === null) return null;
 
-      const result = await c.note.add({
-        project: pid,
+      const path = reviewNotePath({
+        root,
+        commitSha: head,
+        patchSeq: patch.seq,
+        file,
+        startRow,
+        endRow,
+      });
+
+      const result = await c.note.upsert({
+        id: cid.toString(),
         path,
         content,
         dupe: true,
@@ -442,7 +507,6 @@ export function ReviewProvider(props: ReviewProviderProps) {
         startRow,
         endRow,
       });
-      setNoteCount((n) => n + 1);
 
       // Build the hydrated comment
       const newComment: CommentWithNote = {
@@ -499,10 +563,11 @@ export function ReviewProvider(props: ReviewProviderProps) {
   };
 
   const value: ReviewContextValue = {
-    // Project
-    projectId,
-    projectName,
-    noteCount,
+    // Corpus
+    corpusId,
+    corpusName,
+    // Working tree snapshot
+    workingTreePatchId,
     // Repo
     repoRoot,
     repoPath: () => props.repoPath,
@@ -525,6 +590,7 @@ export function ReviewProvider(props: ReviewProviderProps) {
     setSelectedFilePath,
     // Actions
     setActivePatch,
+    refreshWorkingTree,
     getCommentById,
     getCommentForRange,
     createComment,

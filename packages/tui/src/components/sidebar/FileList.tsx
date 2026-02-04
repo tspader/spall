@@ -98,7 +98,7 @@ export function FileList(props: FileListProps) {
                 return (
                   <box flexDirection="row">
                     <Show when={item.depth > 0}>
-                      <text>{"  ".repeat(item.depth)}</text>
+                      <text>{" ".repeat(item.depth)}</text>
                     </Show>
                     <text>{"\u25BE "}</text>
                     <text>{item.node.name}</text>
@@ -122,15 +122,15 @@ export function FileList(props: FileListProps) {
               return (
                   <box flexDirection="row" gap={1} backgroundColor={bgColor()}>
                     <Show when={item.depth > 0}>
-                      <text>{"  ".repeat(item.depth)}</text>
+                      <text>{" ".repeat(item.depth)}</text>
                     </Show>
                     <text fg={theme.textMuted}>{item.node.status}</text>
                     <text fg={textColor()}>{item.node.name}</text>
-                    <Show
-                      when={!!stats && (stats.added > 0 || stats.removed > 0)}
-                    >
+                    <Show when={!!stats && (stats.added > 0)}>
                       <text fg={theme.diffSignAdded}>{`+${stats!.added}`}</text>
-                    <text fg={theme.diffSignRemoved}>{`-${stats!.removed}`}</text>
+                    </Show>
+                    <Show when={!!stats && (stats.removed > 0)}>
+                      <text fg={theme.diffSignRemoved}>{`-${stats!.removed}`}</text>
                     </Show>
 
                   </box>

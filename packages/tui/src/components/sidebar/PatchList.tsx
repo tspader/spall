@@ -16,6 +16,7 @@ import type { Git } from "../../lib/git";
 export interface PatchListProps {
   patches: Accessor<Patch.Info[]>;
   activePatchId: Accessor<number | null>;
+  workingTreePatchId: Accessor<number | null>;
   workspaceEntries: Accessor<Git.Entry[]>;
   loading: Accessor<boolean>;
   selectedIndex: Accessor<number>;
@@ -101,18 +102,24 @@ export function PatchList(props: PatchListProps) {
   // Include workspace as item 0, then patches
   const items = () => {
     const patchList = props.patches();
+    const wt = props.workingTreePatchId();
     // Workspace entry at index 0, then patches sorted by seq descending (newest first)
     // Use current time for workspace timestamp
     return [
-      { type: "workspace" as const, id: null, seq: -1, createdAt: now() },
+      { type: "workspace" as const, id: wt, seq: -1, createdAt: now() },
       ...patchList
         .slice()
+        .filter((p) => (wt === null ? true : p.id !== wt))
         .sort((a, b) => b.seq - a.seq)
         .map((p) => ({ type: "patch" as const, ...p })),
     ];
   };
 
-  const patchCount = () => props.patches().length;
+  const patchCount = () => {
+    const wt = props.workingTreePatchId();
+    const list = props.patches();
+    return wt === null ? list.length : list.filter((p) => p.id !== wt).length;
+  };
 
   return (
     <box flexDirection="column">
@@ -127,10 +134,20 @@ export function PatchList(props: PatchListProps) {
         <box>
           <box flexDirection="row" justifyContent="space-between">
             <box flexDirection="row" gap={1}>
-              <Show when={props.activePatchId() === null}>
+              <Show
+                when={
+                  props.workingTreePatchId() !== null &&
+                  props.activePatchId() === props.workingTreePatchId()
+                }
+              >
                 <text fg={theme.primary}>▸</text>
               </Show>
-              <Show when={props.activePatchId() !== null}>
+              <Show
+                when={
+                  props.workingTreePatchId() === null ||
+                  props.activePatchId() !== props.workingTreePatchId()
+                }
+              >
                 <text fg={theme.textMuted}> </text>
               </Show>
               <text fg={props.focused() ? theme.primary : undefined}>
@@ -162,11 +179,10 @@ export function PatchList(props: PatchListProps) {
               const isSelected = () => index() === props.selectedIndex();
               const isActive = () => {
                 if (item.type === "workspace")
-                  return props.activePatchId() === null;
+                  return item.id !== null && props.activePatchId() === item.id;
                 return props.activePatchId() === item.id;
               };
-              const textColor = () =>
-                isActive() ? theme.primary : undefined;
+              const textColor = () => (isActive() ? theme.primary : undefined);
               const bgColor = () =>
                 isSelected() && props.focused()
                   ? theme.backgroundElement

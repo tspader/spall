@@ -24,8 +24,11 @@ function getShortFile(file: string): string {
 function getPatchDisplay(
   patchId: number | null,
   patches: Patch.Info[],
+  workingTreePatchId: number | null,
 ): string {
-  if (patchId === null) return "WT";
+  if (patchId === null) return "?";
+  if (workingTreePatchId !== null && patchId === workingTreePatchId)
+    return "WT";
   const patch = patches.find((p) => p.id === patchId);
   if (!patch) return "?";
   return `P${patch.seq}`;
@@ -71,10 +74,16 @@ export function CommentList(props: CommentListProps) {
               const textColor = () =>
                 isSelected() && props.focused() ? theme.primary : undefined;
               const bgColor = () =>
-                isSelected() && props.focused() ? theme.backgroundElement : theme.backgroundPanel;
+                isSelected() && props.focused()
+                  ? theme.backgroundElement
+                  : theme.backgroundPanel;
 
               return (
-                <box flexDirection="row" justifyContent="space-between" backgroundColor={bgColor()}>
+                <box
+                  flexDirection="row"
+                  justifyContent="space-between"
+                  backgroundColor={bgColor()}
+                >
                   <box flexDirection="row" gap={1}>
                     <text fg={textColor()}>{getShortFile(comment.file)}</text>
                     <text fg={theme.textMuted}>
@@ -82,7 +91,11 @@ export function CommentList(props: CommentListProps) {
                     </text>
                   </box>
                   <text fg={theme.textMuted}>
-                    {getPatchDisplay(comment.patchId, review.patches())}
+                    {getPatchDisplay(
+                      comment.patchId,
+                      review.patches(),
+                      review.workingTreePatchId(),
+                    )}
                   </text>
                 </box>
               );

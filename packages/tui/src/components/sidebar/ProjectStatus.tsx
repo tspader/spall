@@ -6,19 +6,23 @@ import { basename, dirname } from "path";
 
 export interface ProjectStatusProps {
   repoRoot: Accessor<string | null>;
-  projectName: Accessor<string | null>;
-  noteCount: Accessor<number>;
+  commentCount: Accessor<number>;
 }
 
 export function ProjectStatus(props: ProjectStatusProps) {
   const { theme } = useTheme();
 
+  const displayName = () => {
+    const root = props.repoRoot();
+    return root ? basename(root) : null;
+  };
+
   return (
-    <Section title="Project">
-      <Show when={props.projectName()}>
+    <Section title="Review">
+      <Show when={displayName()}>
         <box flexDirection="row" flexShrink={0}>
-          <text fg={theme.text}>{props.projectName()}</text>
-          <text fg={theme.textMuted}> ({props.noteCount()} notes)</text>
+          <text fg={theme.text}>{displayName()}</text>
+          <text fg={theme.textMuted}> ({props.commentCount()} comments)</text>
         </box>
       </Show>
       <Show when={props.repoRoot()}>

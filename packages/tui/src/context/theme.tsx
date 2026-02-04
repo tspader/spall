@@ -20,7 +20,9 @@ export interface ThemeColors {
 
   // Accents
   primary: string; // Focused elements, highlights
-  secondary: string; // Secondary accent color
+  primaryDark: string; // Focused elements, highlights
+  secondary: string;
+  secondaryDark: string;
 
   // Status
   added: string; // Green for additions
@@ -79,7 +81,9 @@ const defaultTheme: ThemeColors = {
   text: "#eeeeee", // darkStep12
   textMuted: "#808080", // darkStep11
   primary: "#63a088", // zomp (teal-green)
-  secondary: "#fab283", // orange accent
+  primaryDark: "#1d2f28",
+  secondary: "#608999", // orange accent
+  secondaryDark: "#182226", // orange accent
   added: "#284036", // dark green
   removed: "#e06c75", // darkRed
   modified: "#e5c07b", // darkYellow
@@ -117,7 +121,9 @@ const systemTheme: ThemeColors = {
   text: "white",
   textMuted: "brightBlack",
   primary: "cyan",
-  secondary: "magenta",
+  primaryDark: "blue",
+  secondary: "red",
+  secondaryDark: "magenta",
   added: "green",
   removed: "red",
   modified: "yellow",

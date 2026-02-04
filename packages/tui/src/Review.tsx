@@ -25,6 +25,7 @@ import { ServerProvider } from "./context/server";
 import { ReviewProvider, useReview } from "./context/review";
 import { SidebarProvider } from "./context/sidebar";
 import { type Command, matchAny } from "./lib/keybind";
+import { EmptyBorder } from "./components/HalfLineShadow";
 
 type FocusPanel = "sidebar" | "diff" | "editor";
 type SidebarMode = "files" | "patches" | "comments";
@@ -258,7 +259,11 @@ function App(props: AppProps) {
           Math.min(fileIndices().length - 1, selectedFileNavIndex() + 1),
         );
       } else if (sidebarMode() === "patches") {
-        const patchCount = review.patches().length + 1; // +1 for workspace entry
+        const wt = review.workingTreePatchId();
+        const patchCount =
+          (wt === null
+            ? review.patches().length
+            : review.patches().filter((p) => p.id !== wt).length) + 1; // +1 for working tree
         setSelectedPatchIndex((i) => Math.min(patchCount - 1, i + 1));
       } else {
         const maxIndex = review.comments().length - 1;
@@ -407,6 +412,18 @@ function App(props: AppProps) {
     },
 
     {
+      id: "refresh-working-tree",
+      title: "refresh working tree",
+      category: "movement",
+      keybinds: [{ name: "r", ctrl: true }],
+      isActive: () => focusPanel() !== "editor",
+      onExecute: () => {
+        const preserve = selectedEntry()?.file ?? review.selectedFilePath();
+        void review.refreshWorkingTree(preserve ?? undefined);
+      },
+    },
+
+    {
       id: "cycle-forward",
       title: "cycle forward",
       category: "movement",
@@ -529,13 +546,16 @@ function App(props: AppProps) {
 
         review.setActivePatch(comment.patchId, comment.file);
 
-        const entry = review.entries().find((e) => e.file === comment.file);
-        if (!entry) return;
-        const hunkIndex =
-          getHunkIndexForRow(entry.content, entry.file, comment.startRow) ?? 0;
-
-        // Navigate to the file and hunk
+        // Navigate to the file and hunk (best-effort). Even if the file isn't
+        // present in the current patch diff (eg stale comment), still open the
+        // editor so the user can view/edit the note content.
         review.setSelectedFilePath(comment.file);
+
+        const entry = review.entries().find((e) => e.file === comment.file);
+        const hunkIndex = entry
+          ? (getHunkIndexForRow(entry.content, entry.file, comment.startRow) ??
+            0)
+          : 0;
         setSelectedHunkIndex(hunkIndex);
         setEditorAnchor({
           file: comment.file,
@@ -556,17 +576,19 @@ function App(props: AppProps) {
         sidebarMode() === "patches" &&
         review.patches().length > 0,
       onExecute: () => {
+        const wt = review.workingTreePatchId();
         const patches = review
           .patches()
           .slice()
+          .filter((p) => (wt === null ? true : p.id !== wt))
           .sort((a, b) => b.seq - a.seq);
         const idx = selectedPatchIndex();
         // Get current file to preserve selection if possible
         const currentEntry = selectedEntry();
         const currentFile = currentEntry?.file;
-        // Index 0 is workspace (null), then patches start at index 1
+        // Index 0 is working tree, then patches start at index 1
         if (idx === 0) {
-          review.setActivePatch(null, currentFile);
+          if (wt !== null) review.setActivePatch(wt, currentFile);
         } else {
           const patch = patches[idx - 1];
           if (patch) {
@@ -660,6 +682,12 @@ function App(props: AppProps) {
       </Show>
       <Show when={focusPanel() !== "editor"}>
         <box flexDirection="row">
+          <text>C-r </text>
+          <text fg="brightBlack">refresh</text>
+        </box>
+      </Show>
+      <Show when={focusPanel() !== "editor"}>
+        <box flexDirection="row">
           <text>C-q </text>
           <text fg="brightBlack">quit</text>
         </box>
@@ -688,8 +716,7 @@ function App(props: AppProps) {
           <ServerStatus />
           <ProjectStatus
             repoRoot={review.repoRoot}
-            projectName={review.projectName}
-            noteCount={review.noteCount}
+            commentCount={() => review.comments().length}
           />
 
           <SidebarProvider
@@ -697,7 +724,9 @@ function App(props: AppProps) {
             isFocused={() => focusPanel() === "sidebar"}
           >
             <box flexGrow={1} flexDirection="column" overflow="hidden" gap={1}>
-              <box flexGrow={1}>
+              <box
+                flexGrow={1}
+              >
                 <FileList
                   displayItems={displayItems}
                   selectedFileIndex={selectedFileNavIndex}
@@ -714,6 +743,7 @@ function App(props: AppProps) {
                 <PatchList
                   patches={review.patches}
                   activePatchId={review.activePatchId}
+                  workingTreePatchId={review.workingTreePatchId}
                   workspaceEntries={review.workspaceEntries}
                   loading={review.patchesLoading}
                   selectedIndex={selectedPatchIndex}

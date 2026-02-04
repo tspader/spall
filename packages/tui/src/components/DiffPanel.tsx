@@ -118,7 +118,7 @@ export function DiffPanel(props: DiffPanelProps) {
         justifyContent="flex-start"
         gap={1}
         backgroundColor={
-          props.focused() ? theme.backgroundElement : theme.backgroundPanel
+          props.focused() ? theme.primaryDark : theme.backgroundPanel
         }
         border={["left"]}
         borderColor={props.focused() ? theme.primary : theme.indicatorDefault}
