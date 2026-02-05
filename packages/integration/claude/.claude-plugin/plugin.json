@@ -1,7 +1,0 @@
-{
-  "name": "spall",
-  "description": "Persistent, self-updating memory for LLMs with extremely fast vector and text search, native CLIs for both humans and LLMs, and a code review TUI.",
-  "version": "1.0.0",
-  "foo": "bar",
-  "baz": "qux"
-}

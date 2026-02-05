@@ -1,8 +1,11 @@
-import type { CommandDef } from "@spall/cli/shared";
+import { printHelp, type CommandDef } from "@spall/cli/shared";
+import { prime as primeMd } from "@spall/integration";
 
 export const prime: CommandDef = {
-  description: "Output LLM workflow context",
+  description: "Basic usage guide for LLMs",
   handler: async () => {
-    // TODO: detect workspace, summarize state, output compact prompt
+    console.log(primeMd.trimEnd());
+    console.log("");
+    printHelp();
   },
 };

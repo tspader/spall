@@ -20,8 +20,12 @@ export {
   type CommandDef,
   type CliDef,
   type OptionDef,
+  type Options,
   type PositionalDef,
+  type Positionals,
 } from "./yargs";
+
+export { setActiveCli, printHelp } from "./help";
 export {
   renderProgressBar,
   createModelProgressHandler,
@@ -41,3 +45,7 @@ export {
   type NotePathId,
   type NoteTreeEntry,
 } from "./tree";
+
+export { Vsearch } from "./vsearch";
+export { Search } from "./search";
+export { List } from "./list";

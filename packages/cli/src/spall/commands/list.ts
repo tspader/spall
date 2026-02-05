@@ -1,86 +1,52 @@
-import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
-  createEphemeralQuery,
   defaultTheme,
+  List,
   noteDirEntries,
   noteTreeEntries,
 } from "@spall/cli/shared";
 
 export const list: CommandDef = {
   description: "List note paths as a tree",
-  positionals: {
-    path: {
-      type: "string",
-      description: "Path or glob to filter notes",
-      default: "*",
-    },
-  },
+  positionals: List.positionals,
   options: {
-    corpus: {
-      alias: "c",
-      type: "string",
-      description: "Corpus name",
-    },
+    ...List.options,
     completion: {
       type: "boolean",
       description: "Output bare paths for shell completion",
     },
-    all: {
-      type: "boolean",
-      description: "List all files (default: directories only)",
-      default: false,
-    },
   },
   handler: async (argv) => {
     const theme = defaultTheme;
-    const client = await Client.connect();
+    const rawInput = String(argv.path ?? "*");
+    const isCompletion = Boolean((argv as any).completion);
 
-    const { query } = await createEphemeralQuery({
-      client,
+    const { notes, located, includeNames } = await List.run({
+      path: rawInput,
       corpus: (argv as any).corpus,
       tracked: false,
+      completion: isCompletion,
     });
 
-    // normalize path: if doesn't end with glob char, treat as prefix
-    let path = argv.path;
-    const isCompletion = (argv as any).completion;
-    if (!/[*?\]]$/.test(path)) {
-      if (isCompletion && !path.endsWith("/")) {
-        // For completion, "ai-gateway/conf" should glob "ai-gateway/conf*"
-        path = path + "*";
-      } else {
-        path = path.replace(/\/?$/, "/*");
-      }
-    }
-
-    type NoteInfo = { id: number; path: string };
-    type Page = { notes: NoteInfo[]; nextCursor: string | null };
-    const notes: NoteInfo[] = [];
-    let cursor: string | undefined = undefined;
-
-    while (true) {
-      const page: Page = await client.query
-        .notes({ id: String(query.id), path, limit: 100, after: cursor })
-        .then(Client.unwrap);
-
-      for (const n of page.notes) notes.push({ id: n.id, path: n.path });
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
-    }
-
-    notes.sort((a, b) => a.path.localeCompare(b.path));
-
-    if ((argv as any).completion) {
+    if (isCompletion) {
       printCompletions(
         notes.map((n) => n.path),
-        argv.path,
+        rawInput,
       );
       return;
     }
 
     if (notes.length === 0) {
-      console.log("(no notes matching pattern)");
+      console.log("(no notes found)");
+      if (
+        !located &&
+        includeNames.length === 1 &&
+        includeNames[0] === "default"
+      ) {
+        console.log(
+          `hint: no workspace found, only searched default corpus. run ${theme.code("spall corpus list")} to check workspace scope, or ${theme.code("spall workspace init")} to create a workspace)`,
+        );
+      }
       return;
     }
 

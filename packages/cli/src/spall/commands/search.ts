@@ -1,24 +1,17 @@
 import consola from "consola";
-import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
   defaultTheme as theme,
-  createEphemeralQuery,
   displayResults,
   highlightSnippet,
+  Search,
 } from "@spall/cli/shared";
 
 type Mode = "plain" | "fts";
 
 export const search: CommandDef = {
-  description: `Full text ${theme.search()} against note content`,
-  positionals: {
-    query: {
-      type: "string",
-      description: "Keyword query, or FTS query if using FTS mode",
-      required: true,
-    },
-  },
+  description: `Full text keyword ${theme.search()} against note content`,
+  positionals: Search.positionals,
   options: {
     output: {
       alias: "o",
@@ -26,22 +19,7 @@ export const search: CommandDef = {
       description: "Output format (table, json, tree, list)",
       default: "table",
     },
-    corpus: {
-      alias: "c",
-      type: "string",
-      description: `Corpus to ${theme.search()}; overrides workspace setting`,
-    },
-    path: {
-      type: "string",
-      description: "Only include notes which pass this glob filter",
-      default: "*"
-    },
-    limit: {
-      alias: "n",
-      type: "number",
-      description: "Maximum number of results",
-      default: 20
-    },
+    ...Search.options,
     mode: {
       alias: "m",
       type: "string",
@@ -59,25 +37,16 @@ export const search: CommandDef = {
 
     const out = String(argv.output ?? "table");
 
-    const client = await Client.connect();
-
-    const { query } = await createEphemeralQuery({
-      client,
+    const { results } = await Search.run({
+      query: argv.query,
       corpus: (argv as any).corpus,
+      path: argv.path,
+      limit: argv.limit,
       tracked: false,
+      mode,
     });
 
-    const res = await client.query
-      .search({
-        id: String(query.id),
-        q: argv.query,
-        path: argv.path,
-        limit: argv.limit,
-        mode,
-      })
-      .then(Client.unwrap);
-
-    displayResults(res.results, {
+    displayResults(results, {
       output: out,
       empty: "(no matches)",
       path: (r: any) => r.path,

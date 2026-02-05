@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-import { build, type CliDef } from "@spall/cli/shared";
+import { build, setActiveCli, type CliDef } from "@spall/cli/shared";
 import {
   corpus,
   workspace,
@@ -19,7 +19,7 @@ import {
 
 const cliDef: CliDef = {
   name: "spall",
-  description: "Local semantic note store with embeddings",
+  description: "Fast, local, searchable memory for LLMs and humans",
   commands: {
     workspace,
     add,
@@ -36,5 +36,7 @@ const cliDef: CliDef = {
     hook,
   },
 };
+
+setActiveCli(cliDef);
 
 build(cliDef).parse();

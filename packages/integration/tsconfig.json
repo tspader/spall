@@ -9,5 +9,5 @@
     "outDir": "dist",
     "rootDir": "."
   },
-  "include": ["index.ts", "text.d.ts"]
+  "include": ["index.ts", "text.d.ts", "opencode/docker.test.ts"]
 }

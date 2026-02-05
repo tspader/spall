@@ -1,14 +1,11 @@
 import consola from "consola";
 import { Client } from "@spall/sdk/client";
 import { WorkspaceConfig } from "@spall/core";
-import {
-  table,
-  defaultTheme as theme,
-  type CommandDef,
-} from "@spall/cli/shared";
+import { table, type CommandDef } from "@spall/cli/shared";
 
-export const list: CommandDef = {
-  description: "List all corpora",
+export const status: CommandDef = {
+  summary: "List available corpora and workspace status",
+  description: `List available corpora, and which will be included by default in searches (i.e. included in workspace)`,
   handler: async () => {
     const client = await Client.connect();
     const result = await client.corpus.list();
@@ -31,6 +28,9 @@ export const list: CommandDef = {
     const formatTime = (ts: number) =>
       new Date(ts).toISOString().slice(0, 19).replace("T", " ");
 
+    console.log(`Workspace: ${config.workspace.name}`);
+    console.log("");
+
     table(
       ["name", "id", "notes", "workspace", "created", "updated"],
       [
@@ -41,20 +41,6 @@ export const list: CommandDef = {
         corpora.map((p: P) => formatTime(p.createdAt)),
         corpora.map((p: P) => formatTime(p.updatedAt)),
       ],
-      {
-        format: [
-          undefined!,
-          undefined!,
-          undefined!,
-          (s: string) => {
-            const trimmed = s.trimEnd();
-            const pad = s.slice(trimmed.length);
-            return trimmed === "yes" ? theme.primary("yes") + pad : "no" + pad;
-          },
-          undefined!,
-          undefined!,
-        ],
-      },
     );
   },
 };

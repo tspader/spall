@@ -8,6 +8,7 @@ import { Model } from "@spall/core/model";
 import { App } from "./app";
 import { Lock, isProcessAlive, checkHealth } from "./lock";
 import { Store } from "@spall/core";
+import { ServerLog } from "./log";
 
 export { Lock } from "./lock";
 export { ensure } from "./lock";
@@ -201,6 +202,7 @@ export namespace Server {
     consola.log(`Listening on port ${pc.cyanBright(String(port))}`);
 
     Lock.update(port);
+    ServerLog.init(port);
 
     process.once("SIGINT", () => {
       consola.info(`Received ${pc.gray("SIGINT")}`);
@@ -211,6 +213,15 @@ export namespace Server {
       stop();
     });
 
+    process.on("uncaughtException", (err) => {
+      ServerLog.error(err);
+      consola.error("Uncaught exception:", err);
+    });
+    process.on("unhandledRejection", (err) => {
+      ServerLog.error(err);
+      consola.error("Unhandled rejection:", err);
+    });
+
     resetShutdownTimer();
 
     const stopped = new Promise<void>((resolve) => {
@@ -219,6 +230,7 @@ export namespace Server {
 
     Bus.subscribe((event: EventUnion) => {
       consola.info(`${pc.gray(event.tag)} ${render(event)}`);
+      ServerLog.event(event);
     });
 
     // Kick off model download/load in background (errors published as model.failed event)

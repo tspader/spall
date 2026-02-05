@@ -12,6 +12,8 @@ export type OptionDef = {
   default?: unknown;
 };
 
+export type Options = Record<string, OptionDef>;
+
 export type PositionalDef = {
   type: "string" | "number";
   description: string;
@@ -19,12 +21,14 @@ export type PositionalDef = {
   default?: unknown;
 };
 
+export type Positionals = Record<string, PositionalDef>;
+
 export type CommandDef = {
   description: string;
   summary?: string; // Short description for command list; defaults to description
   hidden?: boolean; // Hide from help text
-  positionals?: Record<string, PositionalDef>;
-  options?: Record<string, OptionDef>;
+  positionals?: Positionals;
+  options?: Options;
   commands?: Record<string, CommandDef>;
   handler?: (argv: any) => void | Promise<void>;
 };
@@ -32,17 +36,15 @@ export type CommandDef = {
 export type CliDef = {
   name: string;
   description: string;
-  options?: Record<string, OptionDef>;
+  options?: Options;
   commands: Record<string, CommandDef>;
 };
-
-const isSearchCommand = (s: string) => s.toLowerCase().includes("search");
 
 function usage(def: CommandDef | CliDef, path: string[], t: Theme): string {
   const parts: string[] = [];
   const last = path.length - 1;
   for (let i = 0; i < path.length; i++) {
-    const fmt = i === last && isSearchCommand(path[i]!) ? t.guide : t.command;
+    const fmt = t.command;
     parts.push(i === last ? fmt(path[i]!) : path[i]!);
   }
 
@@ -136,7 +138,7 @@ export function help(
       if (v.hidden) continue;
       const args = v.positionals ? Object.keys(v.positionals).join(" ") : "";
       rows.push([`  ${k}`, args, v.summary ?? v.description]);
-      rowCmdFmt.push(isSearchCommand(k) ? t.guide : t.command);
+      rowCmdFmt.push(t.command);
     }
     let ri = 0;
     cols(rows, [(s) => rowCmdFmt[ri++]!(s), t.arg, t.description]);

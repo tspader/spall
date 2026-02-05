@@ -68,6 +68,10 @@ _spall() {
         compadd -Q -S '' -- "${dirs[@]}"
       fi
       ;;
+    sync)
+      # Complete filesystem directories for `spall sync <dir>`
+      _files -/
+      ;;
   esac
 }
 

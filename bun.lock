@@ -58,6 +58,9 @@
     "packages/integration": {
       "name": "@spall/integration",
       "version": "0.0.1",
+      "devDependencies": {
+        "@types/bun": "catalog:",
+      },
     },
     "packages/sdk": {
       "name": "@spall/sdk",

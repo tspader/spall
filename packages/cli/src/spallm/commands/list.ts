@@ -1,7 +1,6 @@
-import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
-  createEphemeralQuery,
+  List,
   noteDirEntries,
   noteTreeEntries,
   printQueryId,
@@ -23,48 +22,19 @@ Example:
     },
   },
   options: {
+    ...List.options,
     corpus: {
       alias: "c",
       type: "string",
       description: "Corpus name (default: from spall.json)",
     },
-    all: {
-      type: "boolean",
-      description: "List all files (default: directories only)",
-      default: false,
-    },
   },
   handler: async (argv) => {
-    const client = await Client.connect();
-
-    const { query } = await createEphemeralQuery({
-      client,
+    const { query, notes } = await List.run({
+      path: argv.path,
       corpus: (argv as any).corpus,
       tracked: true,
     });
-
-    // normalize path: if doesn't end with glob char, treat as prefix
-    let path = String(argv.path ?? "*");
-    if (!/[*?\]]$/.test(path)) {
-      path = path.replace(/\/?$/, "/*");
-    }
-
-    type NoteInfo = { id: number; path: string };
-    type Page = { notes: NoteInfo[]; nextCursor: string | null };
-    const notes: NoteInfo[] = [];
-    let cursor: string | undefined = undefined;
-
-    while (true) {
-      const page: Page = await client.query
-        .notes({ id: String(query.id), path, limit: 100, after: cursor })
-        .then(Client.unwrap);
-
-      for (const n of page.notes) notes.push({ id: n.id, path: n.path });
-      if (!page.nextCursor) break;
-      cursor = page.nextCursor;
-    }
-
-    notes.sort((a, b) => a.path.localeCompare(b.path));
 
     if (notes.length === 0) {
       console.log("(no notes)");

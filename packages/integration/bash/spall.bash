@@ -57,6 +57,16 @@ _spall_completions() {
         compopt -o nospace
       fi
       ;;
+    sync)
+      # Complete filesystem directories for `spall sync <dir>`
+      if [[ "$cur" == -* ]]; then
+        return
+      fi
+
+      COMPREPLY=($(compgen -d -- "$cur"))
+      # Don't add a space after directories so users can keep tabbing
+      compopt -o nospace -o dirnames 2>/dev/null
+      ;;
   esac
 }
 

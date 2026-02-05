@@ -1,13 +1,4 @@
-import { Client } from "@spall/sdk/client";
-import {
-  type CommandDef,
-  createEphemeralQuery,
-  displayResults,
-} from "@spall/cli/shared";
-
-function collapseWhitespace(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
-}
+import { type CommandDef, displayResults, Vsearch } from "@spall/cli/shared";
 
 function rgb(r: number, g: number, b: number): (s: string) => string {
   return (s: string) => `\x1b[38;2;${r};${g};${b}m${s}\x1b[39m`;
@@ -34,40 +25,19 @@ function hsvToRgb(h: number, s: number, v: number): [number, number, number] {
 }
 
 function heatColor(score: number): (s: string) => string {
-  // nonlinearly spread 0.5-0.8 range, concentrate high values
   const shifted = (score - 0.5) / 0.35;
   const t = Math.max(0, Math.min(1, shifted));
   const sat = t * t;
-
-  // Fixed hue (140 = green), vary saturation, fixed value
   const [r, g, b] = hsvToRgb(140, sat, 0.85);
   return rgb(r, g, b);
 }
 
 export const vsearch: CommandDef = {
-  description: "Semantic search (vector)",
-  positionals: {
-    query: {
-      type: "string",
-      description: "Search query",
-      required: true,
-    },
-  },
+  summary: Vsearch.summary,
+  description: Vsearch.description("spall"),
+  positionals: Vsearch.positionals,
   options: {
-    corpus: {
-      alias: "c",
-      type: "string",
-      description: "Corpus name",
-    },
-    path: {
-      type: "string",
-      description: "Path glob filter (default: *)",
-    },
-    limit: {
-      alias: "n",
-      type: "number",
-      description: "Maximum number of results (default: 20)",
-    },
+    ...Vsearch.options,
     output: {
       alias: "o",
       type: "string",
@@ -78,33 +48,24 @@ export const vsearch: CommandDef = {
   handler: async (argv) => {
     const out = String(argv.output ?? "table");
 
-    const client = await Client.connect();
-
-    const { query } = await createEphemeralQuery({
-      client,
+    const { results } = await Vsearch.run({
+      query: argv.query,
       corpus: (argv as any).corpus,
+      path: argv.path,
+      limit: argv.limit,
       tracked: false,
     });
 
-    const res = await client.query
-      .vsearch({
-        id: String(query.id),
-        q: argv.query,
-        path: argv.path,
-        limit: argv.limit,
-      })
-      .then(Client.unwrap);
-
     const scoreMap = new Map(
-      res.results.map((r: any, i: number) => [i, r.score as number]),
+      results.map((r: any, i: number) => [i, r.score as number]),
     );
 
-    displayResults(res.results, {
+    displayResults(results, {
       output: out,
       empty: "(no matches)",
       path: (r: any) => r.path,
       id: (r: any) => String(r.id),
-      preview: (r: any) => collapseWhitespace(r.chunk),
+      preview: (r: any) => Vsearch.collapseWhitespace(r.chunk),
       extraColumns: [
         {
           header: "score",

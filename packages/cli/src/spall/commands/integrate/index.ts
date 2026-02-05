@@ -3,6 +3,7 @@ import * as prompts from "@clack/prompts";
 import type { CommandDef } from "@spall/cli/shared";
 
 import { bash, zsh } from "./shell";
+import { opencode } from "./opencode";
 
 export type Integration = {
   label: string;
@@ -13,10 +14,11 @@ export type Integration = {
 const integrations: Record<string, Integration> = {
   bash,
   zsh,
+  opencode,
 };
 
 export const integrate: CommandDef = {
-  description: "Set up integrations",
+  description: "Set up integrations with third party tools",
   handler: async () => {
     prompts.intro("Integrations");
 

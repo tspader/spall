@@ -5,5 +5,11 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts"
+  },
+  "scripts": {
+    "build": "bun run claude/build.ts"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:"
   }
 }
