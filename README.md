@@ -26,9 +26,9 @@ Add an empty corpus
 spall corpus create cloudflare
 ```
 
-Populate or create a corpus from existing documents, interactively
+Populate or create a corpus from existing documents, interactively. If you'd like to follow along, clone the [Cloudflare docs](https://github.com/cloudflare/cloudflare-docs/tree/production). I really ought to pick a smaller repository.
 ```bash
-spall sync path/to/docs
+spall sync path/to/cloudflare-docs/src/content/docs/workers
 ```
 
 Explore the shape of the workspace's corpora, plus any additional relevant ones. Completions work with the corpus.
