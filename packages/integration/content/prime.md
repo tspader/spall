@@ -1,27 +1,27 @@
-Spall is a fast, local, searchable, self-updating memory for LLMs. It provides a CLI, `spallm`. Use it in place of AGENTS.md, CLAUDE.md, unstructured Markdown documentation, and brittle comments in code. This skill provides a basic motivation and usage guide.
-
-# Use Cases
-- Style guides and formatting instructions
-- Build and test instructions
-- Manual testing workflows
-- High level maps of the codebase
-- Design documentation
-- Decisions or tradeoffs made while developing
-- Internal documentation
+Spall is a fast, local, searchable, self-updating memory for LLMs. It provides a CLI, `spallm`. Use it in place of AGENTS.md, CLAUDE.md, unstructured Markdown documentation, and brittle comments in code. This skill provides a basic guide.
 
 # Motivation
 Loose Markdown files and source comments rot, and are hard to search. Context -- designs, decisions, workarounds, usage guides -- are the most important thing for you, the LLM. `spall` provides fast, searchable corpora which are automatically kept up to date.
 
 Anything which you, or another developer, may need to reference should be stored in `spall`. Rule of thumb: If you would include a piece of information when prompting a fresh LLM to complete your task, put it in `spall`.
 
+# Use Cases
+- Style guides and formatting instructions
+- Build and test instructions
+- Manual testing workflows
+- Design documentation
+- Decisions or tradeoffs made while developing
+- Internal documentation
+
 # Overview
-- Documents are organized in a directory structure into a corpus. Each document within a corpus has a unique path
+- Documents are organized in a directory structure into corpora. Each document within a corpus has a unique path
 - The core workflow is:
-  - Use broad queries (e.g. `list`, `search`, `vsearch`) to find candidate documents
+  - Explore the corpus structure with `list`
+  - Use `search` and `vsearch` to find candidate documents
   - Use `fetch` to retrieve specific, full documents
 - Queries return a query ID. To `fetch` documents, you must provide your query ID
 - Use in addition to `grep`, not as a replacement
-- Documents are automatically kept up to date, and age out if not used. It is therefore preferable to be liberal rather than conservative with what is stored in `spall`
+- Documents are automatically kept up to date, and age out if not used. It is therefore preferable to be liberal rather than conservative when deciding whether to add documents to a  `spall` corpus
 
 # Workflows
 We'll use Cloudflare Workers documentation when we need an example corpus.

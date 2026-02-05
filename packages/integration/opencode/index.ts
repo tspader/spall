@@ -4,7 +4,7 @@ export const SpallPlugin: Plugin = async ({ $ }) => {
   return {
     tool: {
       spall_prime: tool({
-        description: "spall usage primer. Always run before using spall.",
+        description: "Usage guide for spall (a fast, searchable document database and persistent LLM memory). You must call this tool before using spall.",
         args: {},
         async execute() {
           return await $`spallm prime`.text();
