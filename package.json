@@ -22,7 +22,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "tui": "bun run --cwd packages/tui src/App.tsx",
-    "cli": "bun run packages/cli/src/index.ts"
+    "cli": "bun run packages/cli/src/index.ts",
+    "link": "cd packages/cli && bun link"
   },
   "devDependencies": {
     "@tsconfig/bun": "catalog:",

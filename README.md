@@ -1,7 +1,8 @@
 # install
 ```bash
 bun install
-bun run cli
+bun run link
+spall --help
 ```
 
 `spall` uses small (less than a billion parameter) LLMs for embedding and reranking. These models have to be loaded into memory, which takes a few seconds.
