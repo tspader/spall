@@ -12,3 +12,4 @@ export { search } from "./search";
 export { sync } from "./sync";
 export { tui } from "./tui";
 export { vsearch } from "./vsearch";
+export { status } from "./status";

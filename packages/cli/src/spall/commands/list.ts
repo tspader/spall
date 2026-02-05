@@ -44,7 +44,7 @@ export const list: CommandDef = {
         includeNames[0] === "default"
       ) {
         console.log(
-          `hint: no workspace found, only searched default corpus. run ${theme.code("spall corpus list")} to check workspace scope, or ${theme.code("spall workspace init")} to create a workspace)`,
+          `hint: no workspace found, only searched default corpus. run ${theme.code("spall status")} to check workspace scope, or ${theme.code("spall workspace init")} to create a workspace)`,
         );
       }
       return;

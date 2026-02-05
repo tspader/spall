@@ -1,5 +1,10 @@
 import consola from "consola";
-import { table, type CommandDef, Status } from "@spall/cli/shared";
+import {
+  table,
+  defaultTheme as theme,
+  type CommandDef,
+  Status,
+} from "@spall/cli/shared";
 
 export const status: CommandDef = {
   summary: Status.summary,
@@ -28,6 +33,20 @@ export const status: CommandDef = {
         corpora.map((p) => Status.formatTime(p.createdAt)),
         corpora.map((p) => Status.formatTime(p.updatedAt)),
       ],
+      {
+        format: [
+          undefined!,
+          undefined!,
+          undefined!,
+          (s: string) => {
+            const trimmed = s.trimEnd();
+            const pad = s.slice(trimmed.length);
+            return trimmed === "yes" ? theme.primary("yes") + pad : "no" + pad;
+          },
+          undefined!,
+          undefined!,
+        ],
+      },
     );
   },
 };

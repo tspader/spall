@@ -13,6 +13,7 @@ import {
   list,
   search,
   sync,
+  status,
   tui,
   vsearch,
 } from "./commands";
@@ -25,6 +26,7 @@ const cliDef: CliDef = {
     add,
     get,
     list,
+    status,
     search,
     vsearch,
     sync,
