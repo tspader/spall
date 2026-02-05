@@ -42,7 +42,10 @@ export const WorkspaceConfigSchemaZod = z.object({
     name: z.string().describe("Workspace name"),
     id: z.number().int().positive().optional().describe("Cached workspace ID"),
   }),
-  include: z.array(z.string()).describe("List of included corpora"),
+  scope: z.object({
+    read: z.array(z.string()).describe("List of corpora used for reads"),
+    write: z.string().describe("Default corpus used for writes"),
+  }),
 });
 
 // TypeScript types inferred from Zod schemas
@@ -62,6 +65,13 @@ export type PartialWorkspaceConfig = {
     name?: string;
     id?: number;
   };
+  scope?: {
+    read?: string[];
+    write?: string;
+  };
+};
+
+type PartialWorkspaceFileConfig = PartialWorkspaceConfig & {
   include?: string[];
 };
 
@@ -94,7 +104,10 @@ function getWorkspaceDefaults(): WorkspaceConfigSchema {
       name: "default",
       id: undefined,
     },
-    include: ["default"],
+    scope: {
+      read: ["default"],
+      write: "default",
+    },
   };
 }
 
@@ -192,7 +205,10 @@ export namespace WorkspaceConfig {
         name: values.workspace?.name ?? current.workspace.name,
         id: values.workspace?.id ?? current.workspace.id,
       },
-      include: values.include ?? current.include,
+      scope: {
+        read: values.scope?.read ?? current.scope.read,
+        write: values.scope?.write ?? current.scope.write,
+      },
     };
     write(root, next);
     // keep cache coherent
@@ -220,9 +236,22 @@ export namespace WorkspaceConfig {
     try {
       if (existsSync(configPath)) {
         const rawConfig = JSON.parse(readFileSync(configPath, "utf-8"));
-        // Validate using Zod
-        const fileConfig: PartialWorkspaceConfig =
-          WorkspaceConfigSchemaZod.partial().parse(rawConfig);
+        // Validate using Zod. Accept legacy `include` shape for backwards compatibility.
+        const fileConfig: PartialWorkspaceFileConfig = z
+          .object({
+            workspace: WorkspaceConfigSchemaZod.shape.workspace
+              .partial()
+              .optional(),
+            scope: WorkspaceConfigSchemaZod.shape.scope.partial().optional(),
+            include: z.array(z.string()).optional(),
+          })
+          .partial()
+          .parse(rawConfig);
+
+        const read =
+          fileConfig.scope?.read ?? fileConfig.include ?? defaults.scope.read;
+        const write =
+          fileConfig.scope?.write ?? read[0] ?? defaults.scope.write;
 
         config = {
           workspace: {
@@ -232,7 +261,7 @@ export namespace WorkspaceConfig {
               defaults.workspace.name,
             id: fileConfig.workspace?.id,
           },
-          include: fileConfig.include ?? defaults.include,
+          scope: { read, write },
         };
       } else {
         config = {
@@ -240,7 +269,7 @@ export namespace WorkspaceConfig {
             name: basename(root) ?? defaults.workspace.name,
             id: undefined,
           },
-          include: defaults.include,
+          scope: defaults.scope,
         };
       }
     } catch {
@@ -249,7 +278,7 @@ export namespace WorkspaceConfig {
           name: basename(root) ?? defaults.workspace.name,
           id: undefined,
         },
-        include: defaults.include,
+        scope: defaults.scope,
       };
     }
 

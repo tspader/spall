@@ -248,7 +248,7 @@ describe("spall get", () => {
     expect(printed).toContain("(...truncated)");
   });
 
-  test("uses WorkspaceConfig include when --corpus not specified", async () => {
+  test("uses WorkspaceConfig scope.read when --corpus not specified", async () => {
     const originalLog = console.log;
     console.log = () => {};
     mkdirSync(join(tmpDir, ".spall"), { recursive: true });
@@ -256,7 +256,7 @@ describe("spall get", () => {
       join(tmpDir, ".spall", "spall.json"),
       JSON.stringify({
         workspace: { name: "default" },
-        include: ["default", "docs"],
+        scope: { read: ["default", "docs"], write: "docs" },
       }),
     );
 
@@ -286,7 +286,7 @@ describe("spall get", () => {
       join(tmpDir, ".spall", "spall.json"),
       JSON.stringify({
         workspace: { name: "default" },
-        include: ["default", "docs", "other"],
+        scope: { read: ["default", "docs", "other"], write: "docs" },
       }),
     );
 

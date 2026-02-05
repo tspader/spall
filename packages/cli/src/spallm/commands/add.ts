@@ -32,7 +32,7 @@ Example:
     const client = await Client.connect();
 
     const corpusName: string =
-      (argv as any).corpus ?? WorkspaceConfig.load(process.cwd()).include[0];
+      (argv as any).corpus ?? WorkspaceConfig.load(process.cwd()).scope.write;
 
     const corpus = await client.corpus
       .get({ name: corpusName })

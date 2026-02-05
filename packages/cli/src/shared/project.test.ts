@@ -76,13 +76,13 @@ describe("cli workspace scope", () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  test("defaults to include list from config when no --corpus override", async () => {
+  test("defaults to read scope from config when no --corpus override", async () => {
     mkdirSync(join(dir, ".spall"), { recursive: true });
     writeFileSync(
       join(dir, ".spall", "spall.json"),
       JSON.stringify({
         workspace: { name: "repo" },
-        include: ["default", "docs"],
+        scope: { read: ["default", "docs"], write: "docs" },
       }),
     );
 
@@ -106,7 +106,7 @@ describe("cli workspace scope", () => {
       join(dir, ".spall", "spall.json"),
       JSON.stringify({
         workspace: { name: "repo" },
-        include: ["default", "docs"],
+        scope: { read: ["default", "docs"], write: "docs" },
       }),
     );
 
@@ -128,7 +128,10 @@ describe("cli workspace scope", () => {
     writeFileSync(
       join(dir, ".spall", "spall.json"),
       JSON.stringify(
-        { workspace: { name: "repo", id: 999 }, include: ["default"] },
+        {
+          workspace: { name: "repo", id: 999 },
+          scope: { read: ["default"], write: "default" },
+        },
         null,
         2,
       ),
@@ -153,7 +156,7 @@ describe("cli workspace scope", () => {
       join(dir, ".spall", "spall.json"),
       JSON.stringify({
         workspace: { name: "repo" },
-        include: ["default", "docs"],
+        scope: { read: ["default", "docs"], write: "default" },
       }),
     );
 
@@ -179,7 +182,10 @@ describe("cli workspace scope", () => {
     mkdirSync(join(dir, ".spall"), { recursive: true });
     writeFileSync(
       join(dir, ".spall", "spall.json"),
-      JSON.stringify({ workspace: { name: "repo" }, include: ["missing"] }),
+      JSON.stringify({
+        workspace: { name: "repo" },
+        scope: { read: ["missing"], write: "missing" },
+      }),
     );
 
     await expect(

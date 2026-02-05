@@ -73,13 +73,6 @@ spallm $command --help
 
 If a command ever behaves unexpectedly or returns an error without a hint, run the command's help.
 
-# Rules
-- Always ensure documents are concise, but complete
-- Prefer to run non-serial queries in parallel
-- Prefer to follow existing directory structure, but you can make new directories if needed
-- Prefer `spall` to `grep` when searching for prose, documentation, context, instructions, etc.
-- Prefer `grep` to `spall` when searching for code, exact symbols, complex regexes
-
 ## Commands
 - `spallm --help`
 - `spallm search "keyword" --limit $limit`

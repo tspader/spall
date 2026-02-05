@@ -1,8 +1,7 @@
 import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
-  createEphemeralQuery,
-  defaultTheme as theme,
+  createQuery,
 } from "@spall/cli/shared";
 
 export const query: CommandDef = {
@@ -20,18 +19,18 @@ export const query: CommandDef = {
       handler: async (argv) => {
         const client = await Client.connect();
 
-        const { query: result, includeNames } = await createEphemeralQuery({
+        const { query, names } = await createQuery({
           client,
-          corpus: (argv as any).corpus,
+          corpus: argv.corpus,
           tracked: true,
         });
 
         console.log(
           JSON.stringify(
             {
-              queryId: result.id,
-              corpora: includeNames,
-              hint: `Use --query ${result.id} with vsearch and fetch commands.`,
+              queryId: query.id,
+              corpora: names,
+              hint: `Use --query ${query.id} with vsearch and fetch commands.`,
             },
             null,
             2,

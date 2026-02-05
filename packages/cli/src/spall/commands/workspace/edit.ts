@@ -30,14 +30,14 @@ export const edit: CommandDef = {
       })
       .sort((a, b) => a.label.localeCompare(b.label));
 
-    prompts.intro("Workspace include");
+    prompts.intro("Workspace scope");
 
     const picked = await prompts.autocompleteMultiselect<string>({
-      message: "Select corpora to include by default (type to filter)",
+      message: "Select corpora to include in read scope (type to filter)",
       options,
       placeholder: "Type to filter...",
       maxItems: 12,
-      initialValues: cfg.include.filter((c) =>
+      initialValues: cfg.scope.read.filter((c) =>
         options.some((o) => o.value === c),
       ),
       required: true,
@@ -53,9 +53,22 @@ export const edit: CommandDef = {
     ) {
       throw new Error("Unexpected autocompleteMultiselect result");
     }
-    const include = picked;
+    const read = picked;
 
-    WorkspaceConfig.patch(located.root, { include });
-    prompts.outro("Updated workspace include list");
+    const write = await prompts.select<string>({
+      message: "Select default corpus for writes",
+      options: read.map((name) => ({ label: name, value: name })),
+      initialValue: read.includes(cfg.scope.write) ? cfg.scope.write : read[0],
+    });
+
+    if (prompts.isCancel(write)) {
+      prompts.outro("Done");
+      return;
+    }
+
+    WorkspaceConfig.patch(located.root, {
+      scope: { read, write: String(write) },
+    });
+    prompts.outro("Updated workspace scope");
   },
 };

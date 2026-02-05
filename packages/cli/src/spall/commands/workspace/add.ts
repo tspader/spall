@@ -6,7 +6,7 @@ import { Client } from "@spall/sdk/client";
 import type { CommandDef } from "@spall/cli/shared";
 
 export const add: CommandDef = {
-  description: "Add a corpus to the workspace include list",
+  description: "Add a corpus to the workspace read scope",
   positionals: {
     corpus: {
       type: "string",
@@ -32,10 +32,10 @@ export const add: CommandDef = {
     // Ensure corpus exists (get-or-create).
     await client.corpus.create({ name }).then(Client.unwrap);
     const cfg = WorkspaceConfig.load(located.root);
-    const include = cfg.include.includes(name)
-      ? cfg.include
-      : [...cfg.include, name];
-    WorkspaceConfig.patch(located.root, { include });
+    const read = cfg.scope.read.includes(name)
+      ? cfg.scope.read
+      : [...cfg.scope.read, name];
+    WorkspaceConfig.patch(located.root, { scope: { read } });
 
     consola.success(`Included corpus: ${name}`);
   },

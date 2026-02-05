@@ -7,7 +7,7 @@ import {
   type ConfigSchema,
   ConfigSchemaZod,
   WorkspaceConfigSchemaZod,
-  WorkspaceConfig
+  WorkspaceConfig,
 } from "./config";
 
 // Use a non-existent path for tests to ensure isolation from user config
@@ -201,7 +201,7 @@ describe("WorkspaceConfigSchemaZod", () => {
   test("validates a complete workspace config", () => {
     const validConfig = {
       workspace: { name: "repo", id: 123 },
-      include: ["default", "docs"],
+      scope: { read: ["default", "docs"], write: "docs" },
     };
 
     const result = WorkspaceConfigSchemaZod.safeParse(validConfig);
@@ -211,27 +211,27 @@ describe("WorkspaceConfigSchemaZod", () => {
   test("allows omitting cached workspace id", () => {
     const validConfig = {
       workspace: { name: "repo" },
-      include: ["default"],
+      scope: { read: ["default"], write: "default" },
     };
 
     const result = WorkspaceConfigSchemaZod.safeParse(validConfig);
     expect(result.success).toBe(true);
   });
 
-  test("rejects include that is not an array", () => {
+  test("rejects scope.read that is not an array", () => {
     const invalidConfig = {
       workspace: { name: "repo" },
-      include: "default", // should be array
+      scope: { read: "default", write: "default" },
     };
 
     const result = WorkspaceConfigSchemaZod.safeParse(invalidConfig);
     expect(result.success).toBe(false);
   });
 
-  test("rejects include with non-string items", () => {
+  test("rejects scope.read with non-string items", () => {
     const invalidConfig = {
       workspace: { name: "repo" },
-      include: ["default", 123, "docs"],
+      scope: { read: ["default", 123, "docs"], write: "default" },
     };
 
     const result = WorkspaceConfigSchemaZod.safeParse(invalidConfig);
@@ -269,7 +269,58 @@ describe("WorkspaceConfig", () => {
     expect(located!.path).toBe(join(dir, ".spall", "spall.json"));
   });
 
-  test("load() reads workspace identity and include list", () => {
+  test("load() reads workspace identity and scope", () => {
+    mkdirSync(join(dir, ".spall"), { recursive: true });
+    writeFileSync(
+      join(dir, ".spall", "spall.json"),
+      JSON.stringify(
+        {
+          workspace: { name: "repo", id: 123 },
+          scope: { read: ["default", "docs"], write: "docs" },
+        },
+        null,
+        2,
+      ),
+    );
+
+    const cfg = WorkspaceConfig.load(dir);
+    expect(cfg.workspace.name).toBe("repo");
+    expect(cfg.workspace.id).toBe(123);
+    expect(cfg.scope.read).toEqual(["default", "docs"]);
+    expect(cfg.scope.write).toBe("docs");
+  });
+
+  test("patch() updates file and cache coherently", () => {
+    mkdirSync(join(dir, ".spall"), { recursive: true });
+    writeFileSync(
+      join(dir, ".spall", "spall.json"),
+      JSON.stringify(
+        {
+          workspace: { name: "repo", id: 111 },
+          scope: { read: ["default"], write: "default" },
+        },
+        null,
+        2,
+      ),
+    );
+
+    WorkspaceConfig.patch(dir, { workspace: { id: 222 } });
+    const cfg = WorkspaceConfig.load(dir);
+    expect(cfg.workspace.name).toBe("repo");
+    expect(cfg.workspace.id).toBe(222);
+    expect(cfg.scope.read).toEqual(["default"]);
+    expect(cfg.scope.write).toBe("default");
+  });
+
+  test("load() uses defaults when no workspace found", () => {
+    const cfg = WorkspaceConfig.load(dir);
+    expect(cfg.workspace.name).toBe("default");
+    expect(cfg.workspace.id).toBeUndefined();
+    expect(cfg.scope.read).toEqual(["default"]);
+    expect(cfg.scope.write).toBe("default");
+  });
+
+  test("load() maps legacy include to scope.read and scope.write", () => {
     mkdirSync(join(dir, ".spall"), { recursive: true });
     writeFileSync(
       join(dir, ".spall", "spall.json"),
@@ -284,37 +335,7 @@ describe("WorkspaceConfig", () => {
     );
 
     const cfg = WorkspaceConfig.load(dir);
-    expect(cfg.workspace.name).toBe("repo");
-    expect(cfg.workspace.id).toBe(123);
-    expect(cfg.include).toEqual(["default", "docs"]);
-  });
-
-  test("patch() updates file and cache coherently", () => {
-    mkdirSync(join(dir, ".spall"), { recursive: true });
-    writeFileSync(
-      join(dir, ".spall", "spall.json"),
-      JSON.stringify(
-        {
-          workspace: { name: "repo", id: 111 },
-          include: ["default"],
-        },
-        null,
-        2,
-      ),
-    );
-
-    WorkspaceConfig.patch(dir, { workspace: { id: 222 } });
-    const cfg = WorkspaceConfig.load(dir);
-    expect(cfg.workspace.name).toBe("repo");
-    expect(cfg.workspace.id).toBe(222);
-    expect(cfg.include).toEqual(["default"]);
-  });
-
-  test("load() uses defaults when no workspace found", () => {
-    const cfg = WorkspaceConfig.load(dir);
-    expect(cfg.workspace.name).toBe("default");
-    expect(cfg.workspace.id).toBeUndefined();
-    expect(cfg.include).toEqual(["default"]);
+    expect(cfg.scope.read).toEqual(["default", "docs"]);
+    expect(cfg.scope.write).toBe("default");
   });
 });
-

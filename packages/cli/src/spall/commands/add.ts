@@ -39,9 +39,7 @@ export const add: CommandDef = {
     const client = await Client.connect();
 
     const corpusName: string =
-      (argv as any).corpus ??
-      WorkspaceConfig.load(process.cwd()).include[0] ??
-      "default";
+      (argv as any).corpus ?? WorkspaceConfig.load(process.cwd()).scope.write;
 
     const corpus = await client.corpus
       .get({ name: corpusName })
@@ -75,7 +73,7 @@ export const add: CommandDef = {
       const { stream } = await client.sse.note.update({
         id: existing.id.toString(),
         content: argv.text,
-        dupe: true
+        dupe: true,
       });
 
       let result: {
@@ -104,7 +102,7 @@ export const add: CommandDef = {
         path: argv.path,
         content: argv.text,
         corpus: corpus.id,
-        dupe: true
+        dupe: true,
       });
 
       let result: {

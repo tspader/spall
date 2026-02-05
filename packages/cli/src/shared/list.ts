@@ -1,7 +1,6 @@
 import { Client } from "@spall/sdk/client";
-import { createEphemeralQuery } from "./workspace";
+import { createQuery } from "./workspace";
 import type { Options, Positionals } from "./yargs";
-import consola from "consola";
 
 export namespace List {
   export const positionals: Positionals = {
@@ -52,7 +51,7 @@ export namespace List {
   }) {
     const client = await Client.connect();
 
-    const { query, located, includeNames } = await createEphemeralQuery({
+    const { query, located, names: includeNames } = await createQuery({
       client,
       corpus: argv.corpus,
       tracked: argv.tracked,

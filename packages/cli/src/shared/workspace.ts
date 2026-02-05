@@ -4,12 +4,12 @@ import { Client, type SpallClient } from "@spall/sdk/client";
 
 import { defaultTheme as theme } from "./theme";
 
-export type ResolvedProjectScope = {
+export type ResolvedScope = {
   config: WorkspaceConfigSchema;
   located: WorkspaceConfig.Located | null;
   viewer: { id: number; name: string };
-  includeNames: string[];
-  includeIds: number[];
+  names: string[];
+  ids: number[];
 };
 
 function fail(message: string): never {
@@ -34,23 +34,22 @@ export async function gitRoot(start: string): Promise<string | null> {
   }
 }
 
-export async function resolveProjectScope(input: {
+export async function resolveScope(input: {
   client: SpallClient;
   cwd?: string;
   corpus?: string;
   tracked?: boolean;
-}): Promise<ResolvedProjectScope> {
+}): Promise<ResolvedScope> {
   const cwd = input.cwd ?? process.cwd();
   const config = WorkspaceConfig.load(cwd);
   const located = WorkspaceConfig.locate(cwd);
 
-  const includeNames: string[] = input.corpus ? [input.corpus] : config.include;
+  const names: string[] = input.corpus
+    ? [input.corpus]
+    : config.scope.read;
 
   const tracked = input.tracked ?? false;
 
-  // Viewer workspace:
-  // - For tracked queries, require an actual workspace config (a `.spall/spall.json` located).
-  // - Otherwise, use the built-in default workspace (id: 1, name: "default").
   let viewer: { id: number; name: string } = { id: 1, name: "default" };
   if (tracked && located) {
     const ensured = await input.client.workspace
@@ -71,7 +70,7 @@ export async function resolveProjectScope(input: {
   }[];
   const byName = new Map(corpora.map((c) => [c.name, c.id]));
 
-  const includeIds = includeNames.map((name) => {
+  const ids = names.map((name) => {
     const id = byName.get(name);
     if (id === undefined) {
       fail(`Corpus not found: ${theme.command(name)}`);
@@ -79,16 +78,16 @@ export async function resolveProjectScope(input: {
     return id;
   });
 
-  return { config, located, viewer, includeNames, includeIds };
+  return { config, located, viewer, names, ids };
 }
 
-export async function createEphemeralQuery(input: {
+export async function createQuery(input: {
   client: SpallClient;
   cwd?: string;
   corpus?: string;
   tracked?: boolean;
-}): Promise<ResolvedProjectScope & { query: any }> {
-  const scope = await resolveProjectScope({
+}): Promise<ResolvedScope & { query: any }> {
+  const scope = await resolveScope({
     client: input.client,
     cwd: input.cwd,
     corpus: input.corpus,
@@ -100,7 +99,7 @@ export async function createEphemeralQuery(input: {
     .create({
       viewer: scope.viewer.id,
       tracked,
-      corpora: scope.includeIds,
+      corpora: scope.ids,
     })
     .then(Client.unwrap);
   return { ...scope, query };

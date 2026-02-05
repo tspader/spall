@@ -1,5 +1,5 @@
 import { Client } from "@spall/sdk/client";
-import { createEphemeralQuery } from "./workspace";
+import { createQuery } from "./workspace";
 import { defaultTheme as theme } from "./theme";
 import type { Positionals, Options } from "./yargs";
 
@@ -55,7 +55,7 @@ Example:
   }) {
     const client = await Client.connect();
 
-    const { query } = await createEphemeralQuery({
+    const { query } = await createQuery({
       client,
       corpus: argv.corpus,
       tracked: argv.tracked,

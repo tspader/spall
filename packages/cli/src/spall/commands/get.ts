@@ -1,7 +1,7 @@
 import { Client } from "@spall/sdk/client";
 import {
   type CommandDef,
-  createEphemeralQuery,
+  createQuery,
   displayResults,
   help,
 } from "@spall/cli/shared";
@@ -40,7 +40,7 @@ export const get: CommandDef = {
   handler: async (argv) => {
     const client = await Client.connect();
 
-    const { query } = await createEphemeralQuery({
+    const { query } = await createQuery({
       client,
       corpus: (argv as any).corpus,
       tracked: false,

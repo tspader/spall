@@ -33,10 +33,10 @@ export {
 } from "./progress";
 
 export {
-  resolveProjectScope,
+  resolveScope,
   gitRoot,
-  createEphemeralQuery,
-  type ResolvedProjectScope,
+  createQuery,
+  type ResolvedScope as ResolvedProjectScope,
 } from "./workspace";
 
 export {

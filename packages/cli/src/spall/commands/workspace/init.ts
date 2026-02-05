@@ -113,7 +113,7 @@ export const init: CommandDef = {
       spinner.stop("Workspace created");
 
       const picked = await prompts.autocompleteMultiselect<string>({
-        message: "Select corpora to include by default (type to filter)",
+        message: "Select corpora to include in read scope (type to filter)",
         options,
         placeholder: "Type to filter...",
         maxItems: 12,
@@ -131,11 +131,24 @@ export const init: CommandDef = {
       ) {
         throw new Error("Unexpected autocompleteMultiselect result");
       }
-      const include = picked;
+      const read = picked;
+
+      const write = await prompts.select<string>({
+        message: "Select default corpus for writes",
+        options: read.map((name) => ({ label: name, value: name })),
+        initialValue:
+          (corpusName && read.includes(corpusName) ? corpusName : undefined) ??
+          (read.includes("default") ? "default" : read[0]),
+      });
+
+      if (prompts.isCancel(write)) {
+        prompts.outro("Done");
+        return;
+      }
 
       const next: WorkspaceConfigSchema = {
         workspace: { name: ws.name, id: ws.id },
-        include,
+        scope: { read, write: String(write) },
       };
 
       WorkspaceConfig.write(root, next);

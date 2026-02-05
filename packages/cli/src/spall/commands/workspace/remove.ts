@@ -4,7 +4,7 @@ import { WorkspaceConfig } from "@spall/core";
 import type { CommandDef } from "@spall/cli/shared";
 
 export const remove: CommandDef = {
-  description: "Remove a corpus from the workspace include list",
+  description: "Remove a corpus from the workspace read scope",
   positionals: {
     corpus: {
       type: "string",
@@ -26,8 +26,10 @@ export const remove: CommandDef = {
     }
 
     const cfg = WorkspaceConfig.load(located.root);
-    const include = cfg.include.filter((c) => c !== name);
-    WorkspaceConfig.patch(located.root, { include });
+    const read = cfg.scope.read.filter((c) => c !== name);
+    const write =
+      cfg.scope.write === name ? (read[0] ?? "default") : cfg.scope.write;
+    WorkspaceConfig.patch(located.root, { scope: { read, write } });
     consola.success(`Removed corpus: ${name}`);
   },
 };
