@@ -15,6 +15,7 @@ import {
   sync,
   status,
   tui,
+  tuiDb,
   vsearch,
 } from "./commands";
 
@@ -35,6 +36,7 @@ const cliDef: CliDef = {
     corpus,
     serve,
     tui,
+    "tui-db": tuiDb,
     hook,
   },
 };

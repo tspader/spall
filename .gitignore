@@ -21,3 +21,4 @@ AGENTS.md
 docs
 .local
 test/
+packages/tui-db

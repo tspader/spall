@@ -73,7 +73,9 @@ spallm $command --help
 
 If a command ever behaves unexpectedly or returns an error without a hint, run the command's help.
 
-## Commands
+# Rules
+- Never add ad hoc metadata in document names (e.g. dates, IDs).
+# Commands
 - `spallm --help`
 - `spallm search "keyword" --limit $limit`
 - `spallm vsearch "natural language query" --limit $limit`

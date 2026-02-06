@@ -11,7 +11,7 @@ import { tmpdir } from "os";
 
 import consola from "consola";
 import { WorkspaceConfig } from "@spall/core";
-import { resolveProjectScope, createEphemeralQuery } from "./workspace";
+import { resolveScope, createQuery } from "./workspace";
 
 type Call = { method: string; args: any };
 
@@ -86,15 +86,15 @@ describe("cli workspace scope", () => {
       }),
     );
 
-    const scope = await resolveProjectScope({
+    const scope = await resolveScope({
       client: mockClient(calls),
       cwd: dir,
     });
 
     expect(scope.viewer.id).toBe(1);
     expect(scope.viewer.name).toBe("default");
-    expect(scope.includeNames).toEqual(["default", "docs"]);
-    expect(scope.includeIds).toEqual([1, 2]);
+    expect(scope.names).toEqual(["default", "docs"]);
+    expect(scope.ids).toEqual([1, 2]);
 
     const wsCreates = calls.filter((c) => c.method === "workspace.create");
     expect(wsCreates).toHaveLength(0);
@@ -110,14 +110,14 @@ describe("cli workspace scope", () => {
       }),
     );
 
-    const scope = await resolveProjectScope({
+    const scope = await resolveScope({
       client: mockClient(calls),
       cwd: dir,
       corpus: "other",
     });
 
-    expect(scope.includeNames).toEqual(["other"]);
-    expect(scope.includeIds).toEqual([3]);
+    expect(scope.names).toEqual(["other"]);
+    expect(scope.ids).toEqual([3]);
 
     const wsCreates = calls.filter((c) => c.method === "workspace.create");
     expect(wsCreates).toHaveLength(0);
@@ -137,7 +137,7 @@ describe("cli workspace scope", () => {
       ),
     );
 
-    await resolveProjectScope({
+    await resolveScope({
       client: mockClient(calls, { viewerId: 1 }),
       cwd: dir,
       tracked: true,
@@ -150,7 +150,7 @@ describe("cli workspace scope", () => {
     expect(raw.workspace.name).toBe("repo");
   });
 
-  test("createEphemeralQuery forwards viewer + corpora", async () => {
+  test("createQuery forwards viewer + corpora", async () => {
     mkdirSync(join(dir, ".spall"), { recursive: true });
     writeFileSync(
       join(dir, ".spall", "spall.json"),
@@ -160,7 +160,7 @@ describe("cli workspace scope", () => {
       }),
     );
 
-    const res = await createEphemeralQuery({
+    const res = await createQuery({
       client: mockClient(calls),
       cwd: dir,
       tracked: true,
@@ -189,7 +189,7 @@ describe("cli workspace scope", () => {
     );
 
     await expect(
-      resolveProjectScope({ client: mockClient(calls), cwd: dir }),
+      resolveScope({ client: mockClient(calls), cwd: dir }),
     ).rejects.toThrow(/exit:1/);
   });
 });

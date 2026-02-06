@@ -16,6 +16,7 @@ export namespace Note {
     id: Id,
     corpus: Corpus.Id,
     path: z.string(),
+    size: z.number(),
     content: z.string(),
     contentHash: z.string(),
   });
@@ -35,6 +36,7 @@ export namespace Note {
       id: z.number(),
       corpus_id: z.number(),
       path: z.string(),
+      size: z.number(),
       content: z.string(),
       content_hash: z.string(),
     })
@@ -43,6 +45,7 @@ export namespace Note {
         id: Id.parse(r.id),
         corpus: Corpus.Id.parse(r.corpus_id),
         path: r.path,
+        size: r.size,
         content: r.content,
         contentHash: r.content_hash,
       }),
@@ -81,11 +84,24 @@ export namespace Note {
     }
   }
 
+  class EmptyContentError extends Error.SpallError {
+    constructor(path: string) {
+      super("note.empty", `Note content cannot be empty: ${path}`);
+      this.name = "EmptyContentError";
+    }
+  }
+
   /////////////
   // HELPERS //
   /////////////
   function getHash(content: string): string {
     return Bun.hash(content).toString(16);
+  }
+
+  function assertNonEmptyContent(path: string, content: string): void {
+    if (content.length === 0) {
+      throw new EmptyContentError(path);
+    }
   }
 
   function checkDupe(
@@ -113,13 +129,22 @@ export namespace Note {
   ): Promise<Info> {
     const db = Store.get();
 
+    assertNonEmptyContent(path, content);
+
     await Model.load();
 
     const chunks = await Store.chunk(content);
 
     const inserted = db
       .prepare(Sql.INSERT_NOTE)
-      .get(corpusId, path, content, contentHash, Date.now()) as {
+      .get(
+        corpusId,
+        path,
+        content,
+        content.length,
+        contentHash,
+        Date.now(),
+      ) as {
       id: number;
     };
 
@@ -135,6 +160,7 @@ export namespace Note {
       id: Id.parse(inserted.id),
       corpus: Corpus.Id.parse(corpusId),
       path,
+      size: content.length,
       content,
       contentHash,
     };
@@ -189,6 +215,7 @@ export namespace Note {
   export const ListItem = z.object({
     id: Id,
     path: z.string(),
+    size: z.number(),
   });
   export type ListItem = z.infer<typeof ListItem>;
 
@@ -196,11 +223,13 @@ export namespace Note {
     .object({
       id: z.number(),
       path: z.string(),
+      size: z.number(),
     })
     .transform(
       (r): ListItem => ({
         id: Id.parse(r.id),
         path: r.path,
+        size: r.size,
       }),
     );
 
@@ -288,6 +317,8 @@ export namespace Note {
       const db = Store.ensure();
       const corpus = Corpus.get({ id: input.corpus });
 
+      assertNonEmptyContent(input.path, input.content);
+
       const hash = getHash(input.content);
       checkDupe(corpus.id, hash, input.dupe);
 
@@ -323,7 +354,9 @@ export namespace Note {
           db.run(Sql.DELETE_EMBEDDINGS_BY_NOTE, [id]);
         })();
 
-        const updated = db.prepare(Sql.UPDATE_NOTE).get("", "", Date.now(), id);
+        const updated = db
+          .prepare(Sql.UPDATE_NOTE)
+          .get("", 0, "", Date.now(), id);
         const info = Row.parse(updated);
 
         await Store.ftsApply({ del: [id] });
@@ -353,7 +386,7 @@ export namespace Note {
 
       const updated = db
         .prepare(Sql.UPDATE_NOTE)
-        .get(content, hash, Date.now(), id);
+        .get(content, content.length, hash, Date.now(), id);
 
       await Store.ftsApply({ upsert: [{ id, content }] });
 

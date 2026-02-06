@@ -27,6 +27,10 @@ export namespace Bus {
     return () => subscriptions.delete(subscription);
   }
 
+  export function subscriptionCount(): number {
+    return subscriptions.size;
+  }
+
   export async function publish(event: EventUnion) {
     for (const subscription of subscriptions) {
       await subscription(event);

@@ -28,6 +28,7 @@
     "@spall/core": "workspace:*",
     "@spall/integration": "workspace:*",
     "@spall/tui": "workspace:*",
+    "@spall/tui-db": "workspace:*",
     "@spall/sdk": "workspace:*",
     "consola": "catalog:",
     "diff": "^8.0.3",

@@ -63,6 +63,16 @@ describe("Note duplication rules", () => {
     ).rejects.toThrow(/Duplicate content/);
   });
 
+  test("add rejects empty content", async () => {
+    await expect(
+      Note.add({
+        corpus: CORPUS_ID,
+        path: "empty.md",
+        content: "",
+      }),
+    ).rejects.toThrow(/cannot be empty/i);
+  });
+
   test("add allows duplicates with dupe but not same path", async () => {
     await Note.add({
       corpus: CORPUS_ID,
@@ -135,6 +145,16 @@ describe("Note duplication rules", () => {
       dupe: true,
     });
   });
+
+  test("upsert rejects empty content on insert", async () => {
+    await expect(
+      Note.upsert({
+        corpus: CORPUS_ID,
+        path: "new-empty.md",
+        content: "",
+      }),
+    ).rejects.toThrow(/cannot be empty/i);
+  });
 });
 
 describe("Note.listByPath defaults", () => {
@@ -182,6 +202,7 @@ describe("Note.listByPath defaults", () => {
 
     const page = Note.listByPath({ corpus: CORPUS_ID });
     expect(page.notes).toHaveLength(2);
+    expect(page.notes.map((n) => n.size).sort((a, b) => a - b)).toEqual([4, 5]);
   });
 });
 
@@ -286,5 +307,44 @@ describe("Note index", () => {
     expect(Note.get({ corpus: CORPUS_ID, path: "outside.md" }).content).toBe(
       "outside",
     );
+  });
+
+  test("sync skips empty files and keeps syncing others", async () => {
+    const root = join(tmpDir, "import");
+    const source = join(root, "foo");
+    mkdirSync(source, { recursive: true });
+    writeFileSync(join(source, "a.md"), "alpha");
+    writeFileSync(join(source, "empty.md"), "");
+
+    await Note.sync({ directory: source, corpus: CORPUS_ID });
+
+    const prefix = toPrefix(source);
+    expect(
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/a.md` }).content,
+    ).toBe("alpha");
+    expect(() =>
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/empty.md` }),
+    ).toThrow(/not found/i);
+  });
+
+  test("sync removes an existing note when file becomes empty", async () => {
+    const root = join(tmpDir, "import");
+    const source = join(root, "foo");
+    mkdirSync(source, { recursive: true });
+    const file = join(source, "a.md");
+    writeFileSync(file, "alpha");
+
+    await Note.sync({ directory: source, corpus: CORPUS_ID });
+
+    writeFileSync(file, "");
+    const bump = new Date(Date.now() + 2000);
+    utimesSync(file, bump, bump);
+
+    await Note.sync({ directory: source, corpus: CORPUS_ID });
+
+    const prefix = toPrefix(source);
+    expect(() =>
+      Note.get({ corpus: CORPUS_ID, path: `${prefix}/a.md` }),
+    ).toThrow(/not found/i);
   });
 });

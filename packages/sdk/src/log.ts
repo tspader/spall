@@ -1,5 +1,5 @@
 import { mkdirSync, appendFileSync } from "fs";
-import { join } from "path";
+import { dirname, join } from "path";
 import { Config } from "@spall/core/config";
 
 /**
@@ -30,11 +30,24 @@ export namespace ServerLog {
     appPath = join(dir, "app.log");
   }
 
+  function safeAppend(path: string, line: string): void {
+    try {
+      appendFileSync(path, line + "\n");
+    } catch {
+      try {
+        mkdirSync(dirname(path), { recursive: true });
+        appendFileSync(path, line + "\n");
+      } catch {
+        // Best-effort logging should never crash server/tests.
+      }
+    }
+  }
+
   /** Write a bus event to events.log as JSONL. */
   export function event(e: { tag: string; [k: string]: unknown }): void {
     if (!dir) return;
     const line = JSON.stringify({ ts: ts(), ...e });
-    appendFileSync(eventsPath, line + "\n");
+    safeAppend(eventsPath, line);
   }
 
   /** Write an error to events.log. */
@@ -45,7 +58,7 @@ export namespace ServerLog {
         ? { message: err.message, stack: err.stack }
         : { message: String(err) };
     const line = JSON.stringify({ ts: ts(), tag: "error", ...message });
-    appendFileSync(eventsPath, line + "\n");
+    safeAppend(eventsPath, line);
   }
 
   const ANSI_RE = /\x1b\[[0-9;]*m/g;
@@ -54,7 +67,7 @@ export namespace ServerLog {
   export function appLog(message: string, ...rest: string[]): void {
     if (!dir) return;
     const raw = `${ts()} ${message} ${rest.join(" ")}`.trimEnd();
-    appendFileSync(appPath, raw.replace(ANSI_RE, "") + "\n");
+    safeAppend(appPath, raw.replace(ANSI_RE, ""));
   }
 
   /** Returns the log directory path, or null if not initialized. */

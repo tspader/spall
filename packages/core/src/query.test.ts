@@ -152,6 +152,9 @@ describe("Query", () => {
 
       expect(res.results).toHaveLength(1);
       expect(res.results[0]!.path).toBe("a.md");
+      expect(res.results[0]!.size).toBe(
+        "We do not use foo.bar here. Always use baz_qux instead.".length,
+      );
       const snip = res.results[0]!.snippet.toLowerCase();
       expect(snip).toContain("foo");
       expect(snip).toContain("bar");
@@ -529,6 +532,7 @@ describe("Query.vsearch", () => {
 
     expect(res.results.length).toBeGreaterThan(0);
     expect(res.results[0]!.path).toBe("auth.md");
+    expect(res.results[0]!.size).toBe(CORPUS[0]!.content.length);
     expect(res.results[0]!.score).toBeGreaterThan(0);
   });
 

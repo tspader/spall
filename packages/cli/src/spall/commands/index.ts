@@ -11,5 +11,6 @@ export { list } from "./list";
 export { search } from "./search";
 export { sync } from "./sync";
 export { tui } from "./tui";
+export { tuiDb } from "./tui-db";
 export { vsearch } from "./vsearch";
 export { status } from "./status";

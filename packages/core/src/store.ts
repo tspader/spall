@@ -111,6 +111,20 @@ export namespace Store {
     database.run("PRAGMA foreign_keys = ON");
   }
 
+  function ensureNotesSize(database: Database): void {
+    database.run(Sql.CREATE_NOTES_TABLE);
+
+    const columns = database.prepare("PRAGMA table_info(notes)").all() as {
+      name: string;
+    }[];
+    const hasSize = columns.some((column) => column.name === "size");
+
+    if (!hasSize) {
+      database.run(Sql.ADD_NOTES_SIZE_COLUMN);
+      database.run(Sql.BACKFILL_NOTES_SIZE);
+    }
+  }
+
   export function path(): string {
     return join(Config.get().dirs.data, DB_NAME);
   }
@@ -135,6 +149,8 @@ export namespace Store {
     if (dbExists) {
       db = new Database(dbPath);
       configure(db);
+
+      ensureNotesSize(db);
 
       // Keep newer tables available even if the DB already exists.
       db.run(Sql.CREATE_WORKSPACES_TABLE);
@@ -257,8 +273,12 @@ export namespace Store {
   }
 
   export async function chunk(text: string): Promise<Chunk[]> {
+    if (text.length === 0) return [];
+
     const allTokens = await Model.tokenize(text);
     const totalTokens = allTokens.length;
+
+    if (totalTokens === 0) return [];
 
     if (totalTokens <= CHUNK_TOKENS) {
       return [{ text, pos: 0 }];
@@ -463,11 +483,36 @@ export namespace Store {
       seen.add(path);
 
       const meta = Io.get(dir, file);
-      const absPath = join(dir, file);
-      const hash = getHash(absPath);
       let status: FileStatus;
 
       const note = rows.get(path);
+
+      if (meta.size === 0) {
+        if (note) {
+          db.transaction(() => {
+            statements.delete.vectors.run(note.id);
+            statements.delete.embeddings.run(note.id);
+            statements.delete.note.run(note.id);
+          })();
+
+          ftsDelete.push(note.id);
+          removed.push(path);
+          status = "removed";
+        } else {
+          status = "ok";
+        }
+
+        await Bus.publish({
+          tag: "scan.progress",
+          path,
+          status,
+        });
+        continue;
+      }
+
+      const absPath = join(dir, file);
+      const hash = getHash(absPath);
+
       if (!note) {
         // if it's not in the db, it's new
         const content = Io.read(dir, file);
@@ -478,6 +523,7 @@ export namespace Store {
           corpusId,
           path,
           content,
+          content.length,
           hash,
           meta.modTime,
         ) as { id: number };
@@ -504,6 +550,7 @@ export namespace Store {
 
           const updated = statements.updateNote.get(
             content,
+            content.length,
             hash,
             meta.modTime,
             note.id,

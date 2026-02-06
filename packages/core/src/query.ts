@@ -25,6 +25,7 @@ export namespace Query {
     id: Note.Id,
     corpus: Corpus.Id,
     path: z.string(),
+    size: z.number(),
     snippet: z.string(),
     score: z.number(),
   });
@@ -39,6 +40,7 @@ export namespace Query {
     id: Note.Id,
     corpus: Corpus.Id,
     path: z.string(),
+    size: z.number(),
     chunk: z.string(),
     chunkPos: z.number(),
     score: z.number(),
@@ -184,6 +186,7 @@ export namespace Query {
       id: z.number(),
       corpus_id: z.number(),
       path: z.string(),
+      size: z.number(),
       snippet: z.string(),
       score: z.number(),
     })
@@ -192,6 +195,7 @@ export namespace Query {
         id: Note.Id.parse(r.id),
         corpus: Corpus.Id.parse(r.corpus_id),
         path: r.path,
+        size: r.size,
         snippet: r.snippet,
         score: r.score,
       }),
@@ -238,6 +242,7 @@ export namespace Query {
     note_id: number;
     corpus_id: number;
     path: string;
+    size: number;
     content: string;
     chunk_pos: number;
     distance: number;
@@ -276,6 +281,7 @@ export namespace Query {
           id: Note.Id.parse(row.note_id),
           corpus: Corpus.Id.parse(row.corpus_id),
           path: row.path,
+          size: row.size,
           chunk: extractChunk(row.content, row.chunk_pos),
           chunkPos: row.chunk_pos,
           score: 1 - row.distance,

@@ -36,12 +36,37 @@ function parseNumberEnv(value: string | undefined): number | undefined {
 }
 
 export namespace Server {
-  let server: Bun.Server;
+  let server: Bun.Server | null = null;
   let persist = false;
   let activeRequests = 0;
   let timer: Timer;
   let idleTimeoutMs = 1000;
-  let resolved: () => void;
+  let resolved: (() => void) | null = null;
+  let unsubscribeBus: (() => void) | null = null;
+  let processHandlersInstalled = false;
+
+  function installProcessHandlers(): void {
+    if (processHandlersInstalled) return;
+    processHandlersInstalled = true;
+
+    process.once("SIGINT", () => {
+      consola.info(`Received ${pc.gray("SIGINT")}`);
+      stop();
+    });
+    process.once("SIGTERM", () => {
+      consola.info(`Received ${pc.gray("SIGTERM")}`);
+      stop();
+    });
+
+    process.on("uncaughtException", (err) => {
+      ServerLog.error(err);
+      consola.error("Uncaught exception:", err);
+    });
+    process.on("unhandledRejection", (err) => {
+      ServerLog.error(err);
+      consola.error("Unhandled rejection:", err);
+    });
+  }
 
   export type Options = {
     persist: boolean;
@@ -64,6 +89,10 @@ export namespace Server {
     export function untrack(): void {
       count--;
       clearTimeout(timer);
+    }
+
+    export function reset(): void {
+      count = 0;
     }
   }
 
@@ -204,23 +233,7 @@ export namespace Server {
     Lock.update(port);
     ServerLog.init(port);
 
-    process.once("SIGINT", () => {
-      consola.info(`Received ${pc.gray("SIGINT")}`);
-      stop();
-    });
-    process.once("SIGTERM", () => {
-      consola.info(`Received ${pc.gray("SIGTERM")}`);
-      stop();
-    });
-
-    process.on("uncaughtException", (err) => {
-      ServerLog.error(err);
-      consola.error("Uncaught exception:", err);
-    });
-    process.on("unhandledRejection", (err) => {
-      ServerLog.error(err);
-      consola.error("Unhandled rejection:", err);
-    });
+    installProcessHandlers();
 
     resetShutdownTimer();
 
@@ -228,7 +241,8 @@ export namespace Server {
       resolved = resolve;
     });
 
-    Bus.subscribe((event: EventUnion) => {
+    unsubscribeBus?.();
+    unsubscribeBus = Bus.subscribe((event: EventUnion) => {
       consola.info(`${pc.gray(event.tag)} ${render(event)}`);
       ServerLog.event(event);
     });
@@ -240,13 +254,19 @@ export namespace Server {
   }
 
   export function stop(): void {
+    if (!server) return;
     consola.info("Stopping server");
     server.stop();
+    server = null;
+    Sse.reset();
+    unsubscribeBus?.();
+    unsubscribeBus = null;
     // Only remove lock if we still own it (--force may have overwritten it)
     const lock = Lock.read();
     if (lock && lock.pid === process.pid) {
       Lock.remove();
     }
-    resolved();
+    resolved?.();
+    resolved = null;
   }
 }

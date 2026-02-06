@@ -28,6 +28,7 @@ export namespace Sql {
       n.id,
       n.corpus_id,
       n.path,
+      n.size,
       snippet(notes_fts, 0, char(1), char(2), ' ... ', 16) AS snippet,
       2.0 * (1.0 / (1.0 + exp(bm25(notes_fts) * 0.3))) - 1.0 AS score
     FROM notes_fts
@@ -71,11 +72,20 @@ export namespace Sql {
       corpus_id INTEGER NOT NULL,
       path TEXT NOT NULL,
       content TEXT NOT NULL,
+      size INTEGER NOT NULL,
       content_hash TEXT NOT NULL,
       mtime INTEGER NOT NULL,
       FOREIGN KEY (corpus_id) REFERENCES corpora(id),
       UNIQUE (corpus_id, path)
     )
+  `;
+
+  export const ADD_NOTES_SIZE_COLUMN = `
+    ALTER TABLE notes ADD COLUMN size INTEGER NOT NULL DEFAULT 0
+  `;
+
+  export const BACKFILL_NOTES_SIZE = `
+    UPDATE notes SET size = length(content)
   `;
 
   export const CREATE_EMBEDDINGS_TABLE = `
@@ -135,6 +145,7 @@ export namespace Sql {
       n.id AS note_id,
       n.corpus_id,
       n.path,
+      n.size,
       n.content,
       e.pos AS chunk_pos,
       vectors.distance
@@ -175,15 +186,15 @@ export namespace Sql {
   `;
 
   export const INSERT_NOTE = `
-    INSERT INTO notes (corpus_id, path, content, content_hash, mtime) VALUES (?, ?, ?, ?, ?) RETURNING id
+    INSERT INTO notes (corpus_id, path, content, size, content_hash, mtime) VALUES (?, ?, ?, ?, ?, ?) RETURNING id
   `;
 
   export const GET_NOTE_BY_HASH = `
-    SELECT id, corpus_id, path, content, content_hash, mtime FROM notes WHERE corpus_id = ? AND content_hash = ?
+    SELECT id, corpus_id, path, content, size, content_hash, mtime FROM notes WHERE corpus_id = ? AND content_hash = ?
   `;
 
   export const GET_NOTE = `
-    SELECT id, corpus_id, path, content, content_hash, mtime FROM notes WHERE id = ?
+    SELECT id, corpus_id, path, content, size, content_hash, mtime FROM notes WHERE id = ?
   `;
 
   export const GET_WORKSPACE_BY_NAME = `
@@ -203,11 +214,11 @@ export namespace Sql {
   `;
 
   export const GET_NOTE_BY_PATH = `
-    SELECT id, corpus_id, path, content, content_hash, mtime FROM notes WHERE corpus_id = ? AND path = ?
+    SELECT id, corpus_id, path, content, size, content_hash, mtime FROM notes WHERE corpus_id = ? AND path = ?
   `;
 
   export const LIST_NOTES = `
-    SELECT id, path FROM notes WHERE corpus_id = ?
+    SELECT id, path, size FROM notes WHERE corpus_id = ?
   `;
 
   export const LIST_NOTES_FOR_CORPUS_PREFIX = `
@@ -242,7 +253,7 @@ export namespace Sql {
   `;
 
   export const UPDATE_NOTE = `
-    UPDATE notes SET content = ?, content_hash = ?, mtime = ? WHERE id = ? RETURNING id, corpus_id, path, content, content_hash
+    UPDATE notes SET content = ?, size = ?, content_hash = ?, mtime = ? WHERE id = ? RETURNING id, corpus_id, path, content, size, content_hash
   `;
 
   export const UPDATE_NOTE_MTIME = `
@@ -266,7 +277,7 @@ export namespace Sql {
   `;
 
   export const LIST_NOTES_PAGINATED = `
-    SELECT id, corpus_id, path, content, content_hash
+    SELECT id, corpus_id, path, content, size, content_hash
     FROM notes
     WHERE corpus_id = ? AND path GLOB ? AND path > ?
     ORDER BY path
@@ -324,13 +335,13 @@ export namespace Sql {
   `;
 
   export const GET_NOTES_BY_IDS = `
-    SELECT id, corpus_id, path, content, content_hash
+    SELECT id, corpus_id, path, content, size, content_hash
     FROM notes
     WHERE id IN (SELECT value FROM json_each(?))
   `;
 
   export const LIST_QUERY_NOTES_PAGINATED = `
-    SELECT id, corpus_id, path, content, content_hash
+    SELECT id, corpus_id, path, content, size, content_hash
     FROM notes
     WHERE corpus_id IN (SELECT value FROM json_each(?))
       AND path GLOB ?

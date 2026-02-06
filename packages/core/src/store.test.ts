@@ -1,6 +1,9 @@
 import { describe, test, expect } from "bun:test";
-import { mkdirSync, writeFileSync, rmSync } from "fs";
+import { Database } from "bun:sqlite";
+import { mkdirSync, writeFileSync, rmSync, mkdtempSync } from "fs";
+import { tmpdir } from "os";
 import { join } from "path";
+import { Config } from "./config";
 import { Store } from "./store";
 import { Sql } from "./sql";
 import {
@@ -11,12 +14,68 @@ import {
 } from "./harness";
 import { Io } from "./io";
 
+describe("Store schema migration", () => {
+  test("ensure adds notes.size and backfills existing rows", () => {
+    const tmpDir = mkdtempSync(join(tmpdir(), "spall-migrate-test-"));
+    Config.reset();
+    Config.set({
+      dirs: { cache: tmpDir, data: tmpDir },
+      models: { embedding: "", reranker: "" },
+    });
+
+    const dbPath = join(tmpDir, "spall.db");
+    const legacy = new Database(dbPath);
+    legacy.run(`
+      CREATE TABLE corpora (
+        id INTEGER PRIMARY KEY,
+        name TEXT NOT NULL UNIQUE,
+        created_at INTEGER NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    legacy.run(`
+      CREATE TABLE notes (
+        id INTEGER PRIMARY KEY,
+        corpus_id INTEGER NOT NULL,
+        path TEXT NOT NULL,
+        content TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        mtime INTEGER NOT NULL,
+        FOREIGN KEY (corpus_id) REFERENCES corpora(id),
+        UNIQUE (corpus_id, path)
+      )
+    `);
+    legacy.run(
+      "INSERT INTO corpora (id, name, created_at, updated_at) VALUES (1, 'default', 0, 0)",
+    );
+    legacy.run(
+      "INSERT INTO notes (corpus_id, path, content, content_hash, mtime) VALUES (1, 'a.md', 'alpha', 'hash', 0)",
+    );
+    legacy.close();
+
+    try {
+      Store.ensure();
+      const db = Store.get();
+      const row = db
+        .prepare("SELECT size FROM notes WHERE path = ?")
+        .get("a.md") as {
+        size: number;
+      };
+      expect(row.size).toBe(5);
+    } finally {
+      Store.close();
+      Config.reset();
+      rmSync(tmpDir, { recursive: true });
+    }
+  });
+});
+
 describe("Store embeddings integration", () => {
   test("saveNoteEmbeddings stores vectors keyed by embedding id", () => {
     return withTempSpallEnv(({ db }) => {
       const inserted = db
         .prepare(Sql.INSERT_NOTE)
-        .get(1, "hello.md", "hello", "hash", Date.now()) as { id: number };
+        .get(1, "hello.md", "hello", 5, "hash", Date.now()) as { id: number };
 
       const vectors = [
         new Array(Sql.EMBEDDING_DIMS).fill(0.1),
@@ -60,7 +119,7 @@ describe("Store embeddings integration", () => {
     return withTempSpallEnv(({ db }) => {
       const inserted = db
         .prepare(Sql.INSERT_NOTE)
-        .get(1, "hello.md", "hello", "hash", Date.now()) as { id: number };
+        .get(1, "hello.md", "hello", 5, "hash", Date.now()) as { id: number };
 
       Store.saveEmbeddings(
         inserted.id,
@@ -88,7 +147,6 @@ describe("Store embeddings integration", () => {
       expect(count(db, "vectors")).toBe(1);
     });
   });
-
 });
 
 describe("embedFiles clears old vectors on re-embed", () => {

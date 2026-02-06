@@ -28,6 +28,7 @@
     { "path": "packages/cli" },
     { "path": "packages/integration" },
     { "path": "packages/tui" },
+    { "path": "packages/tui-db" },
     { "path": "packages/sdk" }
   ]
 }
