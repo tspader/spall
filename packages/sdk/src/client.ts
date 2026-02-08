@@ -1,13 +1,21 @@
 import { createClient } from "./gen/client/client.gen";
 import { SpallClient } from "./gen/sdk.gen";
 import { ensure } from "./lock";
+import { Config } from "@spall/core/config";
 
 export { SpallClient };
 
 export * from "./gen/types.gen";
 
+const URL_KEY = Symbol.for("spall.client.url");
+
 type TaggedEvent = { tag: string };
 export namespace Client {
+  /** Get the base URL a client was connected to. */
+  export function url(client: SpallClient): string {
+    return (client as any)[URL_KEY];
+  }
+
   export function unwrap<T>(
     result: { data?: T; error?: unknown } | undefined,
   ): T {
@@ -18,13 +26,28 @@ export namespace Client {
   }
 
   export async function connect(signal?: AbortSignal): Promise<SpallClient> {
+    const remoteUrl = Config.get().server.url;
+    if (remoteUrl) {
+      try {
+        const res = await fetch(`${remoteUrl}/health`, { signal });
+        if (!res.ok) throw new Error(`Remote server returned ${res.status}`);
+      } catch (err: any) {
+        throw new Error(
+          `Cannot reach remote server at ${remoteUrl}: ${err?.message ?? err}`,
+        );
+      }
+      return attach(remoteUrl, signal);
+    }
+
     const url = await ensure();
     return attach(url, signal);
   }
 
   export function attach(url: string, signal?: AbortSignal): SpallClient {
     const client = createClient({ baseUrl: url, signal });
-    return new SpallClient({ client });
+    const spall = new SpallClient({ client });
+    (spall as any)[URL_KEY] = url;
+    return spall;
   }
 
   // consume an SSE stream until you see the event you want; useful for

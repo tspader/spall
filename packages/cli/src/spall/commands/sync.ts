@@ -304,7 +304,7 @@ export const sync: CommandDef = {
       })();
 
       let scanTotal = 0;
-      const scanCounts = { added: 0, modified: 0, removed: 0, ok: 0 };
+      let scanProcessed = 0;
       let scanProgress: prompts.ProgressResult | null = null;
       let embedTotalBytes = 0;
       let embedTotalFiles = 0;
@@ -347,21 +347,13 @@ export const sync: CommandDef = {
             );
             break;
           case "scan.progress": {
-            const status = event.status as keyof typeof scanCounts;
-            if (status in scanCounts) scanCounts[status]++;
-
-            const scanned =
-              scanCounts.added +
-              scanCounts.modified +
-              scanCounts.removed +
-              scanCounts.ok;
-            scanProgress?.advance(1, `Scanning ${scanned}/${scanTotal}`);
-
+            scanProcessed++;
+            scanProgress?.advance(1, `Scanning ${scanProcessed}/${scanTotal}`);
             break;
           }
           case "scan.done":
             scanProgress?.stop(
-              `Scan done (added: ${scanCounts.added}, modified: ${scanCounts.modified}, removed: ${scanCounts.removed}, ok: ${scanCounts.ok})`,
+              `Scan done (added: ${event.added}, modified: ${event.modified}, removed: ${event.removed}, ok: ${event.ok})`,
             );
             scanProgress = null;
             break;

@@ -13,6 +13,7 @@ import {
   touch,
 } from "./harness";
 import { Io } from "./io";
+import { Bus } from "./event";
 
 describe("Store schema migration", () => {
   test("ensure adds notes.size and backfills existing rows", () => {
@@ -324,6 +325,272 @@ describe("embedFiles clears old vectors on re-embed", () => {
       } finally {
         unpatchModel();
       }
+    });
+  });
+});
+
+describe("scan progress events", () => {
+  type ScanEvent = { tag: string; [k: string]: any };
+
+  function collectEvents(fn: () => Promise<void>): Promise<ScanEvent[]> {
+    return new Promise(async (resolve) => {
+      const events: ScanEvent[] = [];
+      const unsub = Bus.subscribe((e) => {
+        const ev = e as ScanEvent;
+        if (ev.tag?.startsWith("scan.")) events.push(ev);
+      });
+      try {
+        await fn();
+      } finally {
+        unsub();
+      }
+      resolve(events);
+    });
+  }
+
+  test("scan.progress is emitted for every file including unchanged", async () => {
+    await withTempSpallEnv(async ({ tmpDir }) => {
+      const sourceDir = join(tmpDir, "source");
+      mkdirSync(sourceDir, { recursive: true });
+      writeFileSync(join(sourceDir, "a.md"), "alpha");
+      writeFileSync(join(sourceDir, "b.md"), "beta");
+
+      // First scan — both files are new
+      await Store.scan(sourceDir, "**/*.md", 1, "prefix");
+
+      Io.clear();
+
+      // Second scan — both files unchanged
+      const events = await collectEvents(() =>
+        Store.scan(sourceDir, "**/*.md", 1, "prefix").then(() => {}),
+      );
+
+      const start = events.find((e) => e.tag === "scan.start");
+      expect(start).toBeDefined();
+      expect(start!.numFiles).toBe(2);
+
+      const progress = events.filter((e) => e.tag === "scan.progress");
+      expect(progress).toHaveLength(2);
+      expect(progress.every((e) => e.status === "ok")).toBe(true);
+
+      const done = events.find((e) => e.tag === "scan.done");
+      expect(done).toBeDefined();
+      expect(done!.ok).toBe(2);
+      expect(done!.added).toBe(0);
+    });
+  });
+
+  test("scan.done includes accurate counts for all statuses", async () => {
+    await withTempSpallEnv(async ({ tmpDir }) => {
+      const sourceDir = join(tmpDir, "source");
+      mkdirSync(sourceDir, { recursive: true });
+      writeFileSync(join(sourceDir, "a.md"), "alpha");
+      writeFileSync(join(sourceDir, "b.md"), "beta");
+      writeFileSync(join(sourceDir, "c.md"), "gamma");
+
+      await Store.scan(sourceDir, "**/*.md", 1, "prefix");
+      Io.clear();
+
+      // Modify b, delete c, keep a unchanged
+      writeFileSync(join(sourceDir, "b.md"), "beta-modified");
+      const bump = new Date(Date.now() + 2000);
+      require("fs").utimesSync(join(sourceDir, "b.md"), bump, bump);
+      rmSync(join(sourceDir, "c.md"));
+      Io.clear();
+
+      const events = await collectEvents(() =>
+        Store.scan(sourceDir, "**/*.md", 1, "prefix").then(() => {}),
+      );
+
+      const done = events.find((e) => e.tag === "scan.done");
+      expect(done).toBeDefined();
+      expect(done!.added).toBe(0);
+      expect(done!.modified).toBe(1);
+      expect(done!.removed).toBe(1);
+      expect(done!.ok).toBe(1);
+    });
+  });
+
+  test("orphan removal does not emit scan.progress", async () => {
+    await withTempSpallEnv(async ({ tmpDir }) => {
+      const sourceDir = join(tmpDir, "source");
+      mkdirSync(sourceDir, { recursive: true });
+      writeFileSync(join(sourceDir, "a.md"), "alpha");
+      writeFileSync(join(sourceDir, "b.md"), "beta");
+      writeFileSync(join(sourceDir, "c.md"), "gamma");
+
+      // Scan and index all three
+      await Store.scan(sourceDir, "**/*.md", 1, "prefix");
+      Io.clear();
+
+      // Delete b and c from disk — creates two orphans
+      rmSync(join(sourceDir, "b.md"));
+      rmSync(join(sourceDir, "c.md"));
+      Io.clear();
+
+      const events = await collectEvents(() =>
+        Store.scan(sourceDir, "**/*.md", 1, "prefix").then(() => {}),
+      );
+
+      const start = events.find((e) => e.tag === "scan.start");
+      const progress = events.filter((e) => e.tag === "scan.progress");
+
+      // scan.start should report 1 (only the file on disk)
+      expect(start!.numFiles).toBe(1);
+
+      // There should be exactly 1 progress event (for a.md on disk),
+      // NOT 3 (which would happen if orphan removals also emitted progress).
+      expect(progress).toHaveLength(1);
+      expect(progress[0]!.status).toBe("ok");
+    });
+  });
+});
+
+describe("scan glob scoping", () => {
+  test("syncing one subdirectory glob does not delete notes from sibling subdirectory", async () => {
+    await withTempSpallEnv(async ({ tmpDir, db }) => {
+      // Single parent dir with two subdirectories, shared prefix
+      const parentDir = join(tmpDir, "docs");
+      mkdirSync(join(parentDir, "watchkit"), { recursive: true });
+      mkdirSync(join(parentDir, "appkit"), { recursive: true });
+
+      writeFileSync(join(parentDir, "watchkit", "a.md"), "watchkit alpha");
+      writeFileSync(join(parentDir, "watchkit", "b.md"), "watchkit beta");
+      writeFileSync(join(parentDir, "appkit", "x.md"), "appkit x");
+
+      // First sync: import watchkit via glob filter on shared parent
+      await Store.scan(parentDir, "watchkit/**/*.md", 1, "docs");
+      expect(count(db, "notes")).toBe(2);
+
+      Io.clear();
+
+      // Second sync: import appkit via glob filter on same parent + prefix
+      // This must NOT delete the watchkit notes
+      await Store.scan(parentDir, "appkit/**/*.md", 1, "docs");
+      expect(count(db, "notes")).toBe(3);
+
+      const paths = db
+        .prepare("SELECT path FROM notes WHERE corpus_id = 1 ORDER BY path")
+        .all() as { path: string }[];
+      expect(paths.map((r) => r.path)).toEqual([
+        "docs/appkit/x.md",
+        "docs/watchkit/a.md",
+        "docs/watchkit/b.md",
+      ]);
+    });
+  });
+
+  test("syncing parent dir with glob filter does not delete notes outside glob", async () => {
+    await withTempSpallEnv(async ({ tmpDir, db }) => {
+      const parentDir = join(tmpDir, "apple");
+      mkdirSync(join(parentDir, "watchkit"), { recursive: true });
+      mkdirSync(join(parentDir, "appkit"), { recursive: true });
+
+      writeFileSync(join(parentDir, "watchkit", "a.md"), "watchkit alpha");
+      writeFileSync(join(parentDir, "appkit", "x.md"), "appkit x");
+
+      // Sync all docs under "apple" prefix first
+      await Store.scan(parentDir, "**/*.md", 1, "apple");
+      expect(count(db, "notes")).toBe(2);
+
+      Io.clear();
+
+      // Now re-sync with a glob that only matches watchkit
+      const result = await Store.scan(
+        parentDir,
+        "watchkit/**/*.md",
+        1,
+        "apple",
+      );
+
+      // appkit notes must NOT be deleted even though they're under "apple" prefix
+      expect(count(db, "notes")).toBe(2);
+      expect(result.removed).toHaveLength(0);
+
+      const paths = db
+        .prepare("SELECT path FROM notes WHERE corpus_id = 1 ORDER BY path")
+        .all() as { path: string }[];
+      expect(paths.map((r) => r.path)).toEqual([
+        "apple/appkit/x.md",
+        "apple/watchkit/a.md",
+      ]);
+    });
+  });
+
+  test("orphan deletion still works within glob scope", async () => {
+    await withTempSpallEnv(async ({ tmpDir, db }) => {
+      const parentDir = join(tmpDir, "apple");
+      mkdirSync(join(parentDir, "watchkit"), { recursive: true });
+      mkdirSync(join(parentDir, "appkit"), { recursive: true });
+
+      writeFileSync(join(parentDir, "watchkit", "a.md"), "watchkit alpha");
+      writeFileSync(join(parentDir, "watchkit", "b.md"), "watchkit beta");
+      writeFileSync(join(parentDir, "appkit", "x.md"), "appkit x");
+
+      // Sync everything
+      await Store.scan(parentDir, "**/*.md", 1, "apple");
+      expect(count(db, "notes")).toBe(3);
+
+      // Delete a watchkit file from disk
+      rmSync(join(parentDir, "watchkit", "b.md"));
+      Io.clear();
+
+      // Re-sync with watchkit-only glob — b.md should be removed, appkit untouched
+      const result = await Store.scan(
+        parentDir,
+        "watchkit/**/*.md",
+        1,
+        "apple",
+      );
+
+      expect(result.removed).toHaveLength(1);
+      expect(result.removed[0]).toBe("apple/watchkit/b.md");
+      expect(count(db, "notes")).toBe(2);
+
+      const paths = db
+        .prepare("SELECT path FROM notes WHERE corpus_id = 1 ORDER BY path")
+        .all() as { path: string }[];
+      expect(paths.map((r) => r.path)).toEqual([
+        "apple/appkit/x.md",
+        "apple/watchkit/a.md",
+      ]);
+    });
+  });
+
+  test("re-syncing unchanged files reports correct ok count", async () => {
+    await withTempSpallEnv(async ({ tmpDir }) => {
+      const sourceDir = join(tmpDir, "source");
+      mkdirSync(sourceDir, { recursive: true });
+      writeFileSync(join(sourceDir, "a.md"), "alpha");
+      writeFileSync(join(sourceDir, "b.md"), "beta");
+      writeFileSync(join(sourceDir, "c.md"), "gamma");
+
+      const first = await Store.scan(sourceDir, "**/*.md", 1, "docs");
+      expect(first.added).toHaveLength(3);
+
+      Io.clear();
+
+      const second = await Store.scan(sourceDir, "**/*.md", 1, "docs");
+      expect(second.added).toHaveLength(0);
+      expect(second.modified).toHaveLength(0);
+      expect(second.removed).toHaveLength(0);
+
+      // Verify via events that ok count is correct
+      const events = await (async () => {
+        const evts: { tag: string; [k: string]: any }[] = [];
+        const unsub = Bus.subscribe((e) => {
+          evts.push(e as any);
+        });
+
+        Io.clear();
+        await Store.scan(sourceDir, "**/*.md", 1, "docs");
+
+        unsub();
+        return evts;
+      })();
+
+      const done = events.find((e) => e.tag === "scan.done");
+      expect(done!.ok).toBe(3);
     });
   });
 });

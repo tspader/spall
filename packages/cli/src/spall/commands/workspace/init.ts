@@ -7,7 +7,7 @@ import consola from "consola";
 import { WorkspaceConfig, type WorkspaceConfigSchema } from "@spall/core";
 import { Client } from "@spall/sdk/client";
 
-import { gitRoot, type CommandDef } from "@spall/cli/shared";
+import { type CommandDef } from "@spall/cli/shared";
 
 export const init: CommandDef = {
   description: "Initialize a workspace in this directory",
@@ -26,8 +26,7 @@ export const init: CommandDef = {
   },
   handler: async (argv) => {
     const cwd = process.cwd();
-    const root =
-      (argv.path as string | undefined) ?? (await gitRoot(cwd)) ?? cwd;
+    const root = (argv.path as string | undefined) ?? cwd;
     const configPath = WorkspaceConfig.path(root);
 
     prompts.intro("Workspace init");

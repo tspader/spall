@@ -16,6 +16,7 @@ export namespace Status {
   };
 
   export type SuccessResult = {
+    url: string;
     corpora: Corpus[];
     included: Set<string>;
   };
@@ -31,6 +32,7 @@ export namespace Status {
 
   export async function run(): Promise<RunResult> {
     const client = await Client.connect();
+    const url = Client.url(client);
     const result = await client.corpus.list();
 
     if (result.error || !result.data) {
@@ -41,11 +43,13 @@ export namespace Status {
     const config = WorkspaceConfig.load(process.cwd());
     const included = new Set(config.scope.read);
 
-    return { corpora, included };
+    return { url, corpora, included };
   }
 
   export function print(result: SuccessResult, opts?: PrintOptions): void {
-    const { corpora, included } = result;
+    const { url, corpora, included } = result;
+
+    console.log(`${theme.dim("server")} ${url}`);
 
     if (corpora.length === 0) {
       console.log("No corpora found.");

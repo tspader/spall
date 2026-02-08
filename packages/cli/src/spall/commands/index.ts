@@ -1,6 +1,5 @@
 export { corpus } from "./corpus";
 export { workspace } from "./workspace";
-export { review } from "./review";
 export { add } from "./add";
 export { commit } from "./commit";
 export { hook } from "./hook";
@@ -11,6 +10,5 @@ export { list } from "./list";
 export { search } from "./search";
 export { sync } from "./sync";
 export { tui } from "./tui";
-export { tuiDb } from "./tui-db";
 export { vsearch } from "./vsearch";
 export { status } from "./status";

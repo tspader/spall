@@ -26,6 +26,12 @@ export const ConfigSchemaZod = z.object({
       ),
   }),
   server: z.object({
+    url: z
+      .string()
+      .optional()
+      .describe(
+        "URL of a remote spall server to connect to instead of spawning a local one (e.g., http://myhost:35757)",
+      ),
     idleTimeout: z
       .number()
       .describe(
@@ -59,6 +65,9 @@ export type PartialConfig = {
   server?: Partial<ConfigSchema["server"]>;
   embedding?: Partial<ConfigSchema["embedding"]>;
 };
+
+// Re-export for convenience
+export type ServerUrl = ConfigSchema["server"]["url"];
 
 export type PartialWorkspaceConfig = {
   workspace?: {
@@ -140,8 +149,15 @@ export namespace Config {
     let fileConfig: PartialConfig = {};
     try {
       const rawConfig = JSON.parse(readFileSync(getConfigPath(), "utf-8"));
-      // Validate the config file using Zod
-      fileConfig = ConfigSchemaZod.partial().parse(rawConfig);
+      // Validate with deeply-partial shapes so users can specify only the
+      // fields they want to override (e.g. just { server: { url: "..." } }).
+      const PartialFileSchema = z.object({
+        dirs: ConfigSchemaZod.shape.dirs.partial().optional(),
+        models: ConfigSchemaZod.shape.models.partial().optional(),
+        server: ConfigSchemaZod.shape.server.partial().optional(),
+        embedding: ConfigSchemaZod.shape.embedding.partial().optional(),
+      });
+      fileConfig = PartialFileSchema.parse(rawConfig);
     } catch {
       // File doesn't exist, invalid JSON, or validation failed - use defaults
     }

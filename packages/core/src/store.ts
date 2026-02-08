@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { Database } from "bun:sqlite";
 import { Glob } from "bun";
-import { mkdirSync, existsSync } from "fs";
+import { mkdirSync, existsSync, statSync } from "fs";
 import { join } from "path";
 import * as sqliteVec from "sqlite-vec";
 import { Bus } from "./event";
@@ -11,6 +11,38 @@ import { Model } from "./model";
 import { Config } from "./config";
 import { Context } from "./context";
 import { Error as SpallError } from "./error";
+
+/**
+ * On macOS, Bun's bundled SQLite is compiled with SQLITE_OMIT_LOAD_EXTENSION,
+ * which prevents loading native extensions like sqlite-vec. We swap it out for
+ * Homebrew's libsqlite3.dylib which supports dynamic extension loading.
+ *
+ * This MUST run before any Database instance is created.
+ */
+function useBrewSQLiteIfNeeded(): void {
+  if (process.platform !== "darwin") return;
+
+  const candidates: string[] = [];
+  const brewPrefix = Bun.env.BREW_PREFIX || Bun.env.HOMEBREW_PREFIX;
+  if (brewPrefix) {
+    candidates.push(`${brewPrefix}/opt/sqlite/lib/libsqlite3.dylib`);
+    candidates.push(`${brewPrefix}/lib/libsqlite3.dylib`);
+  } else {
+    candidates.push("/opt/homebrew/opt/sqlite/lib/libsqlite3.dylib");
+    candidates.push("/usr/local/opt/sqlite/lib/libsqlite3.dylib");
+  }
+
+  for (const candidate of candidates) {
+    try {
+      if (statSync(candidate).size > 0) {
+        Database.setCustomSQLite(candidate);
+        return;
+      }
+    } catch {}
+  }
+}
+
+useBrewSQLiteIfNeeded();
 
 export type Chunk = {
   text: string;
@@ -67,6 +99,10 @@ export namespace Store {
     }),
     Scanned: Bus.define("scan.done", {
       numFiles: z.number(),
+      added: z.number(),
+      modified: z.number(),
+      removed: z.number(),
+      ok: z.number(),
     }),
     Embed: Bus.define("embed.start", {
       numFiles: z.number(),
@@ -107,7 +143,22 @@ export namespace Store {
   const DB_NAME = "spall.db";
 
   function configure(database: Database): void {
-    sqliteVec.load(database);
+    try {
+      sqliteVec.load(database);
+    } catch (err) {
+      if (
+        err instanceof Error &&
+        err.message.includes("does not support dynamic extension loading")
+      ) {
+        throw new Error(
+          "SQLite does not support dynamic extension loading. " +
+            "On macOS, install Homebrew SQLite (`brew install sqlite`) so the " +
+            "sqlite-vec extension can be loaded. Set BREW_PREFIX if Homebrew " +
+            "is installed in a non-standard location.",
+        );
+      }
+      throw err;
+    }
     database.run("PRAGMA foreign_keys = ON");
   }
 
@@ -424,8 +475,6 @@ export namespace Store {
       files.push(file);
     }
 
-    await Bus.publish({ tag: "scan.start", numFiles: files.length });
-
     // find all existing notes which match this path
     const db = get();
 
@@ -451,11 +500,21 @@ export namespace Store {
       ]),
     );
 
+    // Build a glob matcher to determine which note paths fall within the
+    // scope of the current sync.  Only notes whose paths match the glob
+    // (relative to the prefix) are candidates for orphan deletion.
+    // This prevents a filtered sync (e.g. glob "WatchKit/**/*.md") from
+    // deleting notes that belong to other subdirectories under the same prefix.
+    const orphanGlob = new Glob(globPattern);
+
+    await Bus.publish({ tag: "scan.start", numFiles: files.length });
+
     // bucket every note, make sure tables are clean for embedding
     const seen = new Set<string>();
     const added: string[] = [];
     const modified: string[] = [];
     const removed: string[] = [];
+    let okCount = 0;
     const unembedded: number[] = [];
     const ftsUpsert: FtsUpsert[] = [];
     const ftsDelete: number[] = [];
@@ -530,18 +589,15 @@ export namespace Store {
 
         unembedded.push(inserted.id);
         ftsUpsert.push({ id: inserted.id, content });
-      } else {
-        // if it IS in the db, make sure all our tables are up-to-date and that any
-        // stale embeddings are cleared
-        if (note.content_hash == hash) {
-          if (note.mtime !== meta.modTime) {
-            statements.updateMtime.run(meta.modTime, note.id);
-          }
-
-          status = "ok";
-          continue;
+      } else if (note.content_hash == hash) {
+        // content unchanged — just update mtime if needed
+        if (note.mtime !== meta.modTime) {
+          statements.updateMtime.run(meta.modTime, note.id);
         }
-
+        status = "ok";
+        okCount++;
+      } else {
+        // content changed — clear stale embeddings and update
         const content = Io.read(dir, file);
 
         db.transaction(() => {
@@ -572,12 +628,21 @@ export namespace Store {
       });
     }
 
-    // delete anything which was in the db under the path, but not on the fs
+    // delete notes which were in the db under the prefix but no longer on disk.
+    // only consider notes whose paths match the current glob pattern — notes
+    // outside the glob scope belong to a different sync and must be left alone.
     Context.setYield(32);
 
     for (const [path, row] of rows) {
       if (await Context.checkpoint()) throw new CancelledError();
       if (seen.has(path)) continue;
+
+      // Strip the prefix to recover the relative path that would have been
+      // produced by the glob scan, then check if it matches the glob pattern.
+      const relative = canonicalPrefix
+        ? path.slice(canonicalPrefix.length + 1)
+        : path;
+      if (!orphanGlob.match(relative)) continue;
 
       db.transaction(() => {
         statements.delete.vectors.run(row.id);
@@ -588,16 +653,17 @@ export namespace Store {
       ftsDelete.push(row.id);
 
       removed.push(row.path);
-
-      await Bus.publish({
-        tag: "scan.progress",
-        path: row.path,
-        status: "removed",
-      });
     }
 
     // done!
-    await Bus.publish({ tag: "scan.done", numFiles: files.length });
+    await Bus.publish({
+      tag: "scan.done",
+      numFiles: files.length,
+      added: added.length,
+      modified: modified.length,
+      removed: removed.length,
+      ok: okCount,
+    });
 
     await ftsApply({ upsert: ftsUpsert, del: ftsDelete });
 

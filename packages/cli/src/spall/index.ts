@@ -3,7 +3,6 @@ import { build, setActiveCli, type CliDef } from "@spall/cli/shared";
 import {
   corpus,
   workspace,
-  review,
   add,
   commit,
   hook,
@@ -15,7 +14,6 @@ import {
   sync,
   status,
   tui,
-  tuiDb,
   vsearch,
 } from "./commands";
 
@@ -36,7 +34,6 @@ const cliDef: CliDef = {
     corpus,
     serve,
     tui,
-    "tui-db": tuiDb,
     hook,
   },
 };
